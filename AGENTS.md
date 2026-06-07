@@ -1,50 +1,58 @@
 # Agent Notes
 
-This repository contains a SwiftPM macOS SwiftUI app named `FilmChef`.
+Film Chef is a SwiftPM macOS SwiftUI app for film-emulation photo editing. It uses Core Image for rendering and editable JSON recipes for film profiles.
 
-## Build And Run
+## Canonical Commands
 
-Use the project script as the canonical local run path:
+Run the app through the project script:
 
 ```bash
 ./script/build_and_run.sh
 ```
 
-Verification:
+Verify changes with:
 
 ```bash
 ./script/test.sh
-./script/build_and_run.sh --verify
 swift build
 ```
 
+For app-flow, packaging, or resource-bundle changes, also run:
+
+```bash
+./script/build_and_run.sh --verify
+```
+
+`./script/test.sh` is the canonical test command; use it instead of `swift test`.
+
 The run script stages a local `.app` bundle under `dist/`. Do not commit `dist/` or `.build/`.
 
-## App Shape
+## Project Map
 
-- `Package.swift` defines the `FilmChef` app executable and the `FilmChefCoreTests` executable test runner.
+- `Package.swift` defines the `FilmChef` executable and the `FilmChefCoreTests` executable test runner.
 - `Sources/FilmChef/App/FilmChefApp.swift` owns the app entry point and app commands.
-- `Sources/FilmChefCore/Views/ContentView.swift` composes the three-pane layout.
-- `Sources/FilmChefCore/Stores/EditorStore.swift` owns editor state, import/export actions, and preview rendering triggers.
+- `Sources/FilmChefCore/Models/` contains recipe, project, adjustment, and UTType models.
+- `Sources/FilmChefCore/Stores/EditorStore.swift` owns editor state, import/export actions, project state, and preview rendering triggers.
+- `Sources/FilmChefCore/Stores/ProjectStore.swift` handles `.filmchef` project persistence.
 - `Sources/FilmChefCore/Stores/RecipeStore.swift` loads bundled JSON recipes.
 - `Sources/FilmChefCore/Services/ImageProcessor.swift` owns Core Image loading, preview scaling, and export encoding.
 - `Sources/FilmChefCore/Services/FilmPipelineRenderer.swift` owns the profile-driven Core Image rendering stages.
+- `Sources/FilmChefCore/Views/ContentView.swift` composes the native three-pane layout.
+- `Sources/FilmChefCore/Views/` contains sidebar, preview, controls, and histogram/scope UI.
 - `Sources/FilmChefCore/Resources/Recipes/*.json` contains one editable recipe per file.
 - `Tests/FilmChefCoreTests/main.swift` runs focused core tests and coverage through `./script/test.sh`.
-- Use `./script/test.sh` as the canonical test command instead of `swift test`.
 
 ## Editing Guidelines
 
-- Keep the desktop layout native: `NavigationSplitView` sidebar, preview, and inspector-style controls.
-- Prefer small focused Swift files by responsibility. Avoid merging models, stores, services, and views into one file.
-- Recipe changes should normally happen in individual JSON files under `Sources/FilmChefCore/Resources/Recipes/`, not hardcoded Swift.
+- Keep the desktop layout native: `NavigationSplitView` sidebar, center preview, and inspector-style controls.
+- Prefer small Swift files by responsibility. Do not merge models, stores, services, and views into one file.
+- Keep rendering behavior profile-driven through `FilmPipelineRenderer`; avoid hardcoding recipe-specific looks in Swift.
+- Make recipe changes in individual JSON files under `Sources/FilmChefCore/Resources/Recipes/`.
 - If the JSON schema changes, update `FilmRecipe.swift`, `RecipeStore.swift`, and `README.md` together.
+- Preserve non-destructive editing behavior for adjustments, snapshots, variants, masks, and project persistence.
 - Keep generated artifacts out of source control. `.gitignore` already excludes `.build/` and `dist/`.
-- After Swift edits, run `./script/test.sh` and `swift build`. After app flow or resource-bundle edits, also run `./script/build_and_run.sh --verify`.
-
-## Commit Style
-
-Use conventional commits for commit messages, such as `feat: add recipe import`, `fix: handle missing recipe JSON`, or `docs: update agent notes`.
+- After Swift edits, run `./script/test.sh` and `swift build`.
+- After app-flow, packaging, recipe, or resource-bundle edits, also run `./script/build_and_run.sh --verify`.
 
 ## Recipe Schema
 
@@ -68,8 +76,29 @@ Supported `stock.family` values:
 - `motion_picture_negative`
 - `specialty`
 
-Rendering is profile-driven through `FilmPipelineRenderer`. Keep new recipe values descriptive and human-readable; do not introduce binary LUT blobs until calibration data support exists.
+Keep recipe values descriptive and human-readable. Do not introduce binary LUT blobs until calibration data support is ready for them.
 
-## Known Scope
+## Current Scope
 
-This is an initial implementation. There is no persistent user library, custom recipe import/export UI, before/after split view, histogram, calibrated spectral/LUT data, or non-destructive edit stack yet.
+The app has first-pass support for project save/load, recipe import/export, edit history, variants, local masked adjustments, before/after comparison modes, histogram/scopes, batch export, color-management settings, and calibration asset tracking.
+
+Areas still intentionally shallow include:
+
+- recipe editing and validation UX
+- richer persistent library metadata and bookmark refresh flows
+- named edit stacks and more complete freehand mask editing
+- pan, loupe, and advanced comparison controls
+- deeper scope overlays and histogram tooling
+- camera-profile ingestion and true measured spectral transforms
+- render caching, progress reporting, and background export
+- export presets, app icon assets, and update distribution
+
+## Commit Style
+
+Use conventional commits, for example:
+
+```text
+feat: add recipe import validation
+fix: handle missing recipe JSON
+docs: update agent notes
+```

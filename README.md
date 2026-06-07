@@ -1,65 +1,78 @@
 # Film Chef
 
-Film Chef is a macOS SwiftUI photo editing app focused on film emulation. It lets a user import a photo, choose a film recipe from the sidebar, preview the edited image, adjust the look, and export the result.
+Film Chef is a native macOS photo editor for building, previewing, and exporting film-emulation looks. It is written in SwiftUI and Core Image, with editable JSON recipes that describe film stocks, process behavior, grain, halation, sharpness, color response, and output intent.
 
-## Current Features
+The project is early, useful, and intentionally open-ended: the renderer is profile-driven today, with room for calibrated spectral data, measured H-D curves, grain datasets, and LUT-backed profiles later.
 
-- Native macOS three-pane layout:
-  - film recipes in the left sidebar
-  - photo preview in the center
-  - recipe details and controls on the right
-- Multi-photo import via the macOS file picker
-- ImageIO-backed export to JPEG, PNG, or TIFF with format, JPEG quality, scale, metadata, ICC output profile, and naming-template settings
-- JSON-backed resolved film profiles for easy editing and sharing
-- Recipe import and export from the app
-- Saveable `.filmchef` project files with multiple photo references, edit history, export settings, and color-management settings
-- Edit snapshots with undo, redo, and captured variants
+## Highlights
+
+- Native SwiftUI macOS app with a three-pane editor: recipes, preview, and inspector controls
+- Multi-photo import, `.filmchef` project files, edit history, undo/redo, and variants
 - Non-destructive local adjustment layers with radial, linear, brush, and path masks
-- Edited, original, split, and side-by-side preview comparison modes with zoom and draggable split-position controls
-- RGB, luminance, and RGB parade scopes with clipping readouts and pointer-driven pixel sampling
+- Original, edited, split, and side-by-side preview modes with zoom and draggable comparison
+- RGB, luminance, and RGB parade scopes with clipping readouts and pixel sampling
+- ImageIO export to JPEG, PNG, or TIFF with quality, scale, metadata, ICC profile, and naming options
 - Batch export for every photo in the current project
-- Cancelable async preview rendering in the app, with synchronous rendering available to the core test runner
-- RAW-development controls, color-management settings, and calibration asset tracking with lightweight LUT, spectral, density, and grain render calibration
-- Nine starter profiles:
-  - Ilford HP5 Plus 400
-  - Kodak Tri-X 400
-  - Kodak Gold 200
-  - Kodak Portra 400
-  - Kodak Portra 800
-  - CineStill 800T
-  - Kodak Ektachrome E100
-  - Fujifilm Velvia 50
-  - Kodak Vision3 250D
-- Modular Core Image rendering pipeline with profile-driven exposure placement, capture filters, layer response, characteristic curves, process adjustments, halation, grain, MTF/sharpness, and scan/print rendering
+- Cancelable async preview rendering in-app, plus synchronous rendering for tests
+- JSON-backed recipes that are easy to inspect, edit, and share
+
+## Included Recipes
+
+- Ilford HP5 Plus 400
+- Kodak Tri-X 400
+- Kodak Gold 200
+- Kodak Portra 400
+- Kodak Portra 800
+- CineStill 800T
+- Kodak Ektachrome E100
+- Fujifilm Velvia 50
+- Kodak Vision3 250D
 
 ## Requirements
 
 - macOS 14 or newer
-- Xcode command line tools or Xcode with Swift 5.9+
+- Xcode or Xcode command line tools
+- Swift 5.9+
 
-## Run
+## Quick Start
 
-Use the project-local run script:
+Build, bundle, and launch the app:
 
 ```bash
 ./script/build_and_run.sh
 ```
 
-The script builds the SwiftPM target, stages a local app bundle in `dist/`, and launches it as a macOS app.
+Build without launching:
 
-Useful variants:
+```bash
+swift build
+```
+
+Run the core test runner:
+
+```bash
+./script/test.sh
+```
+
+Use `./script/test.sh` as the canonical test command instead of `swift test`. It runs `FilmChefCoreTests` and writes coverage output under `.build/`.
+
+Verify the staged app bundle:
 
 ```bash
 ./script/build_and_run.sh --verify
-./script/build_and_run.sh --logs
-./script/build_and_run.sh --debug
 ```
 
 Package a release-style app archive:
 
 ```bash
 ./script/package_release.sh
+```
+
+Optional signing and notarization:
+
+```bash
 SIGN_IDENTITY="Developer ID Application: Example" ./script/package_release.sh
+
 NOTARIZE=1 \
   SIGN_IDENTITY="Developer ID Application: Example" \
   NOTARYTOOL_PROFILE="film-chef-notary" \
@@ -68,32 +81,32 @@ NOTARIZE=1 \
 
 For notarization without a keychain profile, pass `APPLE_ID`, `APPLE_TEAM_ID`, and `APP_SPECIFIC_PASSWORD` with `NOTARIZE=1`.
 
-You can also build without launching:
+Generated build output is staged under `dist/` and `.build/`; neither should be committed.
 
-```bash
-swift build
+## Project Layout
+
+```text
+Sources/FilmChef/App/              App entry point and commands
+Sources/FilmChefCore/Models/       Recipe, project, and adjustment models
+Sources/FilmChefCore/Stores/       Editor state, projects, and recipe loading
+Sources/FilmChefCore/Services/     Core Image processing and rendering
+Sources/FilmChefCore/Views/        SwiftUI editor views
+Sources/FilmChefCore/Resources/    Bundled recipe JSON files
+Tests/FilmChefCoreTests/           Executable core test runner
+script/build_and_run.sh            Build, bundle, and launch script
+script/package_release.sh          Build, sign, verify, and archive a release app
+script/test.sh                     Test and coverage script
 ```
 
-## Test
+## Recipe Authoring
 
-Run the package-local test runner:
-
-```bash
-./script/test.sh
-```
-
-The script runs `FilmChefCoreTests` and writes a coverage JSON report under `.build/arm64-apple-macosx/debug/codecov/`.
-Use this script as the canonical test command instead of `swift test`.
-
-## Recipe Config
-
-Recipes live here:
+Recipes live in:
 
 ```text
 Sources/FilmChefCore/Resources/Recipes/*.json
 ```
 
-Each file contains one resolved film profile. Add a new profile by creating a JSON file named after its stable `profile_id`, with this top-level shape:
+Each file contains one resolved film profile. Use a stable `profile_id` and name the file after that slug.
 
 ```json
 {
@@ -128,66 +141,49 @@ Supported `stock.family` values:
 - `motion_picture_negative`
 - `specialty`
 
-Profile module notes:
+The renderer currently translates descriptive recipe values into Core Image stages. The schema is designed to grow toward calibrated data such as spectral curves, measured density curves, grain spectra, and 3D LUTs without changing the high-level pipeline.
 
-- `format`: film format metadata such as 35mm frame size
-- `stock`: family, process, box speed, native balance, orange mask, remjet, and anti-halation behavior
-- `input`: preferred source and working-space intent for the pipeline
-- `exposure`: box speed, exposed-at ISO, compensation, middle grey, highlight protection, and pre-film shadow lift
-- `capture_conditions`: illuminant, color temperature, lens contrast/flare, and optical filters
-- `layer_model`: maps scene RGB into monochrome or red/green/blue emulsion layers
-- `characteristic_curves`: human-readable toe, gamma, shoulder, d-min, and d-max channel response
-- `colour_model`: palette, warmth, saturation, hue bias, optional toning, and orange-mask density
-- `process`: C-41, E-6, B&W, push/pull, contrast, speed, grain, and color shift adjustments
-- `grain`: silver grain, dye cloud, slide grain, clumpiness, softness, chromaticity, and tonal distribution
-- `halation`: backing/remjet behavior, threshold, strength, radius, and color
-- `sharpness`: film MTF blur, scanner blur, acutance, and digital sharpening
-- `renderer`: lab scan, projection, or print-style black/white points, contrast, saturation, and MTF
-- `output`: output color-space intent, bit depth, and dithering flag
-- `calibration`: confidence, source, and notes for the profile
+## Roadmap
 
-The renderer currently translates these descriptive values into Core Image stages. The schema is designed to allow later calibrated data such as spectral curves, measured H-D curves, grain spectra, or 3D LUTs without changing the app's high-level pipeline.
+Film Chef is an initial implementation. Areas that still need deeper work include:
 
-## Product Gap Tracker
+- Richer recipe editing and validation UI
+- Persistent user library metadata and bookmark refresh flows
+- Named non-destructive edit stacks and more complete mask editing
+- Pan, loupe, and richer before/after review controls
+- Scope overlays and more advanced histogram tooling
+- Camera-profile ingestion and deeper RAW/color-management support
+- Render caching, progress reporting, and background export
+- Export presets and delivery recipes
+- App icon assets and update distribution
 
-The current implementation has first-pass support for the original ten missing areas, but several remain intentionally shallow:
+## Contributing
 
-- Persistent library/projects: `.filmchef` project save/load exists with multiple project items, selectable photo browsing, settings, edit history, and security-scoped bookmark data; bookmark refresh UX and richer library metadata are still needed.
-- Non-destructive edit stack: edit snapshots, undo/redo, variants, project persistence, and local masked adjustment layers exist; richer named stacks and freehand mask editing are still needed.
-- Recipe import/export UI: app commands and controls exist; schema validation UX and recipe editing are still needed.
-- Before/after comparison: original, edited, split, and side-by-side preview modes exist with zoom, split position, a draggable divider, and a first-pass sampler overlay; pan and richer loupe controls are still needed.
-- Histogram/scopes: RGB/luminance histogram, RGB parade, channel switching, clipping readouts, and pointer-driven pixel sampling exist; richer scope overlays are still needed.
-- Calibrated film data: status models, recipe calibration metadata, calibration asset import/tracking, and lightweight `.cube`, spectral-bias, measured-density, and grain-spectrum render calibration exist; true measured spectral transforms and profile-specific calibration datasets are still needed.
-- RAW/color management: RAW-style exposure, temperature, tint, highlight recovery, persisted color-management intents, and ICC-tagged sRGB/Display P3/linear/extended export writing exist; camera-profile ingestion is still needed.
-- Async responsiveness: app preview rendering is cancelable and debounced; progress reporting, render caching, and export backgrounding are still needed.
-- Expanded export workflow: ImageIO-backed JPEG/PNG/TIFF export, quality, scale, metadata writing, ICC output profile tagging, naming templates, and project batch export exist; export presets and richer delivery recipes are still needed.
-- Production packaging: `script/package_release.sh` creates and verifies a release `.app` archive with optional Developer ID signing, notarization, and stapling; app icon assets and update distribution remain.
+Contributions are welcome. Keep changes focused, native to the existing SwiftUI app shape, and covered by the project scripts where practical.
 
-## Project Layout
+Before opening a pull request, run:
 
-```text
-Sources/FilmChef/App/              App entry point and commands
-Sources/FilmChefCore/Models/       Recipe and adjustment models
-Sources/FilmChefCore/Stores/       App state and recipe loading
-Sources/FilmChefCore/Services/     Core Image processing
-Sources/FilmChefCore/Views/        SwiftUI views
-Sources/FilmChefCore/Resources/    Per-recipe JSON resources
-Tests/FilmChefCoreTests/           Executable test runner
-script/build_and_run.sh            Build, bundle, and launch script
-script/package_release.sh          Build, sign, verify, and archive a release app
-script/test.sh                     Test and coverage script
+```bash
+./script/test.sh
+swift build
 ```
 
-## Codex Run Button
+For app-flow, resource-bundle, packaging, or recipe changes, also run:
 
-The Codex app action is configured in:
-
-```text
-.codex/environments/environment.toml
+```bash
+./script/build_and_run.sh --verify
 ```
 
-It points to `./script/build_and_run.sh`.
+Recipe changes should usually be made in individual JSON files under `Sources/FilmChefCore/Resources/Recipes/`. If the recipe schema changes, update the model, loader, and this README together.
+
+Commit messages should use conventional commits, for example:
+
+```text
+feat: add recipe import validation
+fix: handle missing recipe JSON
+docs: refresh recipe authoring notes
+```
 
 ## License
 
-Film Chef is released under the MIT License. Copyright (c) 2026 Forjd.
+Film Chef is released under the [MIT License](LICENSE). Copyright (c) 2026 Forjd.
