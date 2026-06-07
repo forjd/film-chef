@@ -7,13 +7,22 @@ struct ControlsView: View {
         Form {
             if let recipe = editor.selectedRecipe {
                 Section("Recipe") {
-                    LabeledContent("Stock", value: recipe.stockType.label)
+                    LabeledContent("Stock", value: recipe.stock.family.label)
                     LabeledContent("ISO", value: "\(recipe.iso)")
+                    LabeledContent("Balance", value: displayName(for: recipe.stock.nativeBalance))
 
                     Text(recipe.summary)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Section("Pipeline") {
+                    LabeledContent("Process", value: displayName(for: recipe.process.type))
+                    LabeledContent("Renderer", value: displayName(for: recipe.renderer.type))
+                    LabeledContent("Layer Model", value: displayName(for: recipe.layerModel.type))
+                    LabeledContent("Grain", value: recipe.grain.enabled ? displayName(for: recipe.grain.model) : "Off")
+                    LabeledContent("Halation", value: recipe.halation.enabled ? displayName(for: recipe.halation.model) : "Off")
                 }
             }
 
@@ -80,6 +89,12 @@ struct ControlsView: View {
     private func signedValue(_ value: Double) -> String {
         let formatted = String(format: "%.2f", value)
         return value > 0 ? "+\(formatted)" : formatted
+    }
+
+    private func displayName(for value: String) -> String {
+        value
+            .replacingOccurrences(of: "_", with: " ")
+            .capitalized
     }
 }
 

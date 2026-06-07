@@ -26,7 +26,8 @@ The run script stages a local `.app` bundle under `dist/`. Do not commit `dist/`
 - `Sources/FilmChef/Views/ContentView.swift` composes the three-pane layout.
 - `Sources/FilmChef/Stores/EditorStore.swift` owns editor state, import/export actions, and preview rendering triggers.
 - `Sources/FilmChef/Stores/RecipeStore.swift` loads bundled JSON recipes.
-- `Sources/FilmChef/Services/ImageProcessor.swift` owns Core Image loading, rendering, grain, preview scaling, and export encoding.
+- `Sources/FilmChef/Services/ImageProcessor.swift` owns Core Image loading, preview scaling, and export encoding.
+- `Sources/FilmChef/Services/FilmPipelineRenderer.swift` owns the profile-driven Core Image rendering stages.
 - `Sources/FilmChef/Resources/Recipes/*.json` contains one editable recipe per file.
 
 ## Editing Guidelines
@@ -46,27 +47,26 @@ Use conventional commits for commit messages, such as `feat: add recipe import`,
 
 Each recipe has:
 
-- `id`: stable unique slug
-- `name`: display name
-- `maker`: film maker or recipe author
-- `iso`: numeric ISO
-- `stockType`: `color` or `blackAndWhite`
+- `schema_version`: profile schema version
+- `profile_id`: stable unique slug
+- `display_name`: display name
+- `manufacturer`: film maker or profile author
 - `summary`: short UI description
-- `parameters`: render controls consumed by `ImageProcessor`
+- `format`: film format metadata
+- `stock`: family, process, box speed, balance, mask, remjet, and anti-halation behavior
+- `input`, `exposure`, `capture_conditions`, `layer_model`, `characteristic_curves`
+- `colour_model`, `process`, `grain`, `halation`, `sharpness`, `renderer`, `output`, `calibration`
 
-Rendering parameters:
+Supported `stock.family` values:
 
-- `exposure`
-- `brightness`
-- `contrast`
-- `saturation`
-- `temperature`
-- `tint`
-- `highlights`
-- `shadows`
-- `grain`
-- `vignette`
+- `black_and_white_negative`
+- `colour_negative`
+- `colour_reversal`
+- `motion_picture_negative`
+- `specialty`
+
+Rendering is profile-driven through `FilmPipelineRenderer`. Keep new recipe values descriptive and human-readable; do not introduce binary LUT blobs until calibration data support exists.
 
 ## Known Scope
 
-This is an initial implementation. There is no persistent user library, custom recipe import/export UI, before/after split view, histogram, or non-destructive edit stack yet.
+This is an initial implementation. There is no persistent user library, custom recipe import/export UI, before/after split view, histogram, calibrated spectral/LUT data, or non-destructive edit stack yet.

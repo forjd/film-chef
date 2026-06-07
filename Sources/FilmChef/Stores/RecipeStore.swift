@@ -23,6 +23,8 @@ final class RecipeStore {
         }
 
         let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+
         let recipes = try urls.map { url in
             let data = try Data(contentsOf: url)
             return try decoder.decode(FilmRecipe.self, from: data)
@@ -32,7 +34,9 @@ final class RecipeStore {
             throw RecipeStoreError.emptyRecipes
         }
 
-        return recipes
+        return recipes.sorted {
+            $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
     }
 
     private func recipeURLs() -> [URL] {

@@ -22,6 +22,7 @@ final class ImageProcessor {
     }
 
     private let context = CIContext()
+    private let pipelineRenderer = FilmPipelineRenderer()
 
     func loadSourceImage(from url: URL) throws -> CIImage {
         guard let image = CIImage(contentsOf: url, options: [.applyOrientationProperty: true]),
@@ -44,7 +45,11 @@ final class ImageProcessor {
         maxDimension: CGFloat = 1800
     ) throws -> NSImage {
         let previewSource = scaleForPreview(source, maxDimension: maxDimension)
-        let rendered = apply(recipe: recipe, to: previewSource, adjustments: adjustments)
+        let rendered = pipelineRenderer.render(
+            source: previewSource,
+            recipe: recipe,
+            adjustments: adjustments
+        )
         return try makeNSImage(from: rendered)
     }
 
@@ -54,7 +59,11 @@ final class ImageProcessor {
         adjustments: RenderAdjustments,
         to url: URL
     ) throws {
-        let rendered = apply(recipe: recipe, to: source, adjustments: adjustments)
+        let rendered = pipelineRenderer.render(
+            source: source,
+            recipe: recipe,
+            adjustments: adjustments
+        )
         guard let cgImage = context.createCGImage(rendered, from: rendered.extent) else {
             throw ImageProcessorError.cannotRenderImage
         }
@@ -74,124 +83,6 @@ final class ImageProcessor {
         }
 
         try data.write(to: url)
-    }
-
-    private func apply(
-        recipe: FilmRecipe,
-        to source: CIImage,
-        adjustments: RenderAdjustments
-    ) -> CIImage {
-        let extent = source.extent
-        let parameters = recipe.parameters
-        let intensity = clamped(adjustments.intensity, lower: 0.0, upper: 1.0)
-
-        var output = source
-
-        let exposure = parameters.exposure * intensity + adjustments.exposureTrim
-        if abs(exposure) > 0.001 {
-            output = output.applyingFilter(
-                "CIExposureAdjust",
-                parameters: ["inputEV": exposure]
-            )
-        }
-
-        if recipe.stockType == .color {
-            let targetTemperature = 6500.0 + parameters.temperature * intensity
-            let targetTint = parameters.tint * intensity
-
-            if abs(parameters.temperature) > 0.001 || abs(parameters.tint) > 0.001 {
-                output = output.applyingFilter(
-                    "CITemperatureAndTint",
-                    parameters: [
-                        "inputNeutral": CIVector(x: 6500, y: 0),
-                        "inputTargetNeutral": CIVector(x: targetTemperature, y: targetTint)
-                    ]
-                )
-            }
-        }
-
-        let contrast = clamped(
-            1.0 + ((parameters.contrast - 1.0) * intensity) + adjustments.contrastTrim,
-            lower: 0.25,
-            upper: 2.5
-        )
-        let saturation = clamped(
-            1.0 + ((parameters.saturation - 1.0) * intensity) + adjustments.saturationTrim,
-            lower: 0.0,
-            upper: 2.5
-        )
-        let brightness = parameters.brightness * intensity
-
-        output = output.applyingFilter(
-            "CIColorControls",
-            parameters: [
-                "inputSaturation": saturation,
-                "inputBrightness": brightness,
-                "inputContrast": contrast
-            ]
-        )
-
-        if abs(parameters.highlights - 1.0) > 0.001 || abs(parameters.shadows) > 0.001 {
-            output = output.applyingFilter(
-                "CIHighlightShadowAdjust",
-                parameters: [
-                    "inputHighlightAmount": 1.0 + ((parameters.highlights - 1.0) * intensity),
-                    "inputShadowAmount": parameters.shadows * intensity
-                ]
-            )
-        }
-
-        if parameters.vignette > 0.001 {
-            let radius = min(extent.width, extent.height) * 0.78
-            output = output
-                .clampedToExtent()
-                .applyingFilter(
-                    "CIVignetteEffect",
-                    parameters: [
-                        "inputCenter": CIVector(x: extent.midX, y: extent.midY),
-                        "inputRadius": radius,
-                        "inputIntensity": parameters.vignette * intensity
-                    ]
-                )
-                .cropped(to: extent)
-        }
-
-        if adjustments.grainEnabled, parameters.grain > 0.001 {
-            output = addGrain(
-                to: output,
-                extent: extent,
-                amount: parameters.grain * intensity
-            )
-        }
-
-        return output.cropped(to: extent)
-    }
-
-    private func addGrain(to image: CIImage, extent: CGRect, amount: Double) -> CIImage {
-        guard let random = CIFilter(name: "CIRandomGenerator")?.outputImage else {
-            return image
-        }
-
-        let alpha = CGFloat(clamped(amount, lower: 0.0, upper: 0.45))
-        let noise = random
-            .cropped(to: extent)
-            .applyingFilter(
-                "CIColorMatrix",
-                parameters: [
-                    "inputRVector": CIVector(x: 0.30, y: 0.30, z: 0.30, w: 0),
-                    "inputGVector": CIVector(x: 0.30, y: 0.30, z: 0.30, w: 0),
-                    "inputBVector": CIVector(x: 0.30, y: 0.30, z: 0.30, w: 0),
-                    "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0),
-                    "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: alpha)
-                ]
-            )
-
-        return noise
-            .applyingFilter(
-                "CISoftLightBlendMode",
-                parameters: ["inputBackgroundImage": image]
-            )
-            .cropped(to: extent)
     }
 
     private func scaleForPreview(_ image: CIImage, maxDimension: CGFloat) -> CIImage {
@@ -225,7 +116,4 @@ final class ImageProcessor {
         }
     }
 
-    private func clamped(_ value: Double, lower: Double, upper: Double) -> Double {
-        min(max(value, lower), upper)
-    }
 }

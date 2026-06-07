@@ -1,20 +1,142 @@
 {
-  "id": "ilford-hp5-plus-400",
-  "name": "Ilford HP5 Plus 400",
-  "maker": "Ilford",
-  "iso": 400,
-  "stockType": "blackAndWhite",
-  "summary": "Classic high-speed monochrome with firm contrast, lifted shadows, and visible grain.",
-  "parameters": {
-    "exposure": 0.05,
-    "brightness": -0.01,
-    "contrast": 1.22,
-    "saturation": 0.0,
-    "temperature": 0.0,
-    "tint": 0.0,
-    "highlights": 0.92,
-    "shadows": 0.18,
-    "grain": 0.28,
-    "vignette": 0.16
+  "schema_version": "1.0",
+  "profile_id": "ilford-hp5-plus-400",
+  "display_name": "Ilford HP5 Plus 400",
+  "manufacturer": "Ilford",
+  "summary": "Classic high-speed monochrome with firm contrast, lifted shadows, and visible silver grain.",
+  "format": {
+    "type": "35mm",
+    "frame_size_mm": {
+      "width": 36,
+      "height": 24
+    },
+    "default_aspect_ratio": 1.5
+  },
+  "stock": {
+    "family": "black_and_white_negative",
+    "process": "bw",
+    "box_speed_iso": 400,
+    "native_balance": "panchromatic",
+    "has_orange_mask": false,
+    "has_remjet": false,
+    "anti_halation": "standard"
+  },
+  "input": {
+    "preferred_source": "raw",
+    "working_space": "acescg",
+    "requires_scene_linear": true
+  },
+  "exposure": {
+    "box_speed_iso": 400,
+    "exposed_at_iso": 400,
+    "exposure_compensation_ev": 0.05,
+    "middle_grey": 0.18,
+    "highlight_protection": 0.08,
+    "shadow_lift_before_film": 0.08
+  },
+  "capture_conditions": {
+    "illuminant": "daylight",
+    "colour_temperature_k": 5500,
+    "lens_contrast": 1.02,
+    "lens_flare": 0.01,
+    "filter": {
+      "type": "none",
+      "strength": 1
+    }
+  },
+  "layer_model": {
+    "type": "monochrome_panchromatic",
+    "layers": ["luminance"],
+    "rgb_to_layer_matrix": [
+      [0.28, 0.48, 0.24]
+    ]
+  },
+  "characteristic_curves": {
+    "curve_space": "log_exposure_to_density",
+    "channels": {
+      "luminance": {
+        "toe": 0.32,
+        "gamma": 0.68,
+        "shoulder": 0.18,
+        "d_min": 0.12,
+        "d_max": 2.1
+      }
+    }
+  },
+  "colour_model": {
+    "palette": "neutral_bw",
+    "toning": {
+      "enabled": false,
+      "warmth": 0,
+      "selenium": 0
+    }
+  },
+  "process": {
+    "type": "bw",
+    "variant": "normal",
+    "developer_style": "standard",
+    "push_pull_stops": 0,
+    "contrast_multiplier": 1,
+    "speed_gain_ev": 0,
+    "grain_multiplier": 1
+  },
+  "grain": {
+    "enabled": true,
+    "model": "silver_grain",
+    "strength": 0.38,
+    "size": 1.15,
+    "clumpiness": 0.55,
+    "softness": 0.25,
+    "tonal_distribution": {
+      "shadow": 0.65,
+      "midtone": 1,
+      "highlight": 0.8
+    },
+    "chromaticity": 0,
+    "format_scale": "35mm",
+    "seed_mode": "deterministic"
+  },
+  "halation": {
+    "enabled": true,
+    "model": "standard_anti_halation",
+    "threshold": 0.92,
+    "strength": 0.03,
+    "radius": 6,
+    "colour": {
+      "r": 1,
+      "g": 1,
+      "b": 1
+    }
+  },
+  "sharpness": {
+    "film_mtf_blur": 0.35,
+    "scanner_mtf_blur": 0.45,
+    "acutance": 0.22,
+    "digital_sharpening": 0.08
+  },
+  "renderer": {
+    "type": "bw_lab_scan",
+    "negative_inversion": true,
+    "auto_exposure": 0.55,
+    "auto_white_balance": 0,
+    "black_point": 0.025,
+    "white_point": 0.96,
+    "contrast": 1.08,
+    "saturation": 0,
+    "sharpening": 0.08,
+    "scanner_mtf": {
+      "blur_radius": 0.35,
+      "microcontrast": 0.12
+    }
+  },
+  "output": {
+    "colour_space": "srgb",
+    "bit_depth": 16,
+    "dither": true
+  },
+  "calibration": {
+    "confidence": "estimated",
+    "source": "manual_tuning",
+    "notes": "Default HP5 box-speed neutral lab-scan profile."
   }
 }

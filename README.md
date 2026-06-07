@@ -10,11 +10,13 @@ Film Chef is a macOS SwiftUI photo editing app focused on film emulation. It let
   - recipe details and controls on the right
 - Photo import via the macOS file picker
 - Export to JPEG or PNG
-- JSON-backed film recipes for easy editing and sharing
-- Two starter recipes:
+- JSON-backed resolved film profiles for easy editing and sharing
+- Four starter profiles:
   - Ilford HP5 Plus 400
   - Kodak Gold 200
-- Core Image rendering with exposure, brightness, contrast, saturation, temperature/tint, highlight/shadow, grain, and vignette adjustments
+  - CineStill 800T
+  - Kodak Ektachrome E100
+- Modular Core Image rendering pipeline with profile-driven exposure placement, capture filters, layer response, characteristic curves, process adjustments, halation, grain, MTF/sharpness, and scan/print rendering
 
 ## Requirements
 
@@ -53,48 +55,60 @@ Recipes live here:
 Sources/FilmChef/Resources/Recipes/*.json
 ```
 
-Each file contains one recipe object. Add a new recipe by creating a JSON file named after its stable `id`, with this shape:
+Each file contains one resolved film profile. Add a new profile by creating a JSON file named after its stable `profile_id`, with this top-level shape:
 
 ```json
 {
-  "id": "example-film-400",
-  "name": "Example Film 400",
-  "maker": "Example",
-  "iso": 400,
-  "stockType": "color",
+  "schema_version": "1.0",
+  "profile_id": "example-film-400",
+  "display_name": "Example Film 400",
+  "manufacturer": "Example",
   "summary": "A short description of the look.",
-  "parameters": {
-    "exposure": 0.0,
-    "brightness": 0.0,
-    "contrast": 1.0,
-    "saturation": 1.0,
-    "temperature": 0.0,
-    "tint": 0.0,
-    "highlights": 1.0,
-    "shadows": 0.0,
-    "grain": 0.1,
-    "vignette": 0.1
-  }
+  "format": {},
+  "stock": {},
+  "input": {},
+  "exposure": {},
+  "capture_conditions": {},
+  "layer_model": {},
+  "characteristic_curves": {},
+  "colour_model": {},
+  "process": {},
+  "grain": {},
+  "halation": {},
+  "sharpness": {},
+  "renderer": {},
+  "output": {},
+  "calibration": {}
 }
 ```
 
-Supported `stockType` values:
+Supported `stock.family` values:
 
-- `color`
-- `blackAndWhite`
+- `black_and_white_negative`
+- `colour_negative`
+- `colour_reversal`
+- `motion_picture_negative`
+- `specialty`
 
-Parameter notes:
+Profile module notes:
 
-- `exposure`: exposure value adjustment in EV
-- `brightness`: Core Image brightness trim
-- `contrast`: `1.0` is neutral, higher increases contrast
-- `saturation`: `1.0` is neutral, `0.0` is monochrome
-- `temperature`: offset from neutral color temperature for color recipes
-- `tint`: green/magenta tint offset for color recipes
-- `highlights`: `1.0` is neutral, lower softens highlights
-- `shadows`: shadow lift amount
-- `grain`: synthetic grain amount
-- `vignette`: vignette intensity
+- `format`: film format metadata such as 35mm frame size
+- `stock`: family, process, box speed, native balance, orange mask, remjet, and anti-halation behavior
+- `input`: preferred source and working-space intent for the pipeline
+- `exposure`: box speed, exposed-at ISO, compensation, middle grey, highlight protection, and pre-film shadow lift
+- `capture_conditions`: illuminant, color temperature, lens contrast/flare, and optical filters
+- `layer_model`: maps scene RGB into monochrome or red/green/blue emulsion layers
+- `characteristic_curves`: human-readable toe, gamma, shoulder, d-min, and d-max channel response
+- `colour_model`: palette, warmth, saturation, hue bias, optional toning, and orange-mask density
+- `process`: C-41, E-6, B&W, push/pull, contrast, speed, grain, and color shift adjustments
+- `grain`: silver grain, dye cloud, slide grain, clumpiness, softness, chromaticity, and tonal distribution
+- `halation`: backing/remjet behavior, threshold, strength, radius, and color
+- `sharpness`: film MTF blur, scanner blur, acutance, and digital sharpening
+- `renderer`: lab scan, projection, or print-style black/white points, contrast, saturation, and MTF
+- `output`: output color-space intent, bit depth, and dithering flag
+- `calibration`: confidence, source, and notes for the profile
+
+The renderer currently translates these descriptive values into Core Image stages. The schema is designed to allow later calibrated data such as spectral curves, measured H-D curves, grain spectra, or 3D LUTs without changing the app's high-level pipeline.
 
 ## Project Layout
 
