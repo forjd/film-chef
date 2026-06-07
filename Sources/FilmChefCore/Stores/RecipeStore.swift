@@ -42,6 +42,21 @@ public final class RecipeStore {
         }
     }
 
+    package func loadRecipe(from url: URL) throws -> FilmRecipe {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let data = try Data(contentsOf: url)
+        return try decoder.decode(FilmRecipe.self, from: data)
+    }
+
+    package func writeRecipe(_ recipe: FilmRecipe, to url: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(recipe)
+        try data.write(to: url)
+    }
+
     private static func bundledRecipeURLs() -> [URL] {
         let recipeDirectoryPaths = Bundle.module
             .paths(forResourcesOfType: "json", inDirectory: "Recipes")

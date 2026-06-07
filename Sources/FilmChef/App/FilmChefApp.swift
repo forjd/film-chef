@@ -33,7 +33,19 @@ struct FilmChefCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            Button("Import Photo...") {
+            Button("Open Project...") {
+                editor.beginProjectOpen()
+            }
+            .keyboardShortcut("o", modifiers: [.command])
+
+            Button("Save Project...") {
+                editor.saveProject()
+            }
+            .keyboardShortcut("s", modifiers: [.command])
+
+            Divider()
+
+            Button("Import Photos...") {
                 editor.beginImport()
             }
             .keyboardShortcut("i", modifiers: [.command])
@@ -44,12 +56,53 @@ struct FilmChefCommands: Commands {
             .keyboardShortcut("e", modifiers: [.command])
             .disabled(!editor.canExport)
 
+            Button("Export Project Photos...") {
+                editor.exportProjectPhotos()
+            }
+            .keyboardShortcut("b", modifiers: [.command, .shift])
+            .disabled(!editor.canBatchExport)
+
+            Button("Import Film Recipe...") {
+                editor.beginRecipeImport()
+            }
+            .keyboardShortcut("i", modifiers: [.command, .shift])
+
+            Button("Import Calibration Assets...") {
+                editor.beginCalibrationImport()
+            }
+            .keyboardShortcut("k", modifiers: [.command, .shift])
+
+            Button("Export Selected Recipe...") {
+                editor.exportSelectedRecipe()
+            }
+            .keyboardShortcut("e", modifiers: [.command, .shift])
+            .disabled(editor.selectedRecipe == nil)
+
             Divider()
 
             Button("Reset Adjustments") {
                 editor.resetControls()
             }
             .keyboardShortcut("r", modifiers: [.command, .shift])
+        }
+
+        CommandGroup(after: .undoRedo) {
+            Button("Undo Edit") {
+                editor.undoEdit()
+            }
+            .keyboardShortcut("z", modifiers: [.command])
+            .disabled(!editor.canUndoEdit)
+
+            Button("Redo Edit") {
+                editor.redoEdit()
+            }
+            .keyboardShortcut("z", modifiers: [.command, .shift])
+            .disabled(!editor.canRedoEdit)
+
+            Button("Capture Variant") {
+                editor.captureVariant()
+            }
+            .keyboardShortcut("s", modifiers: [.command, .shift])
         }
     }
 }

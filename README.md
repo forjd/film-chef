@@ -8,9 +8,18 @@ Film Chef is a macOS SwiftUI photo editing app focused on film emulation. It let
   - film recipes in the left sidebar
   - photo preview in the center
   - recipe details and controls on the right
-- Photo import via the macOS file picker
-- Export to JPEG or PNG
+- Multi-photo import via the macOS file picker
+- ImageIO-backed export to JPEG, PNG, or TIFF with format, JPEG quality, scale, metadata, ICC output profile, and naming-template settings
 - JSON-backed resolved film profiles for easy editing and sharing
+- Recipe import and export from the app
+- Saveable `.filmchef` project files with multiple photo references, edit history, export settings, and color-management settings
+- Edit snapshots with undo, redo, and captured variants
+- Non-destructive local adjustment layers with radial, linear, brush, and path masks
+- Edited, original, split, and side-by-side preview comparison modes with zoom and draggable split-position controls
+- RGB, luminance, and RGB parade scopes with clipping readouts and pointer-driven pixel sampling
+- Batch export for every photo in the current project
+- Cancelable async preview rendering in the app, with synchronous rendering available to the core test runner
+- RAW-development controls, color-management settings, and calibration asset tracking with lightweight LUT, spectral, density, and grain render calibration
 - Nine starter profiles:
   - Ilford HP5 Plus 400
   - Kodak Tri-X 400
@@ -45,6 +54,19 @@ Useful variants:
 ./script/build_and_run.sh --logs
 ./script/build_and_run.sh --debug
 ```
+
+Package a release-style app archive:
+
+```bash
+./script/package_release.sh
+SIGN_IDENTITY="Developer ID Application: Example" ./script/package_release.sh
+NOTARIZE=1 \
+  SIGN_IDENTITY="Developer ID Application: Example" \
+  NOTARYTOOL_PROFILE="film-chef-notary" \
+  ./script/package_release.sh
+```
+
+For notarization without a keychain profile, pass `APPLE_ID`, `APPLE_TEAM_ID`, and `APP_SPECIFIC_PASSWORD` with `NOTARIZE=1`.
 
 You can also build without launching:
 
@@ -126,6 +148,21 @@ Profile module notes:
 
 The renderer currently translates these descriptive values into Core Image stages. The schema is designed to allow later calibrated data such as spectral curves, measured H-D curves, grain spectra, or 3D LUTs without changing the app's high-level pipeline.
 
+## Product Gap Tracker
+
+The current implementation has first-pass support for the original ten missing areas, but several remain intentionally shallow:
+
+- Persistent library/projects: `.filmchef` project save/load exists with multiple project items, selectable photo browsing, settings, edit history, and security-scoped bookmark data; bookmark refresh UX and richer library metadata are still needed.
+- Non-destructive edit stack: edit snapshots, undo/redo, variants, project persistence, and local masked adjustment layers exist; richer named stacks and freehand mask editing are still needed.
+- Recipe import/export UI: app commands and controls exist; schema validation UX and recipe editing are still needed.
+- Before/after comparison: original, edited, split, and side-by-side preview modes exist with zoom, split position, a draggable divider, and a first-pass sampler overlay; pan and richer loupe controls are still needed.
+- Histogram/scopes: RGB/luminance histogram, RGB parade, channel switching, clipping readouts, and pointer-driven pixel sampling exist; richer scope overlays are still needed.
+- Calibrated film data: status models, recipe calibration metadata, calibration asset import/tracking, and lightweight `.cube`, spectral-bias, measured-density, and grain-spectrum render calibration exist; true measured spectral transforms and profile-specific calibration datasets are still needed.
+- RAW/color management: RAW-style exposure, temperature, tint, highlight recovery, persisted color-management intents, and ICC-tagged sRGB/Display P3/linear/extended export writing exist; camera-profile ingestion is still needed.
+- Async responsiveness: app preview rendering is cancelable and debounced; progress reporting, render caching, and export backgrounding are still needed.
+- Expanded export workflow: ImageIO-backed JPEG/PNG/TIFF export, quality, scale, metadata writing, ICC output profile tagging, naming templates, and project batch export exist; export presets and richer delivery recipes are still needed.
+- Production packaging: `script/package_release.sh` creates and verifies a release `.app` archive with optional Developer ID signing, notarization, and stapling; app icon assets and update distribution remain.
+
 ## Project Layout
 
 ```text
@@ -137,6 +174,7 @@ Sources/FilmChefCore/Views/        SwiftUI views
 Sources/FilmChefCore/Resources/    Per-recipe JSON resources
 Tests/FilmChefCoreTests/           Executable test runner
 script/build_and_run.sh            Build, bundle, and launch script
+script/package_release.sh          Build, sign, verify, and archive a release app
 script/test.sh                     Test and coverage script
 ```
 

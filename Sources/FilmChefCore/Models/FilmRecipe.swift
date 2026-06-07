@@ -302,7 +302,7 @@ package enum FilmStockType: Hashable {
     }
 }
 
-package struct RenderAdjustments: Equatable {
+package struct RenderAdjustments: Codable, Equatable, Hashable {
     package var intensity: Double
     package var exposureTrim: Double
     package var contrastTrim: Double

@@ -8,17 +8,71 @@ struct SidebarView: View {
             Section("Film Recipes") {
                 ForEach(editor.recipes, content: recipeRow)
             }
+
+            Section("Project") {
+                LabeledContent("Photos", value: "\(editor.project.items.count)")
+                ForEach(editor.project.items) { item in
+                    Button(action: { editor.selectProjectItem(id: item.id) }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: item.id == editor.project.selectedItemID ? "photo.fill" : "photo")
+                                .foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.displayName)
+                                    .lineLimit(1)
+                                Text(item.selectedRecipeID ?? "No recipe")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
         .listStyle(.sidebar)
         .navigationTitle("Film Chef")
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 8) {
+                HStack {
+                    Button(action: editor.beginProjectOpen) {
+                        Label("Open", systemImage: "folder")
+                    }
+
+                    Button(action: editor.saveProject) {
+                        Label("Save", systemImage: "square.and.arrow.down")
+                    }
+                }
+
                 Button(action: editor.beginImport) {
-                    Label("Import Photo", systemImage: "photo.badge.plus")
+                    Label("Import Photos", systemImage: "photo.badge.plus")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+
+                Button(action: editor.exportProjectPhotos) {
+                    Label("Export Project", systemImage: "square.and.arrow.up.on.square")
+                        .frame(maxWidth: .infinity)
+                }
+                .disabled(!editor.canBatchExport)
+
+                HStack {
+                    Button(action: editor.beginRecipeImport) {
+                        Label("Import Recipe", systemImage: "doc.badge.plus")
+                    }
+
+                    Button(action: editor.beginCalibrationImport) {
+                        Label("Calibrate", systemImage: "chart.xyaxis.line")
+                    }
+                }
+
+                HStack {
+                    Button(action: editor.exportSelectedRecipe) {
+                        Label("Export Recipe", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(editor.selectedRecipe == nil)
+                }
             }
             .padding()
             .background(.bar)

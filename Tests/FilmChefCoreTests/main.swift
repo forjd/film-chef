@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 import CoreImage
 import Foundation
+import ImageIO
 import FilmChefCore
 
 struct TestCase {
@@ -414,13 +415,90 @@ func testImageProcessorLoadsRendersAndReportsErrors() throws {
     try expect(zeroMaxPreview.size.width == 16)
     try expect(zeroMaxPreview.size.height == 12)
 
+    let brushAdjustment = LocalAdjustmentLayer(
+        name: "Brush Test",
+        mask: .brush,
+        brushSize: 0.18,
+        pathPoints: [
+            NormalizedMaskPoint(x: 0.2, y: 0.2),
+            NormalizedMaskPoint(x: 0.8, y: 0.8)
+        ],
+        exposureEV: 0.25
+    )
+    let pathAdjustment = LocalAdjustmentLayer(
+        name: "Path Test",
+        mask: .path,
+        brushSize: 0.12,
+        pathPoints: LocalAdjustmentLayer.defaultPathPoints,
+        contrast: 0.2
+    )
     let rendered = try processor.renderPreviewImage(
         from: loaded,
         recipe: recipe,
         adjustments: adjustments(),
+        localAdjustments: [.centeredDodge, brushAdjustment, pathAdjustment],
         maxDimension: 8
     )
     try expect(abs(rendered.size.width - 8) <= 0.5)
+
+    let histogram = try processor.makeHistogramSummary(from: loaded, bins: 8, maxDimension: 16)
+    try expect(histogram.red.count == 8)
+    try expect(histogram.green.count == 8)
+    try expect(histogram.blue.count == 8)
+    try expect(histogram.luminance.count == 8)
+    try expect(histogram.redParade.count == 8)
+    try expect(histogram.greenParade.count == 8)
+    try expect(histogram.blueParade.count == 8)
+    try expect(histogram.sampleCount == 16 * 12)
+    try expect(histogram.shadowClippingRatio >= 0)
+    try expect(histogram.highlightClippingRatio >= 0)
+
+    let sample = try processor.samplePixel(from: loaded, normalisedX: 0.5, normalisedY: 0.5)
+    try expect(sample.red >= 0 && sample.red <= 1)
+    try expect(sample.green >= 0 && sample.green <= 1)
+    try expect(sample.blue >= 0 && sample.blue <= 1)
+
+    let uncalibrated = processor.renderedPreviewSource(
+        from: loaded,
+        recipe: recipe,
+        adjustments: adjustments(),
+        maxDimension: 16
+    )
+    let calibrated = processor.renderedPreviewSource(
+        from: loaded,
+        recipe: recipe,
+        adjustments: adjustments(),
+        calibration: CalibrationDataStatus(
+            supportsSpectralCurves: true,
+            supportsMeasuredDensityCurves: true,
+            supportsGrainSpectra: true,
+            supportsThreeDimensionalLUTs: true,
+            redScale: 1.2,
+            greenScale: 1.0,
+            blueScale: 0.8,
+            densityGamma: 1.08,
+            grainAmount: 0.04
+        ),
+        maxDimension: 16
+    )
+    try expect(
+        renderBytes(uncalibrated, context: CIContext(), extent: uncalibrated.extent)
+            != renderBytes(calibrated, context: CIContext(), extent: calibrated.extent),
+        "Calibration scales should change rendered pixels."
+    )
+
+    let rawAdjusted = try processor.loadSourceImage(
+        from: sourceURL,
+        colorSettings: ColorManagementSettings(
+            rawDevelopment: RawDevelopmentSettings(
+                exposureEV: 0.3,
+                temperatureK: 6200,
+                tint: 0.1,
+                highlightRecovery: 0.2
+            )
+        )
+    )
+    try expect(rawAdjusted.extent == loaded.extent)
 
     do {
         _ = try processor.loadSourceImage(from: directory.appendingPathComponent("missing.png"))
@@ -460,11 +538,12 @@ func testImageProcessorLoadsRendersAndReportsErrors() throws {
     try expect(ImageProcessor.ImageProcessorError.cannotLoadImage.errorDescription != nil)
     try expect(ImageProcessor.ImageProcessorError.cannotRenderImage.errorDescription != nil)
     try expect(ImageProcessor.ImageProcessorError.cannotEncodeImage.errorDescription != nil)
+    try expect(ImageProcessor.ImageProcessorError.cannotSampleImage.errorDescription != nil)
 }
 
 func testEditorStoreStateImportExportAndViewConstruction() throws {
     try MainActor.assumeIsolated {
-    let editor = EditorStore(recipeStore: RecipeStore())
+    let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
     editor.loadRecipesIfNeeded()
     editor.loadRecipesIfNeeded()
 
@@ -508,20 +587,73 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     try expect(editor.importedImageName == " Sample Photo .png")
     try expect(editor.originalPreviewImage != nil)
     try expect(editor.editedPreviewImage != nil)
+    try expect(editor.histogramSummary != nil)
+    try expect(editor.project.items.count == 2)
+    try expect(editor.canBatchExport)
+    try expect(editor.editHistory.count >= 1)
     try expect(editor.displayedPreviewImage === editor.editedPreviewImage)
+
+    let otherItem = try require(editor.project.items.first { $0.displayName == "Testing Import.png" })
+    editor.selectProjectItem(id: otherItem.id)
+    try expect(editor.importedImageName == "Testing Import.png")
+    let sourceItem = try require(editor.project.items.first { $0.displayName == " Sample Photo .png" })
+    editor.selectProjectItem(id: sourceItem.id)
+    try expect(editor.importedImageName == " Sample Photo .png")
 
     editor.showOriginal = true
     try expect(editor.displayedPreviewImage === editor.originalPreviewImage)
+    editor.comparisonMode = .split
+    try expect(editor.comparisonMode == .split)
 
     editor.intensity = 0.25
     editor.exposureTrim = 0.2
     editor.contrastTrim = -0.1
     editor.saturationTrim = 0.15
     editor.grainEnabled = false
+    editor.addLocalAdjustment()
+    try expect(editor.localAdjustments.count == 1)
+    editor.localAdjustments[0].centerX = 0.45
+    editor.localAdjustments[0].exposureEV = 0.35
     try expect(editor.currentAdjustments.intensity == 0.25)
+    try expect(editor.canUndoEdit)
+    editor.undoEdit()
+    try expect(editor.canRedoEdit)
+    editor.redoEdit()
+    editor.captureVariant()
+    try expect(editor.project.items.first { $0.id == editor.project.selectedItemID }?.localAdjustments.count == 1)
     editor.resetControls()
     try expect(editor.currentAdjustments == RenderAdjustments.defaults)
     try expect(!editor.showOriginal)
+    editor.samplePreviewPixel(x: 0.25, y: 0.75)
+    try expect(editor.pixelSample != nil)
+    try expect(editor.pixelSample?.x == 0.25)
+    try expect(editor.pixelSample?.y == 0.75)
+    editor.samplePreviewPixel(x: -1, y: 2)
+    try expect(editor.samplerX == 0)
+    try expect(editor.samplerY == 1)
+    try expect(editor.pixelSample?.x == 0)
+    try expect(editor.pixelSample?.y == 1)
+    editor.removeLocalAdjustments()
+    try expect(editor.localAdjustments.isEmpty)
+
+    let lutURL = directory.appendingPathComponent("test-lut.cube")
+    try """
+    LUT_3D_SIZE 2
+    0.20 0.10 0.10
+    0.80 0.40 0.30
+    """.data(using: .utf8)?.write(to: lutURL)
+    let spectralURL = directory.appendingPathComponent("spectral-density.json")
+    try #"{"red":0.7,"green":0.5,"blue":0.3,"density":0.8}"#.data(using: .utf8)?.write(to: spectralURL)
+    let grainURL = directory.appendingPathComponent("grain-spectrum.csv")
+    try "frequency,amount\n1,0.4\n2,0.7\n".data(using: .utf8)?.write(to: grainURL)
+    editor.importCalibrationAssetsForTesting(from: [lutURL, spectralURL, grainURL])
+    try expect(editor.calibrationDataStatus.supportsThreeDimensionalLUTs)
+    try expect(editor.calibrationDataStatus.supportsSpectralCurves)
+    try expect(editor.calibrationDataStatus.supportsMeasuredDensityCurves)
+    try expect(editor.calibrationDataStatus.supportsGrainSpectra)
+    try expect(editor.calibrationDataStatus.redScale > editor.calibrationDataStatus.blueScale)
+    try expect(editor.calibrationDataStatus.densityGamma > 1.0)
+    try expect(editor.calibrationDataStatus.grainAmount > 0)
 
     let suggestedName = editor.suggestedExportFileNameForTesting()
     try expect(suggestedName.hasPrefix("Sample Photo-"))
@@ -531,7 +663,20 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     editor.exportEditedPhotoForTesting(to: exportURL)
     try expect(FileManager.default.fileExists(atPath: exportURL.path))
 
-    let fallbackEditor = EditorStore(recipeStore: RecipeStore())
+    let batchDirectory = directory.appendingPathComponent("batch", isDirectory: true)
+    editor.exportSettings.namingTemplate = "{photo}_{recipe}_{format}"
+    editor.exportProjectPhotosForTesting(to: batchDirectory)
+    let batchFiles = try FileManager.default.contentsOfDirectory(atPath: batchDirectory.path)
+    try expect(batchFiles.count == 2, "Expected both project photos to export.")
+    try expect(batchFiles.allSatisfy { $0.contains("_jpeg") })
+
+    let recipeExportURL = directory.appendingPathComponent("recipe.json")
+    editor.exportSelectedRecipeForTesting(to: recipeExportURL)
+    try expect(FileManager.default.fileExists(atPath: recipeExportURL.path))
+    editor.importRecipeForTesting(from: recipeExportURL)
+    try expect(editor.selectedRecipe != nil)
+
+    let fallbackEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
     try expect(fallbackEditor.suggestedExportFileNameForTesting() == "film-chef-photo-edited.jpg")
     fallbackEditor.triggerExportPanelForTesting()
 
@@ -539,7 +684,7 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     failingRecipeEditor.loadRecipesIfNeeded()
     try expect(failingRecipeEditor.errorMessage == RecipeStore.RecipeStoreError.missingResource.errorDescription)
 
-    let failingImportEditor = EditorStore(recipeStore: RecipeStore())
+    let failingImportEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
     failingImportEditor.loadRecipesIfNeeded()
     failingImportEditor.importPhotoForTesting(from: directory.appendingPathComponent("missing.png"))
     try expect(failingImportEditor.errorMessage == ImageProcessor.ImageProcessorError.cannotLoadImage.errorDescription)
@@ -557,11 +702,111 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     SidebarViewCoverageProbe.touch(editor: editor, recipe: recipe)
     PreviewPaneViewCoverageProbe.touch(editor: editor)
     ControlsViewCoverageProbe.touch(editor: editor)
+    HistogramViewCoverageProbe.touch(summary: editor.histogramSummary)
     }
 }
 
 func testErrorDescriptionsAreStable() throws {
     try expect(RecipeStore.RecipeStoreError.missingResource.errorDescription == "No film recipe JSON files could be found.")
+    try expect(ProjectStore.ProjectStoreError.missingPhotoReference.errorDescription != nil)
+    try expect(ProjectStore.ProjectStoreError.unsupportedSchema(99).errorDescription != nil)
+}
+
+func testProjectStoreAndEditorPersistRestorableProject() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let sourceURL = directory.appendingPathComponent("Project Photo.png")
+    try writeTestPNG(to: sourceURL, width: 11, height: 9)
+    let projectURL = directory.appendingPathComponent("Project.filmchef")
+
+    try MainActor.assumeIsolated {
+        let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        editor.loadRecipesIfNeeded()
+        editor.importPhotoForTesting(from: sourceURL)
+        editor.intensity = 0.4
+        editor.exposureTrim = 0.15
+        editor.addLocalAdjustment()
+        editor.localAdjustments[0].mask = .path
+        editor.localAdjustments[0].brushSize = 0.2
+        editor.localAdjustments[0].pathPoints = [
+            NormalizedMaskPoint(x: 0.25, y: 0.3),
+            NormalizedMaskPoint(x: 0.75, y: 0.3),
+            NormalizedMaskPoint(x: 0.55, y: 0.7)
+        ]
+        editor.localAdjustments[0].saturation = 0.2
+        editor.previewZoom = 1.5
+        editor.splitPosition = 0.35
+        editor.histogramChannelMode = .rgb
+        editor.exportSettings = ExportSettings(fileFormat: .tiff, jpegQuality: 0.8, scale: 1.25, namingTemplate: "{photo}_custom")
+        let lutURL = directory.appendingPathComponent("project-lut.cube")
+        try """
+        LUT_3D_SIZE 2
+        0.15 0.10 0.10
+        0.75 0.40 0.25
+        """.data(using: .utf8)?.write(to: lutURL)
+        editor.importCalibrationAssetsForTesting(from: [lutURL])
+        editor.saveProjectForTesting(to: projectURL)
+        try expect(FileManager.default.fileExists(atPath: projectURL.path))
+
+        let loadedProject = try ProjectStore().loadProject(from: projectURL)
+        try expect(loadedProject.schemaVersion == 1)
+        try expect(loadedProject.items.count == 1)
+        try expect(loadedProject.items.first?.originalURLPath == sourceURL.path)
+        try expect(loadedProject.items.first?.localAdjustments.count == 1)
+        try expect(loadedProject.editHistory.count == editor.editHistory.count)
+        try expect(loadedProject.exportSettings.fileFormat == .tiff)
+        try expect(loadedProject.exportSettings.namingTemplate == "{photo}_custom")
+        try expect(loadedProject.calibrationDataStatus.supportsThreeDimensionalLUTs)
+        try expect(loadedProject.calibrationDataStatus.redScale > loadedProject.calibrationDataStatus.blueScale)
+
+        let reopened = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        reopened.loadRecipesIfNeeded()
+        reopened.openProjectForTesting(from: projectURL)
+        try expect(reopened.hasImportedImage)
+        try expect(reopened.importedImageName == "Project Photo.png")
+        try expect(reopened.currentAdjustments.intensity == 0.4)
+        try expect(reopened.currentAdjustments.exposureTrim == 0.15)
+        try expect(reopened.localAdjustments.count == 1)
+        try expect(reopened.localAdjustments[0].mask == .path)
+        try expect(reopened.localAdjustments[0].brushSize == 0.2)
+        try expect(reopened.localAdjustments[0].pathPoints.count == 3)
+        try expect(reopened.exportSettings.fileFormat == .tiff)
+        try expect(reopened.exportSettings.namingTemplate == "{photo}_custom")
+        try expect(reopened.calibrationDataStatus.importedAssetNames == ["project-lut.cube"])
+        try expect(reopened.calibrationDataStatus.redScale > reopened.calibrationDataStatus.blueScale)
+        try expect(reopened.histogramSummary != nil)
+
+        let secondURL = directory.appendingPathComponent("Second Photo.png")
+        try writeTestPNG(to: secondURL, width: 8, height: 6)
+        reopened.handleImportResults(.success([sourceURL, secondURL]))
+        try expect(reopened.project.items.count == 2)
+        let secondItem = try require(reopened.project.items.first { $0.displayName == "Second Photo.png" })
+        reopened.selectProjectItem(id: secondItem.id)
+        try expect(reopened.importedImageName == "Second Photo.png")
+
+        let batchDirectory = directory.appendingPathComponent("project-batch", isDirectory: true)
+        reopened.exportProjectPhotosForTesting(to: batchDirectory)
+        let batchFiles = try FileManager.default.contentsOfDirectory(atPath: batchDirectory.path)
+        try expect(batchFiles.count == 2)
+    }
+
+    let missingReference = FilmProjectItem(
+        displayName: "Missing",
+        originalURLPath: nil,
+        selectedRecipeID: nil,
+        adjustments: RenderAdjustments.defaults
+    )
+    do {
+        _ = try ProjectStore().resolvePhotoURL(for: missingReference)
+        try expect(false, "Expected missing project photo reference to fail.")
+    } catch ProjectStore.ProjectStoreError.missingPhotoReference {
+    }
 }
 
 func testWriteRenderedImageEncodesPngAndJpeg() throws {
@@ -605,6 +850,37 @@ func testWriteRenderedImageEncodesPngAndJpeg() throws {
         Array(jpegData.prefix(2)) == [0xFF, 0xD8],
         "JPEG export did not have a JPEG signature."
     )
+    let jpegSource = try require(CGImageSourceCreateWithURL(jpegURL as CFURL, nil))
+    let jpegProperties = try require(CGImageSourceCopyPropertiesAtIndex(jpegSource, 0, nil) as? [String: Any])
+    let exifMetadata = try require(jpegProperties[kCGImagePropertyExifDictionary as String] as? [String: Any])
+    try expect(exifMetadata[kCGImagePropertyExifUserComment as String] as? String == "Rendered with Film Chef")
+
+    let p3URL = directory.appendingPathComponent("render-p3.jpg")
+    try processor.writeRenderedImage(
+        from: source,
+        recipe: recipe,
+        adjustments: adjustments(),
+        to: p3URL,
+        colorSettings: ColorManagementSettings(outputColorSpace: "display_p3")
+    )
+    let p3Source = try require(CGImageSourceCreateWithURL(p3URL as CFURL, nil))
+    let p3Properties = try require(CGImageSourceCopyPropertiesAtIndex(p3Source, 0, nil) as? [String: Any])
+    try expect(p3Properties[kCGImagePropertyProfileName as String] as? String == "Display P3")
+
+    let tiffURL = directory.appendingPathComponent("render.tiff")
+    try processor.writeRenderedImage(
+        from: source,
+        recipe: recipe,
+        adjustments: adjustments(),
+        to: tiffURL,
+        settings: ExportSettings(fileFormat: .tiff),
+        localAdjustments: [.centeredDodge]
+    )
+    let tiffData = try Data(contentsOf: tiffURL)
+    try expect(
+        Array(tiffData.prefix(2)) == [0x49, 0x49] || Array(tiffData.prefix(2)) == [0x4D, 0x4D],
+        "TIFF export did not have a TIFF byte-order signature."
+    )
 }
 
 let tests: [TestCase] = [
@@ -619,6 +895,7 @@ let tests: [TestCase] = [
     TestCase(name: "image processor loads renders and reports errors", run: testImageProcessorLoadsRendersAndReportsErrors),
     TestCase(name: "write rendered image encodes PNG and JPEG", run: testWriteRenderedImageEncodesPngAndJpeg),
     TestCase(name: "editor store state import export and view construction", run: testEditorStoreStateImportExportAndViewConstruction),
+    TestCase(name: "project store and editor persist restorable project", run: testProjectStoreAndEditorPersistRestorableProject),
     TestCase(name: "error descriptions are stable", run: testErrorDescriptionsAreStable)
 ]
 

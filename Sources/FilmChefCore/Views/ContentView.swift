@@ -23,20 +23,55 @@ public struct ContentView: View {
         .toolbar {
             ToolbarItemGroup {
                 Button(action: editor.beginImport) {
-                    Label("Import", systemImage: "photo.badge.plus")
+                    Label("Import Photos", systemImage: "photo.badge.plus")
+                }
+
+                Button(action: editor.beginRecipeImport) {
+                    Label("Import Recipe", systemImage: "doc.badge.plus")
+                }
+
+                Button(action: editor.beginCalibrationImport) {
+                    Label("Calibration", systemImage: "chart.xyaxis.line")
+                }
+
+                Button(action: editor.saveProject) {
+                    Label("Save Project", systemImage: "folder.badge.plus")
                 }
 
                 Button(action: editor.exportEditedPhoto) {
                     Label("Export", systemImage: "square.and.arrow.down")
                 }
                 .disabled(!editor.canExport)
+
+                Button(action: editor.exportProjectPhotos) {
+                    Label("Batch Export", systemImage: "square.and.arrow.up.on.square")
+                }
+                .disabled(!editor.canBatchExport)
             }
         }
         .fileImporter(
             isPresented: $editor.isImporting,
             allowedContentTypes: [.image],
-            allowsMultipleSelection: false,
+            allowsMultipleSelection: true,
             onCompletion: editor.handleImportResults
+        )
+        .fileImporter(
+            isPresented: $editor.isImportingRecipe,
+            allowedContentTypes: [.json],
+            allowsMultipleSelection: false,
+            onCompletion: editor.handleRecipeImportResults
+        )
+        .fileImporter(
+            isPresented: $editor.isImportingCalibration,
+            allowedContentTypes: [.json, .data],
+            allowsMultipleSelection: true,
+            onCompletion: editor.handleCalibrationImportResults
+        )
+        .fileImporter(
+            isPresented: $editor.isOpeningProject,
+            allowedContentTypes: [.filmChefProject, .json],
+            allowsMultipleSelection: false,
+            onCompletion: editor.handleProjectOpenResults
         )
         .alert(
             "Film Chef",
