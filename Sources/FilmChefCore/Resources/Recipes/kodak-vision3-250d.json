@@ -1,0 +1,184 @@
+{
+  "schema_version": "1.0",
+  "profile_id": "kodak-vision3-250d",
+  "display_name": "Kodak Vision3 250D",
+  "manufacturer": "Kodak",
+  "summary": "Daylight-balanced motion-picture negative with cinematic latitude, restrained saturation, and fine-grained highlight detail.",
+  "format": {
+    "type": "35mm",
+    "frame_size_mm": {
+      "width": 36,
+      "height": 24
+    },
+    "default_aspect_ratio": 1.5
+  },
+  "stock": {
+    "family": "motion_picture_negative",
+    "process": "ecn2",
+    "box_speed_iso": 250,
+    "native_balance": "daylight",
+    "native_colour_temperature_k": 5500,
+    "has_orange_mask": true,
+    "has_remjet": true,
+    "anti_halation": "remjet"
+  },
+  "input": {
+    "preferred_source": "raw",
+    "working_space": "acescg",
+    "requires_scene_linear": true
+  },
+  "exposure": {
+    "box_speed_iso": 250,
+    "exposed_at_iso": 250,
+    "exposure_compensation_ev": 0.1,
+    "middle_grey": 0.18,
+    "highlight_protection": 0.26,
+    "shadow_lift_before_film": 0.03
+  },
+  "capture_conditions": {
+    "illuminant": "daylight",
+    "colour_temperature_k": 5500,
+    "lens_contrast": 0.96,
+    "lens_flare": 0.016,
+    "filter": {
+      "type": "none",
+      "strength": 1
+    }
+  },
+  "layer_model": {
+    "type": "motion_picture_negative_daylight",
+    "layers": ["red", "green", "blue"],
+    "rgb_to_layer_matrix": [
+      [0.9, 0.1, 0.03],
+      [0.07, 0.91, 0.07],
+      [0.03, 0.12, 0.92]
+    ]
+  },
+  "characteristic_curves": {
+    "curve_space": "log_exposure_to_density",
+    "channels": {
+      "red": {
+        "toe": 0.3,
+        "gamma": 0.5,
+        "shoulder": 0.4,
+        "d_min": 0.2,
+        "d_max": 2.45
+      },
+      "green": {
+        "toe": 0.3,
+        "gamma": 0.51,
+        "shoulder": 0.38,
+        "d_min": 0.22,
+        "d_max": 2.5
+      },
+      "blue": {
+        "toe": 0.33,
+        "gamma": 0.54,
+        "shoulder": 0.4,
+        "d_min": 0.3,
+        "d_max": 2.58
+      }
+    }
+  },
+  "colour_model": {
+    "palette": "cinematic_daylight_negative",
+    "saturation": 0.98,
+    "warmth": 0.04,
+    "hue_bias": {
+      "reds": 0.02,
+      "yellows": 0.02,
+      "greens": -0.02,
+      "cyans": 0.02,
+      "blues": 0.03,
+      "magentas": 0.01
+    },
+    "skin_tone_protection": 0.72,
+    "orange_mask": {
+      "enabled": true,
+      "density": {
+        "red": 0.22,
+        "green": 0.5,
+        "blue": 0.8
+      }
+    }
+  },
+  "process": {
+    "type": "ecn2",
+    "variant": "normal",
+    "push_pull_stops": 0,
+    "contrast_multiplier": 0.92,
+    "speed_gain_ev": 0,
+    "grain_multiplier": 0.9,
+    "colour_shift": {
+      "r": 0.01,
+      "g": 0,
+      "b": 0.01
+    }
+  },
+  "grain": {
+    "enabled": true,
+    "model": "motion_picture_dye_cloud",
+    "strength": 0.16,
+    "size": 0.68,
+    "clumpiness": 0.26,
+    "softness": 0.34,
+    "tonal_distribution": {
+      "shadow": 0.78,
+      "midtone": 1,
+      "highlight": 0.5
+    },
+    "chromaticity": 0.18,
+    "channel_variance": {
+      "red": 0.95,
+      "green": 0.88,
+      "blue": 1.08
+    },
+    "format_scale": "35mm",
+    "seed_mode": "deterministic"
+  },
+  "halation": {
+    "enabled": true,
+    "model": "remjet",
+    "threshold": 0.92,
+    "strength": 0.028,
+    "radius": 6,
+    "colour": {
+      "r": 1,
+      "g": 0.48,
+      "b": 0.2
+    },
+    "affects": "pre_scan_density",
+    "edge_preservation": 0.7
+  },
+  "sharpness": {
+    "film_mtf_blur": 0.26,
+    "scanner_mtf_blur": 0.32,
+    "acutance": 0.12,
+    "digital_sharpening": 0.08
+  },
+  "renderer": {
+    "type": "cinematic_lab_scan",
+    "negative_inversion": true,
+    "auto_exposure": 0.58,
+    "auto_white_balance": 0.52,
+    "black_point": 0.016,
+    "white_point": 0.975,
+    "contrast": 0.98,
+    "saturation": 0.98,
+    "sharpening": 0.08,
+    "scanner_mtf": {
+      "blur_radius": 0.32,
+      "microcontrast": 0.08
+    }
+  },
+  "output": {
+    "colour_space": "srgb",
+    "bit_depth": 16,
+    "dither": true
+  },
+  "calibration": {
+    "confidence": "estimated",
+    "source": "manual_tuning",
+    "notes": "Daylight ECN-2 motion-picture negative profile with remjet-controlled halation."
+  }
+}

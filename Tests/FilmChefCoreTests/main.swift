@@ -144,9 +144,14 @@ func testLoadsExpectedBundledRecipesSortedByDisplayName() throws {
     try expect(
         Set(recipes.map(\.profileId)) == [
             "cinestill-800t",
+            "fujifilm-velvia-50",
             "ilford-hp5-plus-400",
             "kodak-ektachrome-e100",
-            "kodak-gold-200"
+            "kodak-gold-200",
+            "kodak-portra-400",
+            "kodak-portra-800",
+            "kodak-tri-x-400",
+            "kodak-vision3-250d"
         ],
         "Bundled recipe IDs changed unexpectedly."
     )

@@ -1,0 +1,176 @@
+{
+  "schema_version": "1.0",
+  "profile_id": "kodak-portra-800",
+  "display_name": "Kodak Portra 800",
+  "manufacturer": "Kodak",
+  "summary": "High-speed professional color negative with warm shadows, soft portrait contrast, and more visible dye cloud grain.",
+  "format": {
+    "type": "35mm",
+    "frame_size_mm": {
+      "width": 36,
+      "height": 24
+    },
+    "default_aspect_ratio": 1.5
+  },
+  "stock": {
+    "family": "colour_negative",
+    "process": "c41",
+    "box_speed_iso": 800,
+    "native_balance": "daylight",
+    "has_orange_mask": true,
+    "has_remjet": false,
+    "anti_halation": "standard"
+  },
+  "input": {
+    "preferred_source": "raw",
+    "working_space": "acescg",
+    "requires_scene_linear": true
+  },
+  "exposure": {
+    "box_speed_iso": 800,
+    "exposed_at_iso": 800,
+    "exposure_compensation_ev": 0.12,
+    "middle_grey": 0.18,
+    "highlight_protection": 0.18,
+    "shadow_lift_before_film": 0.05
+  },
+  "capture_conditions": {
+    "illuminant": "mixed_light",
+    "colour_temperature_k": 4800,
+    "lens_contrast": 0.97,
+    "lens_flare": 0.018,
+    "filter": {
+      "type": "none",
+      "strength": 1
+    }
+  },
+  "layer_model": {
+    "type": "high_speed_colour_negative",
+    "layers": ["red", "green", "blue"],
+    "rgb_to_layer_matrix": [
+      [0.88, 0.12, 0.03],
+      [0.08, 0.89, 0.08],
+      [0.04, 0.14, 0.9]
+    ]
+  },
+  "characteristic_curves": {
+    "curve_space": "log_exposure_to_density",
+    "channels": {
+      "red": {
+        "toe": 0.28,
+        "gamma": 0.55,
+        "shoulder": 0.34,
+        "d_min": 0.2,
+        "d_max": 2.35
+      },
+      "green": {
+        "toe": 0.29,
+        "gamma": 0.56,
+        "shoulder": 0.32,
+        "d_min": 0.22,
+        "d_max": 2.4
+      },
+      "blue": {
+        "toe": 0.32,
+        "gamma": 0.59,
+        "shoulder": 0.35,
+        "d_min": 0.3,
+        "d_max": 2.48
+      }
+    }
+  },
+  "colour_model": {
+    "palette": "warm_high_speed_portrait",
+    "saturation": 1.04,
+    "warmth": 0.14,
+    "hue_bias": {
+      "reds": 0.04,
+      "yellows": 0.05,
+      "greens": -0.03,
+      "cyans": -0.01,
+      "blues": -0.04,
+      "magentas": 0.02
+    },
+    "skin_tone_protection": 0.78,
+    "orange_mask": {
+      "enabled": true,
+      "density": {
+        "red": 0.22,
+        "green": 0.49,
+        "blue": 0.78
+      }
+    }
+  },
+  "process": {
+    "type": "c41",
+    "variant": "normal",
+    "push_pull_stops": 0,
+    "contrast_multiplier": 0.98,
+    "speed_gain_ev": 0,
+    "grain_multiplier": 1.25
+  },
+  "grain": {
+    "enabled": true,
+    "model": "high_speed_colour_dye_cloud",
+    "strength": 0.3,
+    "size": 1.05,
+    "clumpiness": 0.42,
+    "softness": 0.36,
+    "tonal_distribution": {
+      "shadow": 0.92,
+      "midtone": 1,
+      "highlight": 0.62
+    },
+    "chromaticity": 0.28,
+    "channel_variance": {
+      "red": 1,
+      "green": 0.9,
+      "blue": 1.18
+    },
+    "format_scale": "35mm",
+    "seed_mode": "deterministic"
+  },
+  "halation": {
+    "enabled": true,
+    "model": "standard_anti_halation",
+    "threshold": 0.88,
+    "strength": 0.07,
+    "radius": 9,
+    "colour": {
+      "r": 1,
+      "g": 0.44,
+      "b": 0.18
+    }
+  },
+  "sharpness": {
+    "film_mtf_blur": 0.38,
+    "scanner_mtf_blur": 0.42,
+    "acutance": 0.12,
+    "digital_sharpening": 0.08
+  },
+  "renderer": {
+    "type": "lab_scan_frontier",
+    "negative_inversion": true,
+    "auto_exposure": 0.68,
+    "auto_white_balance": 0.58,
+    "black_point": 0.02,
+    "white_point": 0.968,
+    "contrast": 1,
+    "saturation": 1.02,
+    "sharpening": 0.08,
+    "scanner_mtf": {
+      "blur_radius": 0.42,
+      "microcontrast": 0.08
+    }
+  },
+  "output": {
+    "colour_space": "srgb",
+    "bit_depth": 16,
+    "dither": true
+  },
+  "calibration": {
+    "confidence": "estimated",
+    "source": "manual_tuning",
+    "notes": "High-speed daylight color-negative profile for warm available-light portraits."
+  }
+}

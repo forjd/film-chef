@@ -11,11 +11,16 @@ Film Chef is a macOS SwiftUI photo editing app focused on film emulation. It let
 - Photo import via the macOS file picker
 - Export to JPEG or PNG
 - JSON-backed resolved film profiles for easy editing and sharing
-- Four starter profiles:
+- Nine starter profiles:
   - Ilford HP5 Plus 400
+  - Kodak Tri-X 400
   - Kodak Gold 200
+  - Kodak Portra 400
+  - Kodak Portra 800
   - CineStill 800T
   - Kodak Ektachrome E100
+  - Fujifilm Velvia 50
+  - Kodak Vision3 250D
 - Modular Core Image rendering pipeline with profile-driven exposure placement, capture filters, layer response, characteristic curves, process adjustments, halation, grain, MTF/sharpness, and scan/print rendering
 
 ## Requirements
