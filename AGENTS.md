@@ -1,0 +1,72 @@
+# Agent Notes
+
+This repository contains a SwiftPM macOS SwiftUI app named `FilmChef`.
+
+## Build And Run
+
+Use the project script as the canonical local run path:
+
+```bash
+./script/build_and_run.sh
+```
+
+Verification:
+
+```bash
+./script/build_and_run.sh --verify
+swift build
+```
+
+The run script stages a local `.app` bundle under `dist/`. Do not commit `dist/` or `.build/`.
+
+## App Shape
+
+- `Package.swift` defines a single executable product, `FilmChef`.
+- `Sources/FilmChef/App/FilmChefApp.swift` owns the app entry point and app commands.
+- `Sources/FilmChef/Views/ContentView.swift` composes the three-pane layout.
+- `Sources/FilmChef/Stores/EditorStore.swift` owns editor state, import/export actions, and preview rendering triggers.
+- `Sources/FilmChef/Stores/RecipeStore.swift` loads bundled JSON recipes.
+- `Sources/FilmChef/Services/ImageProcessor.swift` owns Core Image loading, rendering, grain, preview scaling, and export encoding.
+- `Sources/FilmChef/Resources/Recipes/film_recipes.json` is the editable recipe source.
+
+## Editing Guidelines
+
+- Keep the desktop layout native: `NavigationSplitView` sidebar, preview, and inspector-style controls.
+- Prefer small focused Swift files by responsibility. Avoid merging models, stores, services, and views into one file.
+- Recipe changes should normally happen in `film_recipes.json`, not hardcoded Swift.
+- If the JSON schema changes, update `FilmRecipe.swift`, `RecipeStore.swift`, and `README.md` together.
+- Keep generated artifacts out of source control. `.gitignore` already excludes `.build/` and `dist/`.
+- After Swift edits, run `swift build`. After app flow or resource-bundle edits, run `./script/build_and_run.sh --verify`.
+
+## Commit Style
+
+Use conventional commits for commit messages, such as `feat: add recipe import`, `fix: handle missing recipe JSON`, or `docs: update agent notes`.
+
+## Recipe Schema
+
+Each recipe has:
+
+- `id`: stable unique slug
+- `name`: display name
+- `maker`: film maker or recipe author
+- `iso`: numeric ISO
+- `stockType`: `color` or `blackAndWhite`
+- `summary`: short UI description
+- `parameters`: render controls consumed by `ImageProcessor`
+
+Rendering parameters:
+
+- `exposure`
+- `brightness`
+- `contrast`
+- `saturation`
+- `temperature`
+- `tint`
+- `highlights`
+- `shadows`
+- `grain`
+- `vignette`
+
+## Known Scope
+
+This is an initial implementation. There is no persistent user library, custom recipe import/export UI, before/after split view, histogram, or non-destructive edit stack yet.
