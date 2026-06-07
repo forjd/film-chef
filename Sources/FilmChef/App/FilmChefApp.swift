@@ -1,4 +1,5 @@
 import AppKit
+import FilmChefCore
 import SwiftUI
 
 @main

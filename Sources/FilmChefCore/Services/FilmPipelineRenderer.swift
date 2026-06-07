@@ -2,8 +2,10 @@ import CoreGraphics
 import CoreImage
 import Foundation
 
-struct FilmPipelineRenderer {
-    func render(
+package struct FilmPipelineRenderer {
+    package init() {}
+
+    package func render(
         source: CIImage,
         recipe: FilmRecipe,
         adjustments: RenderAdjustments

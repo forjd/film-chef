@@ -4,7 +4,7 @@ import Foundation
 import UniformTypeIdentifiers
 
 @MainActor
-final class EditorStore: ObservableObject {
+public final class EditorStore: ObservableObject {
     @Published private(set) var recipes: [FilmRecipe] = []
     @Published var selectedRecipeID: String? {
         didSet { renderPreviewIfNeeded() }
@@ -39,7 +39,7 @@ final class EditorStore: ObservableObject {
     private var sourceURL: URL?
     private var suppressPreviewUpdates = false
 
-    init(recipeStore: RecipeStore) {
+    public init(recipeStore: RecipeStore) {
         self.recipeStore = recipeStore
     }
 
@@ -55,7 +55,7 @@ final class EditorStore: ObservableObject {
         sourceImage != nil
     }
 
-    var canExport: Bool {
+    public var canExport: Bool {
         sourceImage != nil && selectedRecipe != nil
     }
 
@@ -69,7 +69,7 @@ final class EditorStore: ObservableObject {
         )
     }
 
-    func loadRecipesIfNeeded() {
+    public func loadRecipesIfNeeded() {
         guard recipes.isEmpty else {
             return
         }
@@ -82,7 +82,7 @@ final class EditorStore: ObservableObject {
         }
     }
 
-    func beginImport() {
+    public func beginImport() {
         isImporting = true
     }
 
@@ -108,7 +108,7 @@ final class EditorStore: ObservableObject {
         }
     }
 
-    func resetControls() {
+    public func resetControls() {
         suppressPreviewUpdates = true
         intensity = RenderAdjustments.defaults.intensity
         exposureTrim = RenderAdjustments.defaults.exposureTrim
@@ -120,7 +120,7 @@ final class EditorStore: ObservableObject {
         renderPreviewIfNeeded()
     }
 
-    func exportEditedPhoto() {
+    public func exportEditedPhoto() {
         guard canExport else {
             return
         }

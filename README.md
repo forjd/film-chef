@@ -47,12 +47,23 @@ You can also build without launching:
 swift build
 ```
 
+## Test
+
+Run the package-local test runner:
+
+```bash
+./script/test.sh
+```
+
+The script runs `FilmChefCoreTests` and writes a coverage JSON report under `.build/arm64-apple-macosx/debug/codecov/`.
+Use this script as the canonical test command instead of `swift test`.
+
 ## Recipe Config
 
 Recipes live here:
 
 ```text
-Sources/FilmChef/Resources/Recipes/*.json
+Sources/FilmChefCore/Resources/Recipes/*.json
 ```
 
 Each file contains one resolved film profile. Add a new profile by creating a JSON file named after its stable `profile_id`, with this top-level shape:
@@ -113,13 +124,15 @@ The renderer currently translates these descriptive values into Core Image stage
 ## Project Layout
 
 ```text
-Sources/FilmChef/App/          App entry point and commands
-Sources/FilmChef/Models/       Recipe and adjustment models
-Sources/FilmChef/Stores/       App state and recipe loading
-Sources/FilmChef/Services/     Core Image processing
-Sources/FilmChef/Views/        SwiftUI views
-Sources/FilmChef/Resources/    Per-recipe JSON resources
-script/build_and_run.sh        Build, bundle, and launch script
+Sources/FilmChef/App/              App entry point and commands
+Sources/FilmChefCore/Models/       Recipe and adjustment models
+Sources/FilmChefCore/Stores/       App state and recipe loading
+Sources/FilmChefCore/Services/     Core Image processing
+Sources/FilmChefCore/Views/        SwiftUI views
+Sources/FilmChefCore/Resources/    Per-recipe JSON resources
+Tests/FilmChefCoreTests/           Executable test runner
+script/build_and_run.sh            Build, bundle, and launch script
+script/test.sh                     Test and coverage script
 ```
 
 ## Codex Run Button

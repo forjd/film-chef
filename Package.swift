@@ -7,14 +7,24 @@ let package = Package(
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "FilmChef", targets: ["FilmChef"])
+        .executable(name: "FilmChef", targets: ["FilmChef"]),
+        .executable(name: "FilmChefCoreTests", targets: ["FilmChefCoreTests"])
     ],
     targets: [
-        .executableTarget(
-            name: "FilmChef",
+        .target(
+            name: "FilmChefCore",
             resources: [
                 .process("Resources")
             ]
+        ),
+        .executableTarget(
+            name: "FilmChef",
+            dependencies: ["FilmChefCore"]
+        ),
+        .executableTarget(
+            name: "FilmChefCoreTests",
+            dependencies: ["FilmChefCore"],
+            path: "Tests/FilmChefCoreTests"
         )
     ]
 )

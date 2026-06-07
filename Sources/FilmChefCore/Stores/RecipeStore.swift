@@ -1,6 +1,6 @@
 import Foundation
 
-final class RecipeStore {
+public final class RecipeStore {
     enum RecipeStoreError: LocalizedError {
         case missingResource
         case emptyRecipes
@@ -15,7 +15,9 @@ final class RecipeStore {
         }
     }
 
-    func loadRecipes() throws -> [FilmRecipe] {
+    public init() {}
+
+    package func loadRecipes() throws -> [FilmRecipe] {
         let urls = recipeURLs()
 
         guard !urls.isEmpty else {

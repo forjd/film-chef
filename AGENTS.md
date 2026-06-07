@@ -13,6 +13,7 @@ Use the project script as the canonical local run path:
 Verification:
 
 ```bash
+./script/test.sh
 ./script/build_and_run.sh --verify
 swift build
 ```
@@ -21,23 +22,25 @@ The run script stages a local `.app` bundle under `dist/`. Do not commit `dist/`
 
 ## App Shape
 
-- `Package.swift` defines a single executable product, `FilmChef`.
+- `Package.swift` defines the `FilmChef` app executable and the `FilmChefCoreTests` executable test runner.
 - `Sources/FilmChef/App/FilmChefApp.swift` owns the app entry point and app commands.
-- `Sources/FilmChef/Views/ContentView.swift` composes the three-pane layout.
-- `Sources/FilmChef/Stores/EditorStore.swift` owns editor state, import/export actions, and preview rendering triggers.
-- `Sources/FilmChef/Stores/RecipeStore.swift` loads bundled JSON recipes.
-- `Sources/FilmChef/Services/ImageProcessor.swift` owns Core Image loading, preview scaling, and export encoding.
-- `Sources/FilmChef/Services/FilmPipelineRenderer.swift` owns the profile-driven Core Image rendering stages.
-- `Sources/FilmChef/Resources/Recipes/*.json` contains one editable recipe per file.
+- `Sources/FilmChefCore/Views/ContentView.swift` composes the three-pane layout.
+- `Sources/FilmChefCore/Stores/EditorStore.swift` owns editor state, import/export actions, and preview rendering triggers.
+- `Sources/FilmChefCore/Stores/RecipeStore.swift` loads bundled JSON recipes.
+- `Sources/FilmChefCore/Services/ImageProcessor.swift` owns Core Image loading, preview scaling, and export encoding.
+- `Sources/FilmChefCore/Services/FilmPipelineRenderer.swift` owns the profile-driven Core Image rendering stages.
+- `Sources/FilmChefCore/Resources/Recipes/*.json` contains one editable recipe per file.
+- `Tests/FilmChefCoreTests/main.swift` runs focused core tests and coverage through `./script/test.sh`.
+- Use `./script/test.sh` as the canonical test command instead of `swift test`.
 
 ## Editing Guidelines
 
 - Keep the desktop layout native: `NavigationSplitView` sidebar, preview, and inspector-style controls.
 - Prefer small focused Swift files by responsibility. Avoid merging models, stores, services, and views into one file.
-- Recipe changes should normally happen in individual JSON files under `Sources/FilmChef/Resources/Recipes/`, not hardcoded Swift.
+- Recipe changes should normally happen in individual JSON files under `Sources/FilmChefCore/Resources/Recipes/`, not hardcoded Swift.
 - If the JSON schema changes, update `FilmRecipe.swift`, `RecipeStore.swift`, and `README.md` together.
 - Keep generated artifacts out of source control. `.gitignore` already excludes `.build/` and `dist/`.
-- After Swift edits, run `swift build`. After app flow or resource-bundle edits, run `./script/build_and_run.sh --verify`.
+- After Swift edits, run `./script/test.sh` and `swift build`. After app flow or resource-bundle edits, also run `./script/build_and_run.sh --verify`.
 
 ## Commit Style
 

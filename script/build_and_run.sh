@@ -21,16 +21,16 @@ pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 swift build
 BUILD_DIR="$(swift build --show-bin-path)"
 BUILD_BINARY="$BUILD_DIR/$APP_NAME"
-RESOURCE_BUNDLE="$BUILD_DIR/${APP_NAME}_${APP_NAME}.bundle"
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS"
 cp "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
 
-if [[ -d "$RESOURCE_BUNDLE" ]]; then
+for RESOURCE_BUNDLE in "$BUILD_DIR"/${APP_NAME}_*.bundle; do
+  [[ -d "$RESOURCE_BUNDLE" ]] || continue
   cp -R "$RESOURCE_BUNDLE" "$APP_BUNDLE/"
-fi
+done
 
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

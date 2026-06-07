@@ -1,11 +1,15 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct ContentView: View {
+public struct ContentView: View {
     @ObservedObject var editor: EditorStore
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
-    var body: some View {
+    public init(editor: EditorStore) {
+        self.editor = editor
+    }
+
+    public var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(editor: editor)
                 .navigationSplitViewColumnWidth(min: 210, ideal: 240, max: 300)

@@ -3,7 +3,7 @@ import CoreImage
 import Foundation
 import UniformTypeIdentifiers
 
-final class ImageProcessor {
+package final class ImageProcessor {
     private static let defaultPreviewMaxDimension: CGFloat = 4096
 
     enum ImageProcessorError: LocalizedError {
@@ -26,7 +26,9 @@ final class ImageProcessor {
     private let context = CIContext()
     private let pipelineRenderer = FilmPipelineRenderer()
 
-    func loadSourceImage(from url: URL) throws -> CIImage {
+    package init() {}
+
+    package func loadSourceImage(from url: URL) throws -> CIImage {
         guard let image = CIImage(contentsOf: url, options: [.applyOrientationProperty: true]),
               let rendered = context.createCGImage(image, from: image.extent)
         else {
@@ -36,14 +38,14 @@ final class ImageProcessor {
         return CIImage(cgImage: rendered)
     }
 
-    func makePreviewImage(
+    package func makePreviewImage(
         from source: CIImage,
         maxDimension: CGFloat = ImageProcessor.defaultPreviewMaxDimension
     ) throws -> NSImage {
         try makeNSImage(from: scaleForPreview(source, maxDimension: maxDimension))
     }
 
-    func renderPreviewImage(
+    package func renderPreviewImage(
         from source: CIImage,
         recipe: FilmRecipe,
         adjustments: RenderAdjustments,
@@ -58,7 +60,7 @@ final class ImageProcessor {
         return try makeNSImage(from: rendered)
     }
 
-    func writeRenderedImage(
+    package func writeRenderedImage(
         from source: CIImage,
         recipe: FilmRecipe,
         adjustments: RenderAdjustments,
