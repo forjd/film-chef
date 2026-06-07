@@ -33,17 +33,7 @@ struct SidebarView: View {
         .listStyle(.sidebar)
         .navigationTitle("Film Chef")
         .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 8) {
-                HStack {
-                    Button(action: editor.beginProjectOpen) {
-                        Label("Open", systemImage: "folder")
-                    }
-
-                    Button(action: editor.saveProject) {
-                        Label("Save", systemImage: "square.and.arrow.down")
-                    }
-                }
-
+            VStack(spacing: 10) {
                 Button(action: editor.beginImport) {
                     Label("Import Photos", systemImage: "photo.badge.plus")
                         .frame(maxWidth: .infinity)
@@ -51,30 +41,46 @@ struct SidebarView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
 
+                HStack(spacing: 8) {
+                    Button(action: editor.beginProjectOpen) {
+                        Label("Open", systemImage: "folder")
+                            .frame(maxWidth: .infinity)
+                    }
+
+                    Button(action: editor.saveProject) {
+                        Label("Save", systemImage: "square.and.arrow.down")
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+
                 Button(action: editor.exportProjectPhotos) {
-                    Label("Export Project", systemImage: "square.and.arrow.up.on.square")
+                    Label("Batch Export", systemImage: "square.and.arrow.up.on.square")
                         .frame(maxWidth: .infinity)
                 }
                 .disabled(!editor.canBatchExport)
 
-                HStack {
+                Divider()
+
+                HStack(spacing: 8) {
                     Button(action: editor.beginRecipeImport) {
-                        Label("Import Recipe", systemImage: "doc.badge.plus")
+                        Label("Recipe", systemImage: "doc.badge.plus")
+                            .frame(maxWidth: .infinity)
                     }
 
                     Button(action: editor.beginCalibrationImport) {
                         Label("Calibrate", systemImage: "chart.xyaxis.line")
+                            .frame(maxWidth: .infinity)
                     }
                 }
 
-                HStack {
-                    Button(action: editor.exportSelectedRecipe) {
-                        Label("Export Recipe", systemImage: "square.and.arrow.up")
-                    }
-                    .disabled(editor.selectedRecipe == nil)
+                Button(action: editor.exportSelectedRecipe) {
+                    Label("Export Recipe", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity)
                 }
+                .disabled(editor.selectedRecipe == nil)
             }
-            .padding()
+            .buttonStyle(.bordered)
+            .padding(12)
             .background(.bar)
         }
     }

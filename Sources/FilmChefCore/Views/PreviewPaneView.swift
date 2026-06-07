@@ -41,7 +41,8 @@ struct PreviewPaneView: View {
                 }
             }
             .pickerStyle(.segmented)
-            .frame(width: 320)
+            .labelsHidden()
+            .frame(minWidth: 300, idealWidth: 340)
             .disabled(!editor.hasImportedImage)
         }
         .padding(.horizontal, 20)
@@ -223,7 +224,7 @@ struct PreviewPaneView: View {
     fileprivate var emptyState: some View {
         VStack(spacing: 14) {
             Image(systemName: "photo")
-                .font(.system(size: 48, weight: .light))
+                .font(.system(size: 52, weight: .light))
                 .foregroundStyle(.secondary)
 
             Text("No Photo")
@@ -233,9 +234,15 @@ struct PreviewPaneView: View {
             Button(action: editor.beginImport) {
                 Label("Import Photo", systemImage: "photo.badge.plus")
             }
+            .buttonStyle(.borderedProminent)
             .controlSize(.large)
         }
-        .foregroundStyle(.secondary)
+        .padding(34)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(.separator.opacity(0.45), lineWidth: 1)
+        }
     }
 
 }
