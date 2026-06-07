@@ -4,6 +4,8 @@ import Foundation
 import UniformTypeIdentifiers
 
 final class ImageProcessor {
+    private static let defaultPreviewMaxDimension: CGFloat = 4096
+
     enum ImageProcessorError: LocalizedError {
         case cannotLoadImage
         case cannotRenderImage
@@ -34,7 +36,10 @@ final class ImageProcessor {
         return CIImage(cgImage: rendered)
     }
 
-    func makePreviewImage(from source: CIImage, maxDimension: CGFloat = 1800) throws -> NSImage {
+    func makePreviewImage(
+        from source: CIImage,
+        maxDimension: CGFloat = ImageProcessor.defaultPreviewMaxDimension
+    ) throws -> NSImage {
         try makeNSImage(from: scaleForPreview(source, maxDimension: maxDimension))
     }
 
@@ -42,7 +47,7 @@ final class ImageProcessor {
         from source: CIImage,
         recipe: FilmRecipe,
         adjustments: RenderAdjustments,
-        maxDimension: CGFloat = 1800
+        maxDimension: CGFloat = ImageProcessor.defaultPreviewMaxDimension
     ) throws -> NSImage {
         let previewSource = scaleForPreview(source, maxDimension: maxDimension)
         let rendered = pipelineRenderer.render(
@@ -86,6 +91,10 @@ final class ImageProcessor {
     }
 
     private func scaleForPreview(_ image: CIImage, maxDimension: CGFloat) -> CIImage {
+        guard maxDimension > 0 else {
+            return image
+        }
+
         let longestSide = max(image.extent.width, image.extent.height)
 
         guard longestSide > maxDimension else {
@@ -93,7 +102,13 @@ final class ImageProcessor {
         }
 
         let scale = maxDimension / longestSide
-        return image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        return image.applyingFilter(
+            "CILanczosScaleTransform",
+            parameters: [
+                kCIInputScaleKey: scale,
+                kCIInputAspectRatioKey: 1.0
+            ]
+        )
     }
 
     private func makeNSImage(from image: CIImage) throws -> NSImage {

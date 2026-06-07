@@ -13,6 +13,8 @@ struct PreviewPaneView: View {
                 if let image = editor.displayedPreviewImage {
                     Image(nsImage: image)
                         .resizable()
+                        .interpolation(.high)
+                        .antialiased(true)
                         .scaledToFit()
                         .shadow(color: .black.opacity(0.24), radius: 18, y: 8)
                         .padding(32)
