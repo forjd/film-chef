@@ -1,0 +1,20 @@
+{
+  "id": "ilford-hp5-plus-400",
+  "name": "Ilford HP5 Plus 400",
+  "maker": "Ilford",
+  "iso": 400,
+  "stockType": "blackAndWhite",
+  "summary": "Classic high-speed monochrome with firm contrast, lifted shadows, and visible grain.",
+  "parameters": {
+    "exposure": 0.05,
+    "brightness": -0.01,
+    "contrast": 1.22,
+    "saturation": 0.0,
+    "temperature": 0.0,
+    "tint": 0.0,
+    "highlights": 0.92,
+    "shadows": 0.18,
+    "grain": 0.28,
+    "vignette": 0.16
+  }
+}

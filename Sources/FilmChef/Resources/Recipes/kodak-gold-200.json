@@ -1,0 +1,20 @@
+{
+  "id": "kodak-gold-200",
+  "name": "Kodak Gold 200",
+  "maker": "Kodak",
+  "iso": 200,
+  "stockType": "color",
+  "summary": "Warm consumer color negative with gentle contrast, golden highlights, and modest grain.",
+  "parameters": {
+    "exposure": 0.08,
+    "brightness": 0.01,
+    "contrast": 1.07,
+    "saturation": 1.16,
+    "temperature": 520.0,
+    "tint": 8.0,
+    "highlights": 0.96,
+    "shadows": 0.08,
+    "grain": 0.10,
+    "vignette": 0.08
+  }
+}

@@ -50,10 +50,10 @@ swift build
 Recipes live here:
 
 ```text
-Sources/FilmChef/Resources/Recipes/film_recipes.json
+Sources/FilmChef/Resources/Recipes/*.json
 ```
 
-The file is a JSON array. Add a new recipe by appending another object with this shape:
+Each file contains one recipe object. Add a new recipe by creating a JSON file named after its stable `id`, with this shape:
 
 ```json
 {
@@ -104,7 +104,7 @@ Sources/FilmChef/Models/       Recipe and adjustment models
 Sources/FilmChef/Stores/       App state and recipe loading
 Sources/FilmChef/Services/     Core Image processing
 Sources/FilmChef/Views/        SwiftUI views
-Sources/FilmChef/Resources/    JSON recipe resources
+Sources/FilmChef/Resources/    Per-recipe JSON resources
 script/build_and_run.sh        Build, bundle, and launch script
 ```
 

@@ -8,34 +8,47 @@ final class RecipeStore {
         var errorDescription: String? {
             switch self {
             case .missingResource:
-                return "The film recipe JSON file could not be found."
+                return "No film recipe JSON files could be found."
             case .emptyRecipes:
-                return "The film recipe JSON file does not contain any recipes."
+                return "The film recipe directory does not contain any recipes."
             }
         }
     }
 
     func loadRecipes() throws -> [FilmRecipe] {
-        let url = Bundle.module.url(
-            forResource: "film_recipes",
-            withExtension: "json",
-            subdirectory: "Recipes"
-        ) ?? Bundle.module.url(
-            forResource: "film_recipes",
-            withExtension: "json"
-        )
+        let urls = recipeURLs()
 
-        guard let url else {
+        guard !urls.isEmpty else {
             throw RecipeStoreError.missingResource
         }
 
-        let data = try Data(contentsOf: url)
-        let recipes = try JSONDecoder().decode([FilmRecipe].self, from: data)
+        let decoder = JSONDecoder()
+        let recipes = try urls.map { url in
+            let data = try Data(contentsOf: url)
+            return try decoder.decode(FilmRecipe.self, from: data)
+        }
 
         guard !recipes.isEmpty else {
             throw RecipeStoreError.emptyRecipes
         }
 
         return recipes
+    }
+
+    private func recipeURLs() -> [URL] {
+        let recipeDirectoryURLs = Bundle.module.urls(
+            forResourcesWithExtension: "json",
+            subdirectory: "Recipes"
+        ) ?? []
+
+        let candidateURLs = recipeDirectoryURLs.isEmpty
+            ? Bundle.module.urls(forResourcesWithExtension: "json", subdirectory: nil) ?? []
+            : recipeDirectoryURLs
+
+        return candidateURLs
+            .filter { $0.deletingPathExtension().lastPathComponent != "film_recipes" }
+            .sorted {
+                $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
+            }
     }
 }

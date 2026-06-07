@@ -27,13 +27,13 @@ The run script stages a local `.app` bundle under `dist/`. Do not commit `dist/`
 - `Sources/FilmChef/Stores/EditorStore.swift` owns editor state, import/export actions, and preview rendering triggers.
 - `Sources/FilmChef/Stores/RecipeStore.swift` loads bundled JSON recipes.
 - `Sources/FilmChef/Services/ImageProcessor.swift` owns Core Image loading, rendering, grain, preview scaling, and export encoding.
-- `Sources/FilmChef/Resources/Recipes/film_recipes.json` is the editable recipe source.
+- `Sources/FilmChef/Resources/Recipes/*.json` contains one editable recipe per file.
 
 ## Editing Guidelines
 
 - Keep the desktop layout native: `NavigationSplitView` sidebar, preview, and inspector-style controls.
 - Prefer small focused Swift files by responsibility. Avoid merging models, stores, services, and views into one file.
-- Recipe changes should normally happen in `film_recipes.json`, not hardcoded Swift.
+- Recipe changes should normally happen in individual JSON files under `Sources/FilmChef/Resources/Recipes/`, not hardcoded Swift.
 - If the JSON schema changes, update `FilmRecipe.swift`, `RecipeStore.swift`, and `README.md` together.
 - Keep generated artifacts out of source control. `.gitignore` already excludes `.build/` and `dist/`.
 - After Swift edits, run `swift build`. After app flow or resource-bundle edits, run `./script/build_and_run.sh --verify`.
