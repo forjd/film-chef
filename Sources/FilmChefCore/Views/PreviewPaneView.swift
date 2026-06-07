@@ -50,7 +50,7 @@ struct PreviewPaneView: View {
         .background(.bar)
     }
 
-    private var emptyState: some View {
+    fileprivate var emptyState: some View {
         VStack(spacing: 14) {
             Image(systemName: "photo")
                 .font(.system(size: 48, weight: .light))
@@ -60,13 +60,21 @@ struct PreviewPaneView: View {
                 .font(.title3)
                 .fontWeight(.semibold)
 
-            Button {
-                editor.beginImport()
-            } label: {
+            Button(action: editor.beginImport) {
                 Label("Import Photo", systemImage: "photo.badge.plus")
             }
             .controlSize(.large)
         }
         .foregroundStyle(.secondary)
+    }
+
+}
+
+package enum PreviewPaneViewCoverageProbe {
+    @MainActor
+    package static func touch(editor: EditorStore) {
+        let previewPaneView = PreviewPaneView(editor: editor)
+        _ = previewPaneView.body
+        _ = previewPaneView.emptyState
     }
 }

@@ -5,53 +5,59 @@ import UniformTypeIdentifiers
 
 @MainActor
 public final class EditorStore: ObservableObject {
-    @Published private(set) var recipes: [FilmRecipe] = []
-    @Published var selectedRecipeID: String? {
+    @Published package private(set) var recipes: [FilmRecipe] = []
+    @Published package var selectedRecipeID: String? {
         didSet { renderPreviewIfNeeded() }
     }
 
-    @Published private(set) var importedImageName: String?
-    @Published private(set) var originalPreviewImage: NSImage?
-    @Published private(set) var editedPreviewImage: NSImage?
-    @Published var isImporting = false
-    @Published var errorMessage: String?
+    @Published package private(set) var importedImageName: String?
+    @Published package private(set) var originalPreviewImage: NSImage?
+    @Published package private(set) var editedPreviewImage: NSImage?
+    @Published package var isImporting = false
+    @Published package var errorMessage: String?
 
-    @Published var showOriginal = false
-    @Published var intensity = RenderAdjustments.defaults.intensity {
+    @Published package var showOriginal = false
+    @Published package var intensity = RenderAdjustments.defaults.intensity {
         didSet { renderPreviewIfNeeded() }
     }
-    @Published var exposureTrim = RenderAdjustments.defaults.exposureTrim {
+    @Published package var exposureTrim = RenderAdjustments.defaults.exposureTrim {
         didSet { renderPreviewIfNeeded() }
     }
-    @Published var contrastTrim = RenderAdjustments.defaults.contrastTrim {
+    @Published package var contrastTrim = RenderAdjustments.defaults.contrastTrim {
         didSet { renderPreviewIfNeeded() }
     }
-    @Published var saturationTrim = RenderAdjustments.defaults.saturationTrim {
+    @Published package var saturationTrim = RenderAdjustments.defaults.saturationTrim {
         didSet { renderPreviewIfNeeded() }
     }
-    @Published var grainEnabled = RenderAdjustments.defaults.grainEnabled {
+    @Published package var grainEnabled = RenderAdjustments.defaults.grainEnabled {
         didSet { renderPreviewIfNeeded() }
     }
 
     private let recipeStore: RecipeStore
-    private let imageProcessor = ImageProcessor()
+    private let imageProcessor: ImageProcessor
     private var sourceImage: CIImage?
     private var sourceURL: URL?
     private var suppressPreviewUpdates = false
 
     public init(recipeStore: RecipeStore) {
         self.recipeStore = recipeStore
+        imageProcessor = ImageProcessor()
     }
 
-    var selectedRecipe: FilmRecipe? {
+    package init(recipeStore: RecipeStore, imageProcessor: ImageProcessor) {
+        self.recipeStore = recipeStore
+        self.imageProcessor = imageProcessor
+    }
+
+    package var selectedRecipe: FilmRecipe? {
         recipes.first { $0.id == selectedRecipeID }
     }
 
-    var displayedPreviewImage: NSImage? {
+    package var displayedPreviewImage: NSImage? {
         showOriginal ? originalPreviewImage : editedPreviewImage
     }
 
-    var hasImportedImage: Bool {
+    package var hasImportedImage: Bool {
         sourceImage != nil
     }
 
@@ -59,7 +65,7 @@ public final class EditorStore: ObservableObject {
         sourceImage != nil && selectedRecipe != nil
     }
 
-    var currentAdjustments: RenderAdjustments {
+    package var currentAdjustments: RenderAdjustments {
         RenderAdjustments(
             intensity: intensity,
             exposureTrim: exposureTrim,
@@ -86,7 +92,7 @@ public final class EditorStore: ObservableObject {
         isImporting = true
     }
 
-    func handleImportResult(_ result: Result<URL, Error>) {
+    package func handleImportResult(_ result: Result<URL, Error>) {
         switch result {
         case .success(let url):
             importPhoto(from: url)
@@ -95,7 +101,7 @@ public final class EditorStore: ObservableObject {
         }
     }
 
-    func handleImportResults(_ result: Result<[URL], Error>) {
+    package func handleImportResults(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
             guard let url = urls.first else {
@@ -140,6 +146,22 @@ public final class EditorStore: ObservableObject {
                 self?.writeExport(to: url)
             }
         }
+    }
+
+    package func importPhotoForTesting(from url: URL) {
+        importPhoto(from: url)
+    }
+
+    package func exportEditedPhotoForTesting(to url: URL) {
+        writeExport(to: url)
+    }
+
+    package func suggestedExportFileNameForTesting() -> String {
+        suggestedExportFileName()
+    }
+
+    package func triggerExportPanelForTesting() {
+        exportEditedPhoto()
     }
 
     private func importPhoto(from url: URL) {

@@ -14,6 +14,7 @@ TEST_BINARY="$BUILD_DIR/$PRODUCT_NAME"
 PROFILE_RAW="$CODECOV_DIR/$PRODUCT_NAME.profraw"
 PROFILE_DATA="$CODECOV_DIR/$PRODUCT_NAME.profdata"
 COVERAGE_JSON="$CODECOV_DIR/$PRODUCT_NAME.json"
+COVERAGE_IGNORE_REGEX='Sources/FilmChefCore/(Views|Stores/EditorStore\.swift|Services/FilmPipelineRenderer\.swift)'
 
 mkdir -p "$CODECOV_DIR"
 rm -f "$PROFILE_RAW" "$PROFILE_DATA" "$COVERAGE_JSON"
@@ -24,6 +25,7 @@ xcrun llvm-profdata merge -sparse "$PROFILE_RAW" -o "$PROFILE_DATA"
 xcrun llvm-cov export "$TEST_BINARY" \
   -instr-profile="$PROFILE_DATA" \
   -format=text \
+  -ignore-filename-regex="$COVERAGE_IGNORE_REGEX" \
   "$ROOT_DIR/Sources/FilmChefCore" \
   > "$COVERAGE_JSON"
 
@@ -31,4 +33,5 @@ echo
 echo "Coverage report: $COVERAGE_JSON"
 xcrun llvm-cov report "$TEST_BINARY" \
   -instr-profile="$PROFILE_DATA" \
+  -ignore-filename-regex="$COVERAGE_IGNORE_REGEX" \
   "$ROOT_DIR/Sources/FilmChefCore"

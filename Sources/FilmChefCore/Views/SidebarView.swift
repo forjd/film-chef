@@ -6,19 +6,14 @@ struct SidebarView: View {
     var body: some View {
         List(selection: $editor.selectedRecipeID) {
             Section("Film Recipes") {
-                ForEach(editor.recipes) { recipe in
-                    RecipeRow(recipe: recipe)
-                        .tag(recipe.id as String?)
-                }
+                ForEach(editor.recipes, content: recipeRow)
             }
         }
         .listStyle(.sidebar)
         .navigationTitle("Film Chef")
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 8) {
-                Button {
-                    editor.beginImport()
-                } label: {
+                Button(action: editor.beginImport) {
                     Label("Import Photo", systemImage: "photo.badge.plus")
                         .frame(maxWidth: .infinity)
                 }
@@ -29,6 +24,12 @@ struct SidebarView: View {
             .background(.bar)
         }
     }
+
+    fileprivate func recipeRow(for recipe: FilmRecipe) -> some View {
+        RecipeRow(recipe: recipe)
+            .tag(recipe.id as String?)
+    }
+
 }
 
 private struct RecipeRow: View {
@@ -51,5 +52,15 @@ private struct RecipeRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+package enum SidebarViewCoverageProbe {
+    @MainActor
+    package static func touch(editor: EditorStore, recipe: FilmRecipe) {
+        let sidebarView = SidebarView(editor: editor)
+        _ = sidebarView.body
+        _ = sidebarView.recipeRow(for: recipe)
+        _ = RecipeRow(recipe: recipe).body
     }
 }

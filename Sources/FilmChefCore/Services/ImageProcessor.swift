@@ -6,12 +6,12 @@ import UniformTypeIdentifiers
 package final class ImageProcessor {
     private static let defaultPreviewMaxDimension: CGFloat = 4096
 
-    enum ImageProcessorError: LocalizedError {
+    package enum ImageProcessorError: LocalizedError {
         case cannotLoadImage
         case cannotRenderImage
         case cannotEncodeImage
 
-        var errorDescription: String? {
+        package var errorDescription: String? {
             switch self {
             case .cannotLoadImage:
                 return "The selected photo could not be loaded."
@@ -25,8 +25,23 @@ package final class ImageProcessor {
 
     private let context = CIContext()
     private let pipelineRenderer = FilmPipelineRenderer()
+    private let bitmapRepresentation: (
+        NSBitmapImageRep,
+        NSBitmapImageRep.FileType,
+        [NSBitmapImageRep.PropertyKey: Any]
+    ) -> Data?
 
-    package init() {}
+    package init(
+        bitmapRepresentation: @escaping (
+            NSBitmapImageRep,
+            NSBitmapImageRep.FileType,
+            [NSBitmapImageRep.PropertyKey: Any]
+        ) -> Data? = { representation, fileType, properties in
+            representation.representation(using: fileType, properties: properties)
+        }
+    ) {
+        self.bitmapRepresentation = bitmapRepresentation
+    }
 
     package func loadSourceImage(from url: URL) throws -> CIImage {
         guard let image = CIImage(contentsOf: url, options: [.applyOrientationProperty: true]),
@@ -85,7 +100,7 @@ package final class ImageProcessor {
             properties = [:]
         }
 
-        guard let data = representation.representation(using: fileType, properties: properties) else {
+        guard let data = bitmapRepresentation(representation, fileType, properties) else {
             throw ImageProcessorError.cannotEncodeImage
         }
 

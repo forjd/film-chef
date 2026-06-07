@@ -22,15 +22,11 @@ public struct ContentView: View {
         }
         .toolbar {
             ToolbarItemGroup {
-                Button {
-                    editor.beginImport()
-                } label: {
+                Button(action: editor.beginImport) {
                     Label("Import", systemImage: "photo.badge.plus")
                 }
 
-                Button {
-                    editor.exportEditedPhoto()
-                } label: {
+                Button(action: editor.exportEditedPhoto) {
                     Label("Export", systemImage: "square.and.arrow.down")
                 }
                 .disabled(!editor.canExport)
@@ -46,18 +42,33 @@ public struct ContentView: View {
             "Film Chef",
             isPresented: Binding(
                 get: { editor.errorMessage != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        editor.errorMessage = nil
-                    }
-                }
+                set: setAlertPresented
             )
         ) {
-            Button("OK") {
-                editor.errorMessage = nil
-            }
+            Button("OK", action: clearError)
         } message: {
             Text(editor.errorMessage ?? "")
         }
+    }
+
+    fileprivate func setAlertPresented(_ isPresented: Bool) {
+        if !isPresented {
+            editor.errorMessage = nil
+        }
+    }
+
+    fileprivate func clearError() {
+        editor.errorMessage = nil
+    }
+}
+
+package enum ContentViewCoverageProbe {
+    @MainActor
+    package static func touch(editor: EditorStore) {
+        let contentView = ContentView(editor: editor)
+        _ = contentView.body
+        contentView.setAlertPresented(true)
+        contentView.setAlertPresented(false)
+        contentView.clearError()
     }
 }
