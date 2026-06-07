@@ -50,12 +50,6 @@ public struct ContentView: View {
             }
         }
         .fileImporter(
-            isPresented: $editor.isImporting,
-            allowedContentTypes: [.image],
-            allowsMultipleSelection: true,
-            onCompletion: editor.handleImportResults
-        )
-        .fileImporter(
             isPresented: $editor.isImportingRecipe,
             allowedContentTypes: [.json],
             allowsMultipleSelection: false,

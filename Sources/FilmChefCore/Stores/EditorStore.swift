@@ -75,6 +75,7 @@ public final class EditorStore: ObservableObject {
     private let projectStore: ProjectStore
     private let imageProcessor: ImageProcessor
     private let rendersSynchronouslyForTesting: Bool
+    private let presentsPhotoImportPanel: Bool
     private var sourceImage: CIImage?
     private var sourceURL: URL?
     private var suppressPreviewUpdates = false
@@ -87,18 +88,21 @@ public final class EditorStore: ObservableObject {
         projectStore = ProjectStore()
         imageProcessor = ImageProcessor()
         rendersSynchronouslyForTesting = false
+        presentsPhotoImportPanel = true
     }
 
     package init(
         recipeStore: RecipeStore,
         projectStore: ProjectStore = ProjectStore(),
         imageProcessor: ImageProcessor,
-        rendersSynchronouslyForTesting: Bool = true
+        rendersSynchronouslyForTesting: Bool = true,
+        presentsPhotoImportPanel: Bool = false
     ) {
         self.recipeStore = recipeStore
         self.projectStore = projectStore
         self.imageProcessor = imageProcessor
         self.rendersSynchronouslyForTesting = rendersSynchronouslyForTesting
+        self.presentsPhotoImportPanel = presentsPhotoImportPanel
     }
 
     package var selectedRecipe: FilmRecipe? {
@@ -162,7 +166,28 @@ public final class EditorStore: ObservableObject {
     }
 
     public func beginImport() {
-        isImporting = true
+        guard presentsPhotoImportPanel else {
+            isImporting = true
+            return
+        }
+
+        let panel = NSOpenPanel()
+        panel.title = "Import Photos"
+        panel.allowedContentTypes = [.image]
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = true
+
+        panel.begin { [weak self] response in
+            guard response == .OK else {
+                return
+            }
+
+            let urls = panel.urls
+            Task { @MainActor in
+                self?.importPhotos(from: urls)
+            }
+        }
     }
 
     public func beginRecipeImport() {
