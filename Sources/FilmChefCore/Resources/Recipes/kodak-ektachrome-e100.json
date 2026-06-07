@@ -3,7 +3,7 @@
   "profile_id": "kodak-ektachrome-e100",
   "display_name": "Kodak Ektachrome E100",
   "manufacturer": "Kodak",
-  "summary": "Clean E-6 slide rendering with high contrast, saturated color, fine grain, and narrow highlight latitude.",
+  "summary": "Clean daylight E-6 slide rendering with extremely fine grain, neutral balance, moderate saturation, and a low-contrast tone scale.",
   "format": {
     "type": "35mm",
     "frame_size_mm": {
@@ -17,6 +17,7 @@
     "process": "e6",
     "box_speed_iso": 100,
     "native_balance": "daylight",
+    "native_colour_temperature_k": 5500,
     "has_orange_mask": false,
     "has_remjet": false,
     "anti_halation": "standard"
@@ -81,7 +82,7 @@
   },
   "colour_model": {
     "palette": "clean_slide_colour",
-    "saturation": 1.18,
+    "saturation": 1.12,
     "warmth": 0.02,
     "hue_bias": {
       "reds": 0.02,
@@ -97,7 +98,7 @@
     "type": "e6",
     "variant": "normal",
     "push_pull_stops": 0,
-    "contrast_multiplier": 1.12,
+    "contrast_multiplier": 1.02,
     "speed_gain_ev": 0,
     "grain_multiplier": 0.8
   },
@@ -142,8 +143,8 @@
     "auto_white_balance": 0.25,
     "black_point": 0.01,
     "white_point": 0.985,
-    "contrast": 1.16,
-    "saturation": 1.15,
+    "contrast": 1.06,
+    "saturation": 1.1,
     "sharpening": 0.08,
     "scanner_mtf": {
       "blur_radius": 0.25,
@@ -157,7 +158,7 @@
   },
   "calibration": {
     "confidence": "estimated",
-    "source": "manual_tuning",
-    "notes": "Positive E-6 slide rendering with high contrast and narrow latitude."
+    "source": "manufacturer_datasheet_estimated_manual_tuning",
+    "notes": "Positive E-6 slide profile based on Kodak Ektachrome E100 data: extremely fine grain, neutral color balance, moderately enhanced saturation, low D-min, and low-contrast tone scale."
   }
 }

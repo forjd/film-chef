@@ -136,7 +136,7 @@
   },
   "calibration": {
     "confidence": "estimated",
-    "source": "manual_tuning",
-    "notes": "Classic documentary B&W profile with higher contrast and grain than HP5."
+    "source": "manufacturer_datasheet_estimated_manual_tuning",
+    "notes": "Classic panchromatic B&W profile based on Kodak Tri-X 400 data sheet behavior, with push-friendly contrast and visibly fine 400-speed grain."
   }
 }

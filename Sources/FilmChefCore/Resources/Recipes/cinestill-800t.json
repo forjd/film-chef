@@ -20,7 +20,7 @@
     "native_colour_temperature_k": 3200,
     "has_orange_mask": true,
     "has_remjet": false,
-    "anti_halation": "remjet_removed"
+    "anti_halation": "anti_halation_removed"
   },
   "input": {
     "preferred_source": "raw",
@@ -143,7 +143,7 @@
   },
   "halation": {
     "enabled": true,
-    "model": "remjet_removed",
+    "model": "anti_halation_removed",
     "threshold": 0.82,
     "strength": 0.48,
     "radius": 18,
@@ -183,7 +183,7 @@
   },
   "calibration": {
     "confidence": "estimated",
-    "source": "manual_tuning",
-    "notes": "Tungsten-balanced C-41 profile with strong remjet-removed halation behaviour."
+    "source": "manufacturer_datasheet_estimated_manual_tuning",
+    "notes": "Tungsten-balanced C-41 profile based on CineStill 800T guidance and Kodak Vision3 500T behavior, preserving EI 800 C-41 density, 3200K balance, and strong halation from removed anti-halation backing."
   }
 }

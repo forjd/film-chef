@@ -17,6 +17,7 @@
     "process": "c41",
     "box_speed_iso": 200,
     "native_balance": "daylight",
+    "native_colour_temperature_k": 5500,
     "has_orange_mask": true,
     "has_remjet": false,
     "anti_halation": "standard"
@@ -170,7 +171,7 @@
   },
   "calibration": {
     "confidence": "estimated",
-    "source": "manual_tuning",
-    "notes": "Warm consumer daylight colour-negative profile."
+    "source": "manufacturer_datasheet_estimated_manual_tuning",
+    "notes": "Consumer daylight C-41 profile based on Kodak Gold 200 data sheet guidance: low-speed color negative, saturated color, fine grain, and high sharpness."
   }
 }

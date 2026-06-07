@@ -17,6 +17,7 @@
     "process": "e6",
     "box_speed_iso": 50,
     "native_balance": "daylight",
+    "native_colour_temperature_k": 5500,
     "has_orange_mask": false,
     "has_remjet": false,
     "anti_halation": "standard"
@@ -157,7 +158,7 @@
   },
   "calibration": {
     "confidence": "estimated",
-    "source": "manual_tuning",
-    "notes": "High-saturation landscape slide profile with narrow latitude."
+    "source": "manufacturer_datasheet_estimated_manual_tuning",
+    "notes": "High-saturation daylight E-6 profile based on Fujifilm Velvia 50 data, with fine grain, high resolving power, neutral grays, and deep shadows."
   }
 }

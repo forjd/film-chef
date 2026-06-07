@@ -3,7 +3,7 @@
   "profile_id": "ilford-hp5-plus-400",
   "display_name": "Ilford HP5 Plus 400",
   "manufacturer": "Ilford",
-  "summary": "Classic high-speed monochrome with firm contrast, lifted shadows, and visible silver grain.",
+  "summary": "Flexible high-speed panchromatic monochrome with wide exposure latitude, moderate contrast, and visible silver grain.",
   "format": {
     "type": "35mm",
     "frame_size_mm": {
@@ -64,7 +64,7 @@
     }
   },
   "colour_model": {
-    "palette": "neutral_bw",
+    "palette": "flexible_neutral_bw",
     "toning": {
       "enabled": false,
       "warmth": 0,
@@ -76,15 +76,15 @@
     "variant": "normal",
     "developer_style": "standard",
     "push_pull_stops": 0,
-    "contrast_multiplier": 1,
+    "contrast_multiplier": 0.98,
     "speed_gain_ev": 0,
     "grain_multiplier": 1
   },
   "grain": {
     "enabled": true,
     "model": "silver_grain",
-    "strength": 0.38,
-    "size": 1.15,
+    "strength": 0.36,
+    "size": 1.08,
     "clumpiness": 0.55,
     "softness": 0.25,
     "tonal_distribution": {
@@ -121,7 +121,7 @@
     "auto_white_balance": 0,
     "black_point": 0.025,
     "white_point": 0.96,
-    "contrast": 1.08,
+    "contrast": 1.04,
     "saturation": 0,
     "sharpening": 0.08,
     "scanner_mtf": {
@@ -136,7 +136,7 @@
   },
   "calibration": {
     "confidence": "estimated",
-    "source": "manual_tuning",
-    "notes": "Default HP5 box-speed neutral lab-scan profile."
+    "source": "manufacturer_datasheet_estimated_manual_tuning",
+    "notes": "Default HP5 Plus box-speed profile based on Ilford's ISO 400 technical sheet, prioritizing wide latitude, moderate contrast, and flexible processing."
   }
 }

@@ -19,8 +19,8 @@
     "native_balance": "daylight",
     "native_colour_temperature_k": 5500,
     "has_orange_mask": true,
-    "has_remjet": true,
-    "anti_halation": "remjet"
+    "has_remjet": false,
+    "anti_halation": "anti_halation_undercoat"
   },
   "input": {
     "preferred_source": "raw",
@@ -138,17 +138,17 @@
   },
   "halation": {
     "enabled": true,
-    "model": "remjet",
-    "threshold": 0.92,
-    "strength": 0.028,
-    "radius": 6,
+    "model": "anti_halation_undercoat",
+    "threshold": 0.94,
+    "strength": 0.018,
+    "radius": 5,
     "colour": {
       "r": 1,
       "g": 0.48,
       "b": 0.2
     },
     "affects": "pre_scan_density",
-    "edge_preservation": 0.7
+    "edge_preservation": 0.82
   },
   "sharpness": {
     "film_mtf_blur": 0.26,
@@ -178,7 +178,7 @@
   },
   "calibration": {
     "confidence": "estimated",
-    "source": "manual_tuning",
-    "notes": "Daylight ECN-2 motion-picture negative profile with remjet-controlled halation."
+    "source": "manufacturer_datasheet_estimated_manual_tuning",
+    "notes": "Daylight ECN-2 motion-picture negative profile based on Kodak's 2026 Vision3 250D sheet, including DLT shadow grain, two-stop highlight latitude, and anti-halation undercoat behavior."
   }
 }
