@@ -27,6 +27,36 @@ package struct FilmRecipe: Codable, Hashable, Identifiable {
     package var maker: String { manufacturer }
     package var iso: Int { stock.boxSpeedIso }
     package var stockType: FilmStockType { FilmStockType(family: stock.family) }
+
+    package func replacingMetadata(
+        profileId newProfileId: String? = nil,
+        displayName newDisplayName: String? = nil,
+        manufacturer newManufacturer: String? = nil,
+        summary newSummary: String? = nil
+    ) -> FilmRecipe {
+        FilmRecipe(
+            schemaVersion: schemaVersion,
+            profileId: newProfileId ?? profileId,
+            displayName: newDisplayName ?? displayName,
+            manufacturer: newManufacturer ?? manufacturer,
+            summary: newSummary ?? summary,
+            format: format,
+            stock: stock,
+            input: input,
+            exposure: exposure,
+            captureConditions: captureConditions,
+            layerModel: layerModel,
+            characteristicCurves: characteristicCurves,
+            colourModel: colourModel,
+            process: process,
+            grain: grain,
+            halation: halation,
+            sharpness: sharpness,
+            renderer: renderer,
+            output: output,
+            calibration: calibration
+        )
+    }
 }
 
 package struct FilmFormat: Codable, Hashable {

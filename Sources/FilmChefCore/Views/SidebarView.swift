@@ -78,6 +78,12 @@ struct SidebarView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .disabled(editor.selectedRecipe == nil)
+
+                Button(action: editor.duplicateSelectedRecipeForEditing) {
+                    Label("Duplicate Recipe", systemImage: "doc.on.doc")
+                        .frame(maxWidth: .infinity)
+                }
+                .disabled(editor.selectedRecipe == nil)
             }
             .buttonStyle(.bordered)
             .padding(12)

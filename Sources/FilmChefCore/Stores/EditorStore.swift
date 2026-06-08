@@ -5,10 +5,78 @@ import UniformTypeIdentifiers
 
 @MainActor
 public final class EditorStore: ObservableObject {
+    package struct RecipeDraft: Equatable {
+        package var displayName: String
+        package var manufacturer: String
+        package var summary: String
+
+        package init(
+            displayName: String = "",
+            manufacturer: String = "",
+            summary: String = ""
+        ) {
+            self.displayName = displayName
+            self.manufacturer = manufacturer
+            self.summary = summary
+        }
+
+        package init(recipe: FilmRecipe) {
+            displayName = recipe.displayName
+            manufacturer = recipe.manufacturer
+            summary = recipe.summary
+        }
+
+        package func hasChanges(comparedTo recipe: FilmRecipe) -> Bool {
+            displayName != recipe.displayName ||
+                manufacturer != recipe.manufacturer ||
+                summary != recipe.summary
+        }
+
+        fileprivate func trimmedDisplayName() -> String {
+            displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        fileprivate func trimmedManufacturer() -> String {
+            manufacturer.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        fileprivate func trimmedSummary() -> String {
+            summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
+    package enum RecipeImportStatus: Equatable {
+        case imported(name: String)
+        case failed(name: String, issues: [RecipeValidationIssue])
+
+        package var title: String {
+            switch self {
+            case .imported:
+                return "Recipe imported"
+            case .failed:
+                return "Recipe import failed"
+            }
+        }
+
+        package var message: String {
+            switch self {
+            case .imported(let name):
+                return "\(name) is ready to edit and export."
+            case .failed(let name, let issues):
+                let issueText = issues.map(\.message).joined(separator: "\n")
+                return "\(name) could not be imported.\n\(issueText)"
+            }
+        }
+    }
+
     @Published package private(set) var project = FilmProject()
     @Published package private(set) var recipes: [FilmRecipe] = []
+    @Published package private(set) var editableRecipeIDs: Set<String> = []
+    @Published package private(set) var recipeImportStatus: RecipeImportStatus?
+    @Published package var recipeDraft = RecipeDraft()
     @Published package var selectedRecipeID: String? {
         didSet {
+            syncRecipeDraftWithSelection()
             guard !isApplyingEditSnapshot else {
                 return
             }
@@ -109,6 +177,33 @@ public final class EditorStore: ObservableObject {
         recipes.first { $0.id == selectedRecipeID }
     }
 
+    package var selectedRecipeIsEditable: Bool {
+        guard let selectedRecipeID else {
+            return false
+        }
+        return editableRecipeIDs.contains(selectedRecipeID)
+    }
+
+    package var recipeDraftIssues: [RecipeValidationIssue] {
+        guard let selectedRecipe else {
+            return []
+        }
+
+        let draftRecipe = selectedRecipe.replacingMetadata(
+            displayName: recipeDraft.trimmedDisplayName(),
+            manufacturer: recipeDraft.trimmedManufacturer(),
+            summary: recipeDraft.trimmedSummary()
+        )
+        return FilmRecipeValidator.issues(for: draftRecipe)
+    }
+
+    package var canApplyRecipeDraft: Bool {
+        guard let selectedRecipe, selectedRecipeIsEditable else {
+            return false
+        }
+        return recipeDraft.hasChanges(comparedTo: selectedRecipe) && recipeDraftIssues.isEmpty
+    }
+
     package var displayedPreviewImage: NSImage? {
         comparisonMode == .original ? originalPreviewImage : editedPreviewImage
     }
@@ -192,6 +287,10 @@ public final class EditorStore: ObservableObject {
 
     public func beginRecipeImport() {
         isImportingRecipe = true
+    }
+
+    public func clearRecipeImportStatus() {
+        recipeImportStatus = nil
     }
 
     public func beginCalibrationImport() {
@@ -286,6 +385,53 @@ public final class EditorStore: ObservableObject {
 
     public func captureVariant(note: String = "Captured variant") {
         recordCurrentEditSnapshot(note: note, force: true)
+    }
+
+    public func duplicateSelectedRecipeForEditing() {
+        guard let selectedRecipe else {
+            return
+        }
+
+        let duplicateID = uniqueRecipeID(base: "\(selectedRecipe.id)-custom")
+        let duplicateName = uniqueRecipeDisplayName(base: "\(selectedRecipe.name) Copy")
+        let duplicate = selectedRecipe.replacingMetadata(
+            profileId: duplicateID,
+            displayName: duplicateName
+        )
+
+        recipes.append(duplicate)
+        recipes.sort {
+            $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
+        editableRecipeIDs.insert(duplicate.id)
+        selectedRecipeID = duplicate.id
+        recipeImportStatus = .imported(name: duplicate.name)
+    }
+
+    public func applyRecipeDraft() {
+        guard let selectedRecipe, selectedRecipeIsEditable else {
+            return
+        }
+
+        let updatedRecipe = selectedRecipe.replacingMetadata(
+            displayName: recipeDraft.trimmedDisplayName(),
+            manufacturer: recipeDraft.trimmedManufacturer(),
+            summary: recipeDraft.trimmedSummary()
+        )
+
+        let issues = FilmRecipeValidator.issues(for: updatedRecipe)
+        guard issues.isEmpty else {
+            recipeImportStatus = .failed(name: updatedRecipe.name, issues: issues)
+            return
+        }
+
+        replaceRecipe(updatedRecipe)
+        recipeImportStatus = .imported(name: updatedRecipe.name)
+        renderPreviewIfNeeded()
+    }
+
+    public func resetRecipeDraft() {
+        syncRecipeDraftWithSelection()
     }
 
     public func samplePreviewPixel(x: Double = 0.5, y: Double = 0.5) {
@@ -544,13 +690,12 @@ public final class EditorStore: ObservableObject {
     private func importRecipe(from url: URL) {
         do {
             let importedRecipe = try recipeStore.loadRecipe(from: url)
-            recipes.removeAll { $0.id == importedRecipe.id }
-            recipes.append(importedRecipe)
-            recipes.sort {
-                $0.name.localizedStandardCompare($1.name) == .orderedAscending
-            }
+            replaceRecipe(importedRecipe)
+            editableRecipeIDs.insert(importedRecipe.id)
             selectedRecipeID = importedRecipe.id
+            recipeImportStatus = .imported(name: importedRecipe.name)
         } catch {
+            recipeImportStatus = recipeImportStatus(for: error, url: url)
             errorMessage = error.localizedDescription
         }
     }
@@ -669,6 +814,71 @@ public final class EditorStore: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func replaceRecipe(_ recipe: FilmRecipe) {
+        recipes.removeAll { $0.id == recipe.id }
+        recipes.append(recipe)
+        recipes.sort {
+            $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
+        if selectedRecipeID == recipe.id {
+            syncRecipeDraftWithSelection()
+        }
+    }
+
+    private func syncRecipeDraftWithSelection() {
+        guard let selectedRecipe else {
+            recipeDraft = RecipeDraft()
+            return
+        }
+
+        let nextDraft = RecipeDraft(recipe: selectedRecipe)
+        if recipeDraft != nextDraft {
+            recipeDraft = nextDraft
+        }
+    }
+
+    private func recipeImportStatus(for error: Error, url: URL) -> RecipeImportStatus {
+        let name = url.lastPathComponent
+        if case FilmRecipeValidationError.invalidRecipe(_, let issues) = error {
+            return .failed(name: name, issues: issues)
+        }
+
+        return .failed(name: name, issues: [RecipeValidationIssue(error.localizedDescription)])
+    }
+
+    private func uniqueRecipeID(base: String) -> String {
+        let sanitized = base
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: "-")
+        let root = sanitized.isEmpty ? "custom-recipe" : sanitized
+        var candidate = root
+        var index = 2
+        let existingIDs = Set(recipes.map(\.id))
+
+        while existingIDs.contains(candidate) {
+            candidate = "\(root)-\(index)"
+            index += 1
+        }
+
+        return candidate
+    }
+
+    private func uniqueRecipeDisplayName(base: String) -> String {
+        let root = base.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Custom Recipe" : base
+        var candidate = root
+        var index = 2
+        let existingNames = Set(recipes.map(\.name))
+
+        while existingNames.contains(candidate) {
+            candidate = "\(root) \(index)"
+            index += 1
+        }
+
+        return candidate
     }
 
     private func writeExport(to url: URL) {
