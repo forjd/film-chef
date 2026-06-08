@@ -873,6 +873,22 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     editor.importCalibrationAssetsForTesting(from: [invalidLUTURL])
     try expect(editor.errorMessage?.contains("Expected 8 LUT rows") == true)
 
+    let typedCalibrationURL = directory.appendingPathComponent("measured-curves.json")
+    try """
+    {
+      "asset_types": ["spectral_curves", "density_curves", "grain_spectra"],
+      "values": [0.15, 0.35, 0.55, 0.75],
+      "rgb_scale": { "red": 1.08, "green": 1.0, "blue": 0.92 }
+    }
+    """.data(using: .utf8)?.write(to: typedCalibrationURL)
+    let typedCalibrationEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+    typedCalibrationEditor.importCalibrationAssetsForTesting(from: [typedCalibrationURL])
+    try expect(typedCalibrationEditor.calibrationDataStatus.supportsSpectralCurves)
+    try expect(typedCalibrationEditor.calibrationDataStatus.supportsMeasuredDensityCurves)
+    try expect(typedCalibrationEditor.calibrationDataStatus.supportsGrainSpectra)
+    try expect(typedCalibrationEditor.calibrationDataStatus.supportsThreeDimensionalLUTs)
+    try expect(typedCalibrationEditor.calibrationDataStatus.redScale > typedCalibrationEditor.calibrationDataStatus.blueScale)
+
     let suggestedName = editor.suggestedExportFileNameForTesting()
     try expect(suggestedName.hasPrefix("Sample Photo-"))
     try expect(suggestedName.hasSuffix(".jpg"))

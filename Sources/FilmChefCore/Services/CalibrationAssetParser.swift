@@ -1,6 +1,18 @@
 import Foundation
 
 package struct CalibrationAssetParser {
+    private enum CalibrationAssetKind {
+        case spectral
+        case density
+        case grain
+    }
+
+    private struct JSONCalibrationAsset {
+        var values: [Double]
+        var kinds: Set<CalibrationAssetKind>
+        var lutScale: (red: Double, green: Double, blue: Double)?
+    }
+
     package enum CalibrationImportError: LocalizedError {
         case unsupportedAsset(String)
         case invalidAsset(String, String)
@@ -34,8 +46,16 @@ package struct CalibrationAssetParser {
                 lutScale = try parseCubeCalibration(url)
                 supportsLUT = true
             case "json":
-                let values = try parseJSONCalibration(url)
-                append(values, named: name, spectral: &supportsSpectral, density: &supportsDensity, grain: &supportsGrain, spectralValues: &spectralValues, densityValues: &densityValues, grainValues: &grainValues)
+                let asset = try parseJSONCalibration(url)
+                if let typedLUTScale = asset.lutScale {
+                    lutScale = typedLUTScale
+                    supportsLUT = true
+                }
+                if asset.kinds.isEmpty {
+                    append(asset.values, named: name, spectral: &supportsSpectral, density: &supportsDensity, grain: &supportsGrain, spectralValues: &spectralValues, densityValues: &densityValues, grainValues: &grainValues)
+                } else {
+                    append(asset.values, kinds: asset.kinds, spectral: &supportsSpectral, density: &supportsDensity, grain: &supportsGrain, spectralValues: &spectralValues, densityValues: &densityValues, grainValues: &grainValues)
+                }
             case "csv", "txt":
                 let values = try parseDelimitedCalibration(url)
                 append(values, named: name, spectral: &supportsSpectral, density: &supportsDensity, grain: &supportsGrain, spectralValues: &spectralValues, densityValues: &densityValues, grainValues: &grainValues)
@@ -91,6 +111,30 @@ package struct CalibrationAssetParser {
         }
     }
 
+    private func append(
+        _ values: [Double],
+        kinds: Set<CalibrationAssetKind>,
+        spectral: inout Bool,
+        density: inout Bool,
+        grain: inout Bool,
+        spectralValues: inout [Double],
+        densityValues: inout [Double],
+        grainValues: inout [Double]
+    ) {
+        if kinds.contains(.spectral) {
+            spectral = true
+            spectralValues.append(contentsOf: values)
+        }
+        if kinds.contains(.density) {
+            density = true
+            densityValues.append(contentsOf: values)
+        }
+        if kinds.contains(.grain) {
+            grain = true
+            grainValues.append(contentsOf: values)
+        }
+    }
+
     private func parseCubeCalibration(_ url: URL) throws -> (red: Double, green: Double, blue: Double) {
         let text = try String(contentsOf: url, encoding: .utf8)
         var lutSize: Int?
@@ -138,14 +182,19 @@ package struct CalibrationAssetParser {
         )
     }
 
-    private func parseJSONCalibration(_ url: URL) throws -> [Double] {
+    private func parseJSONCalibration(_ url: URL) throws -> JSONCalibrationAsset {
         let data = try Data(contentsOf: url)
         let object = try JSONSerialization.jsonObject(with: data)
         let values = numericValues(in: object)
-        guard !values.isEmpty else {
+        let lutScale = typedLUTScale(in: object)
+        guard !values.isEmpty || lutScale != nil else {
             throw CalibrationImportError.invalidAsset(url.lastPathComponent, "No numeric calibration values found.")
         }
-        return values
+        return JSONCalibrationAsset(
+            values: values,
+            kinds: calibrationKinds(in: object),
+            lutScale: lutScale
+        )
     }
 
     private func parseDelimitedCalibration(_ url: URL) throws -> [Double] {
@@ -171,6 +220,67 @@ package struct CalibrationAssetParser {
             return dictionary.values.flatMap(numericValues)
         }
         return []
+    }
+
+    private func calibrationKinds(in object: Any) -> Set<CalibrationAssetKind> {
+        guard let dictionary = object as? [String: Any] else {
+            return []
+        }
+
+        var rawTypes: [String] = []
+        if let assetType = dictionary["asset_type"] as? String ?? dictionary["type"] as? String {
+            rawTypes.append(assetType)
+        }
+        if let assetTypes = dictionary["asset_types"] as? [String] {
+            rawTypes.append(contentsOf: assetTypes)
+        }
+
+        return Set(rawTypes.compactMap(calibrationKind(for:)))
+    }
+
+    private func calibrationKind(for rawType: String) -> CalibrationAssetKind? {
+        switch rawType.lowercased() {
+        case "spectral", "spectrum", "spectral_curve", "spectral_curves":
+            return .spectral
+        case "density", "density_curve", "density_curves", "hd", "h-d":
+            return .density
+        case "grain", "grain_spectrum", "grain_spectra", "granularity":
+            return .grain
+        default:
+            return nil
+        }
+    }
+
+    private func typedLUTScale(in object: Any) -> (red: Double, green: Double, blue: Double)? {
+        guard let dictionary = object as? [String: Any],
+              let scale = dictionary["rgb_scale"] as? [String: Any]
+        else {
+            return nil
+        }
+
+        let red = number(in: scale, keys: ["red", "r"])
+        let green = number(in: scale, keys: ["green", "g"])
+        let blue = number(in: scale, keys: ["blue", "b"])
+        guard let red, let green, let blue,
+              [red, green, blue].allSatisfy({ $0.isFinite && $0 > 0 })
+        else {
+            return nil
+        }
+
+        return (red, green, blue)
+    }
+
+    private func number(in dictionary: [String: Any], keys: [String]) -> Double? {
+        for key in keys {
+            if let number = dictionary[key] as? NSNumber {
+                return number.doubleValue
+            }
+            if let string = dictionary[key] as? String,
+               let value = Double(string) {
+                return value
+            }
+        }
+        return nil
     }
 
     private func calibrationSignal(_ values: [Double]) -> Double {

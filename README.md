@@ -154,6 +154,10 @@ Export presets use a filename template with these supported tokens:
 
 Templates with unknown or unmatched brace tokens are rejected before export or preset save.
 
+## Calibration Assets
+
+Calibration import accepts `.cube`, `.json`, `.csv`, and `.txt` assets. JSON assets can declare explicit types with `asset_type` or `asset_types`; supported values include `spectral_curves`, `density_curves`, and `grain_spectra`. JSON assets can also provide an `rgb_scale` object with `red`, `green`, and `blue` values.
+
 ## Roadmap
 
 Film Chef is an initial implementation. Areas that still need deeper work include:
