@@ -72,6 +72,118 @@ struct ControlsView: View {
                             .textFieldStyle(.roundedBorder)
                             .disabled(!editor.selectedRecipeIsEditable)
 
+                        SliderControl(
+                            title: "Stock ISO",
+                            value: $editor.recipeDraft.stockBoxSpeedIso,
+                            range: 25...6400,
+                            step: 1,
+                            valueText: "\(Int(editor.recipeDraft.stockBoxSpeedIso.rounded()))"
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
+                            title: "Exposed At",
+                            value: $editor.recipeDraft.exposedAtIso,
+                            range: 25...6400,
+                            step: 1,
+                            valueText: "\(Int(editor.recipeDraft.exposedAtIso.rounded()))"
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
+                            title: "Profile EV",
+                            value: $editor.recipeDraft.exposureCompensationEv,
+                            range: -4...4,
+                            step: 0.05,
+                            valueText: signedValue(editor.recipeDraft.exposureCompensationEv)
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
+                            title: "Recipe Saturation",
+                            value: $editor.recipeDraft.colourSaturation,
+                            range: 0...3,
+                            step: 0.01,
+                            valueText: String(format: "%.2f", editor.recipeDraft.colourSaturation)
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
+                            title: "Recipe Warmth",
+                            value: $editor.recipeDraft.colourWarmth,
+                            range: -1...1,
+                            step: 0.01,
+                            valueText: signedValue(editor.recipeDraft.colourWarmth)
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
+                            title: "Grain Strength",
+                            value: $editor.recipeDraft.grainStrength,
+                            range: 0...2,
+                            step: 0.01,
+                            valueText: String(format: "%.2f", editor.recipeDraft.grainStrength)
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
+                            title: "Grain Size",
+                            value: $editor.recipeDraft.grainSize,
+                            range: 0...5,
+                            step: 0.01,
+                            valueText: String(format: "%.2f", editor.recipeDraft.grainSize)
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
+                            title: "Halation",
+                            value: $editor.recipeDraft.halationStrength,
+                            range: 0...2,
+                            step: 0.01,
+                            valueText: String(format: "%.2f", editor.recipeDraft.halationStrength)
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
+                            title: "Halation Radius",
+                            value: $editor.recipeDraft.halationRadius,
+                            range: 0...100,
+                            step: 0.5,
+                            valueText: String(format: "%.1f", editor.recipeDraft.halationRadius)
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
+                            title: "Render Contrast",
+                            value: $editor.recipeDraft.rendererContrast,
+                            range: 0.1...4,
+                            step: 0.01,
+                            valueText: String(format: "%.2f", editor.recipeDraft.rendererContrast)
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
+                            title: "Render Saturation",
+                            value: $editor.recipeDraft.rendererSaturation,
+                            range: 0...4,
+                            step: 0.01,
+                            valueText: String(format: "%.2f", editor.recipeDraft.rendererSaturation)
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        TextField("Output Space", text: $editor.recipeDraft.outputColourSpace)
+                            .textFieldStyle(.roundedBorder)
+                            .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
+                            title: "Output Bit Depth",
+                            value: $editor.recipeDraft.outputBitDepth,
+                            range: 8...32,
+                            step: 1,
+                            valueText: "\(Int(editor.recipeDraft.outputBitDepth.rounded()))"
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
                         if !editor.selectedRecipeIsEditable {
                             Label("Duplicate this bundled recipe to edit its metadata.", systemImage: "lock")
                                 .font(.caption)
@@ -326,6 +438,15 @@ struct ControlsView: View {
                     InfoRow("Layers", value: "\(editor.localAdjustments.count)")
 
                     if !editor.localAdjustments.isEmpty {
+                        Picker("Layer", selection: $editor.selectedLocalAdjustmentID) {
+                            ForEach(editor.localAdjustments) { layer in
+                                Text(layer.name).tag(Optional(layer.id))
+                            }
+                        }
+
+                        TextField("Layer Name", text: localLayerBinding(\.name))
+                            .textFieldStyle(.roundedBorder)
+
                         Toggle("Enabled", isOn: localLayerBinding(\.isEnabled))
 
                         Picker("Mask", selection: localLayerBinding(\.mask)) {
@@ -336,21 +457,28 @@ struct ControlsView: View {
 
                         HStack(spacing: 8) {
                             Button("Center Brush") {
-                                editor.localAdjustments[0].mask = .brush
-                                editor.localAdjustments[0].pathPoints = [
+                                let index = selectedLocalAdjustmentIndex()
+                                editor.localAdjustments[index].mask = .brush
+                                editor.localAdjustments[index].pathPoints = [
                                     NormalizedMaskPoint(
-                                        x: editor.localAdjustments[0].centerX,
-                                        y: editor.localAdjustments[0].centerY
+                                        x: editor.localAdjustments[index].centerX,
+                                        y: editor.localAdjustments[index].centerY
                                     )
                                 ]
                             }
                             .frame(maxWidth: .infinity)
 
                             Button("Shape Path") {
-                                editor.localAdjustments[0].mask = .path
-                                editor.localAdjustments[0].pathPoints = LocalAdjustmentLayer.defaultPathPoints
+                                let index = selectedLocalAdjustmentIndex()
+                                editor.localAdjustments[index].mask = .path
+                                editor.localAdjustments[index].pathPoints = LocalAdjustmentLayer.defaultPathPoints
                             }
                             .frame(maxWidth: .infinity)
+                        }
+
+                        Button(action: editor.removeSelectedLocalAdjustment) {
+                            Label("Remove Selected", systemImage: "minus.circle")
+                                .frame(maxWidth: .infinity)
                         }
 
                         SliderControl(
@@ -358,7 +486,7 @@ struct ControlsView: View {
                             value: localLayerBinding(\.centerX),
                             range: 0...1,
                             step: 0.01,
-                            valueText: "\(Int(editor.localAdjustments[0].centerX * 100))%"
+                            valueText: "\(Int(editor.localAdjustments[selectedLocalAdjustmentIndex()].centerX * 100))%"
                         )
 
                         SliderControl(
@@ -366,7 +494,7 @@ struct ControlsView: View {
                             value: localLayerBinding(\.centerY),
                             range: 0...1,
                             step: 0.01,
-                            valueText: "\(Int(editor.localAdjustments[0].centerY * 100))%"
+                            valueText: "\(Int(editor.localAdjustments[selectedLocalAdjustmentIndex()].centerY * 100))%"
                         )
 
                         SliderControl(
@@ -374,19 +502,19 @@ struct ControlsView: View {
                             value: localLayerBinding(\.radius),
                             range: 0.05...1,
                             step: 0.01,
-                            valueText: "\(Int(editor.localAdjustments[0].radius * 100))%"
+                            valueText: "\(Int(editor.localAdjustments[selectedLocalAdjustmentIndex()].radius * 100))%"
                         )
 
-                        if editor.localAdjustments[0].mask == .brush || editor.localAdjustments[0].mask == .path {
+                        if editor.localAdjustments[selectedLocalAdjustmentIndex()].mask == .brush || editor.localAdjustments[selectedLocalAdjustmentIndex()].mask == .path {
                             SliderControl(
                                 title: "Brush Size",
                                 value: localLayerBinding(\.brushSize),
                                 range: 0.02...0.5,
                                 step: 0.01,
-                                valueText: "\(Int(editor.localAdjustments[0].brushSize * 100))%"
+                                valueText: "\(Int(editor.localAdjustments[selectedLocalAdjustmentIndex()].brushSize * 100))%"
                             )
 
-                            InfoRow("Path Points", value: "\(editor.localAdjustments[0].pathPoints.count)")
+                            InfoRow("Path Points", value: "\(editor.localAdjustments[selectedLocalAdjustmentIndex()].pathPoints.count)")
                         }
 
                         SliderControl(
@@ -394,7 +522,7 @@ struct ControlsView: View {
                             value: localLayerBinding(\.exposureEV),
                             range: -1...1,
                             step: 0.05,
-                            valueText: signedValue(editor.localAdjustments[0].exposureEV)
+                            valueText: signedValue(editor.localAdjustments[selectedLocalAdjustmentIndex()].exposureEV)
                         )
 
                         SliderControl(
@@ -402,7 +530,7 @@ struct ControlsView: View {
                             value: localLayerBinding(\.contrast),
                             range: -0.5...0.5,
                             step: 0.01,
-                            valueText: signedValue(editor.localAdjustments[0].contrast)
+                            valueText: signedValue(editor.localAdjustments[selectedLocalAdjustmentIndex()].contrast)
                         )
 
                         SliderControl(
@@ -410,7 +538,7 @@ struct ControlsView: View {
                             value: localLayerBinding(\.saturation),
                             range: -0.75...0.75,
                             step: 0.01,
-                            valueText: signedValue(editor.localAdjustments[0].saturation)
+                            valueText: signedValue(editor.localAdjustments[selectedLocalAdjustmentIndex()].saturation)
                         )
                     }
                 }
@@ -518,6 +646,16 @@ struct ControlsView: View {
                         )
                     }
                 }
+
+                InspectorSection("Batch") {
+                    InfoRow("Status", value: editor.batchExportState.statusText)
+                    ProgressView(value: editor.batchExportState.progress)
+                    Button(action: editor.cancelBatchExport) {
+                        Label("Cancel Batch", systemImage: "xmark.circle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .disabled(!editor.batchExportState.isExporting)
+                }
             }
             .padding(16)
         }
@@ -555,14 +693,23 @@ struct ControlsView: View {
 
     fileprivate func localLayerBinding<Value>(_ keyPath: WritableKeyPath<LocalAdjustmentLayer, Value>) -> Binding<Value> {
         Binding(
-            get: { editor.localAdjustments[0][keyPath: keyPath] },
+            get: { editor.localAdjustments[selectedLocalAdjustmentIndex()][keyPath: keyPath] },
             set: { value in
                 guard !editor.localAdjustments.isEmpty else {
                     return
                 }
-                editor.localAdjustments[0][keyPath: keyPath] = value
+                editor.localAdjustments[selectedLocalAdjustmentIndex()][keyPath: keyPath] = value
             }
         )
+    }
+
+    fileprivate func selectedLocalAdjustmentIndex() -> Int {
+        guard let selectedLocalAdjustmentID = editor.selectedLocalAdjustmentID,
+              let index = editor.localAdjustments.firstIndex(where: { $0.id == selectedLocalAdjustmentID })
+        else {
+            return 0
+        }
+        return index
     }
 
 }

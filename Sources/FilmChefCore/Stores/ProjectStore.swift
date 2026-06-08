@@ -47,6 +47,10 @@ package final class ProjectStore {
     }
 
     package func resolvePhotoURL(for item: FilmProjectItem) throws -> URL {
+        try resolvePhotoReference(for: item).url
+    }
+
+    package func resolvePhotoReference(for item: FilmProjectItem) throws -> (url: URL, refreshedBookmarkData: Data?) {
         if let bookmarkData = item.originalBookmarkData {
             var isStale = false
             let url = try URL(
@@ -57,12 +61,15 @@ package final class ProjectStore {
             )
 
             if !isStale {
-                return url
+                return (url, nil)
             }
+
+            return (url, self.bookmarkData(for: url))
         }
 
         if let path = item.originalURLPath, !path.isEmpty {
-            return URL(fileURLWithPath: path)
+            let url = URL(fileURLWithPath: path)
+            return (url, bookmarkData(for: url))
         }
 
         throw ProjectStoreError.missingPhotoReference

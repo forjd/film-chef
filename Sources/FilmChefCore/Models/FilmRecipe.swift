@@ -57,6 +57,106 @@ package struct FilmRecipe: Codable, Hashable, Identifiable {
             calibration: calibration
         )
     }
+
+    package func replacingEditableSettings(
+        stockBoxSpeedIso: Int? = nil,
+        exposureBoxSpeedIso: Int? = nil,
+        exposedAtIso: Int? = nil,
+        exposureCompensationEv: Double? = nil,
+        colourSaturation: Double? = nil,
+        colourWarmth: Double? = nil,
+        grainStrength: Double? = nil,
+        grainSize: Double? = nil,
+        halationStrength: Double? = nil,
+        halationRadius: Double? = nil,
+        rendererContrast: Double? = nil,
+        rendererSaturation: Double? = nil,
+        outputColourSpace: String? = nil,
+        outputBitDepth: Int? = nil
+    ) -> FilmRecipe {
+        FilmRecipe(
+            schemaVersion: schemaVersion,
+            profileId: profileId,
+            displayName: displayName,
+            manufacturer: manufacturer,
+            summary: summary,
+            format: format,
+            stock: FilmStock(
+                family: stock.family,
+                process: stock.process,
+                boxSpeedIso: stockBoxSpeedIso ?? stock.boxSpeedIso,
+                nativeBalance: stock.nativeBalance,
+                nativeColourTemperatureK: stock.nativeColourTemperatureK,
+                hasOrangeMask: stock.hasOrangeMask,
+                hasRemjet: stock.hasRemjet,
+                antiHalation: stock.antiHalation
+            ),
+            input: input,
+            exposure: FilmExposure(
+                boxSpeedIso: exposureBoxSpeedIso ?? exposure.boxSpeedIso,
+                exposedAtIso: exposedAtIso ?? exposure.exposedAtIso,
+                exposureCompensationEv: exposureCompensationEv ?? exposure.exposureCompensationEv,
+                middleGrey: exposure.middleGrey,
+                highlightProtection: exposure.highlightProtection,
+                shadowLiftBeforeFilm: exposure.shadowLiftBeforeFilm
+            ),
+            captureConditions: captureConditions,
+            layerModel: layerModel,
+            characteristicCurves: characteristicCurves,
+            colourModel: FilmColourModel(
+                palette: colourModel.palette,
+                saturation: colourSaturation ?? colourModel.saturation,
+                warmth: colourWarmth ?? colourModel.warmth,
+                hueBias: colourModel.hueBias,
+                skinToneProtection: colourModel.skinToneProtection,
+                orangeMask: colourModel.orangeMask,
+                toning: colourModel.toning
+            ),
+            process: process,
+            grain: FilmGrain(
+                enabled: grain.enabled,
+                model: grain.model,
+                strength: grainStrength ?? grain.strength,
+                size: grainSize ?? grain.size,
+                clumpiness: grain.clumpiness,
+                softness: grain.softness,
+                tonalDistribution: grain.tonalDistribution,
+                chromaticity: grain.chromaticity,
+                channelVariance: grain.channelVariance,
+                formatScale: grain.formatScale,
+                seedMode: grain.seedMode
+            ),
+            halation: FilmHalation(
+                enabled: halation.enabled,
+                model: halation.model,
+                threshold: halation.threshold,
+                strength: halationStrength ?? halation.strength,
+                radius: halationRadius ?? halation.radius,
+                colour: halation.colour,
+                affects: halation.affects,
+                edgePreservation: halation.edgePreservation
+            ),
+            sharpness: sharpness,
+            renderer: FilmRenderer(
+                type: renderer.type,
+                negativeInversion: renderer.negativeInversion,
+                autoExposure: renderer.autoExposure,
+                autoWhiteBalance: renderer.autoWhiteBalance,
+                blackPoint: renderer.blackPoint,
+                whitePoint: renderer.whitePoint,
+                contrast: rendererContrast ?? renderer.contrast,
+                saturation: rendererSaturation ?? renderer.saturation,
+                sharpening: renderer.sharpening,
+                scannerMtf: renderer.scannerMtf
+            ),
+            output: FilmOutput(
+                colourSpace: outputColourSpace ?? output.colourSpace,
+                bitDepth: outputBitDepth ?? output.bitDepth,
+                dither: output.dither
+            ),
+            calibration: calibration
+        )
+    }
 }
 
 package struct FilmFormat: Codable, Hashable {

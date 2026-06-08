@@ -448,6 +448,54 @@ package struct PixelSample: Codable, Equatable, Hashable {
     }
 }
 
+package struct BatchExportState: Codable, Equatable, Hashable {
+    package var isExporting: Bool
+    package var completedCount: Int
+    package var totalCount: Int
+    package var currentItemName: String?
+    package var wasCancelled: Bool
+    package var exportedFileNames: [String]
+
+    package init(
+        isExporting: Bool = false,
+        completedCount: Int = 0,
+        totalCount: Int = 0,
+        currentItemName: String? = nil,
+        wasCancelled: Bool = false,
+        exportedFileNames: [String] = []
+    ) {
+        self.isExporting = isExporting
+        self.completedCount = completedCount
+        self.totalCount = totalCount
+        self.currentItemName = currentItemName
+        self.wasCancelled = wasCancelled
+        self.exportedFileNames = exportedFileNames
+    }
+
+    package var progress: Double {
+        guard totalCount > 0 else {
+            return isExporting ? 0 : 1
+        }
+        return min(max(Double(completedCount) / Double(totalCount), 0), 1)
+    }
+
+    package var statusText: String {
+        if wasCancelled {
+            return "Batch export cancelled after \(completedCount) of \(totalCount)."
+        }
+        if isExporting {
+            if let currentItemName {
+                return "Exporting \(currentItemName) (\(completedCount + 1) of \(totalCount))"
+            }
+            return "Preparing batch export"
+        }
+        if totalCount > 0 {
+            return "Exported \(completedCount) of \(totalCount)."
+        }
+        return "Idle"
+    }
+}
+
 package struct RawDevelopmentSettings: Codable, Equatable, Hashable {
     package var enabled: Bool
     package var exposureEV: Double

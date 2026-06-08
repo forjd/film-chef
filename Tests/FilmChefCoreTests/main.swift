@@ -230,6 +230,7 @@ func testRecipeValidatorReportsActionableIssues() throws {
         setJSONValue([], path: ["layer_model", "rgb_to_layer_matrix"], object: &object)
         setJSONValue(0, path: ["renderer", "white_point"], object: &object)
         setJSONValue(0, path: ["renderer", "black_point"], object: &object)
+        setJSONValue(99, path: ["grain", "strength"], object: &object)
     }
 
     let issues = FilmRecipeValidator.issues(for: invalidRecipe).map(\.message)
@@ -239,6 +240,7 @@ func testRecipeValidatorReportsActionableIssues() throws {
     try expect(issues.contains("layer_model.rgb_to_layer_matrix must include at least one row."))
     try expect(issues.contains("Color recipes must provide a 3-row layer_model.rgb_to_layer_matrix."))
     try expect(issues.contains("renderer.white_point must be greater than renderer.black_point."))
+    try expect(issues.contains("grain.strength must be between 0 and 2."))
 }
 
 func testRecipeStoreRejectsInvalidAndDuplicateRecipes() throws {
@@ -649,11 +651,28 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     editor.recipeDraft.displayName = "Custom Gold 200"
     editor.recipeDraft.manufacturer = "Film Chef Lab"
     editor.recipeDraft.summary = "A user-adjusted metadata copy for export."
+    editor.recipeDraft.stockBoxSpeedIso = 500
+    editor.recipeDraft.exposedAtIso = 320
+    editor.recipeDraft.exposureCompensationEv = 0.15
+    editor.recipeDraft.colourSaturation = 1.2
+    editor.recipeDraft.grainStrength = 0.35
+    editor.recipeDraft.halationStrength = 0.2
+    editor.recipeDraft.rendererContrast = 1.1
+    editor.recipeDraft.outputColourSpace = "display_p3"
+    editor.recipeDraft.outputBitDepth = 16
     try expect(editor.canApplyRecipeDraft)
     editor.applyRecipeDraft()
     try expect(editor.selectedRecipe?.name == "Custom Gold 200")
     try expect(editor.selectedRecipe?.maker == "Film Chef Lab")
     try expect(editor.selectedRecipe?.summary == "A user-adjusted metadata copy for export.")
+    try expect(editor.selectedRecipe?.stock.boxSpeedIso == 500)
+    try expect(editor.selectedRecipe?.exposure.exposedAtIso == 320)
+    try expect(editor.selectedRecipe?.colourModel.saturation == 1.2)
+    try expect(editor.selectedRecipe?.grain.strength == 0.35)
+    try expect(editor.selectedRecipe?.halation.strength == 0.2)
+    try expect(editor.selectedRecipe?.renderer.contrast == 1.1)
+    try expect(editor.selectedRecipe?.output.colourSpace == "display_p3")
+    try expect(editor.selectedRecipe?.output.bitDepth == 16)
     try expect(editor.recipeDraft.displayName == "Custom Gold 200")
 
     editor.beginImport()
@@ -727,12 +746,18 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     let cacheHitsBeforeRepeat = editor.previewCacheHitCount
     editor.intensity = 0.25
     try expect(editor.previewCacheHitCount > cacheHitsBeforeRepeat)
+    for step in 1...9 {
+        editor.intensity = Double(step) / 10.0
+    }
+    try expect(editor.previewRenderCacheSize <= 8)
+    editor.intensity = 0.25
     editor.exposureTrim = 0.2
     editor.contrastTrim = -0.1
     editor.saturationTrim = 0.15
     editor.grainEnabled = false
     editor.addLocalAdjustment()
     try expect(editor.localAdjustments.count == 1)
+    try expect(editor.selectedLocalAdjustmentID == editor.localAdjustments[0].id)
     editor.localAdjustments[0].centerX = 0.45
     editor.localAdjustments[0].exposureEV = 0.35
     try expect(editor.currentAdjustments.intensity == 0.25)
@@ -756,12 +781,19 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     try expect(editor.pixelSample?.y == 1)
     editor.removeLocalAdjustments()
     try expect(editor.localAdjustments.isEmpty)
+    try expect(editor.selectedLocalAdjustmentID == nil)
 
     let lutURL = directory.appendingPathComponent("test-lut.cube")
     try """
     LUT_3D_SIZE 2
     0.20 0.10 0.10
+    0.30 0.15 0.10
+    0.40 0.20 0.15
+    0.50 0.25 0.20
+    0.60 0.30 0.22
+    0.70 0.35 0.26
     0.80 0.40 0.30
+    0.90 0.45 0.34
     """.data(using: .utf8)?.write(to: lutURL)
     let spectralURL = directory.appendingPathComponent("spectral-density.json")
     try #"{"red":0.7,"green":0.5,"blue":0.3,"density":0.8}"#.data(using: .utf8)?.write(to: spectralURL)
@@ -775,6 +807,15 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     try expect(editor.calibrationDataStatus.redScale > editor.calibrationDataStatus.blueScale)
     try expect(editor.calibrationDataStatus.densityGamma > 1.0)
     try expect(editor.calibrationDataStatus.grainAmount > 0)
+
+    let invalidLUTURL = directory.appendingPathComponent("invalid-lut.cube")
+    try """
+    LUT_3D_SIZE 2
+    0.1 0.1 0.1
+    """.data(using: .utf8)?.write(to: invalidLUTURL)
+    editor.errorMessage = nil
+    editor.importCalibrationAssetsForTesting(from: [invalidLUTURL])
+    try expect(editor.errorMessage?.contains("Expected 8 LUT rows") == true)
 
     let suggestedName = editor.suggestedExportFileNameForTesting()
     try expect(suggestedName.hasPrefix("Sample Photo-"))
@@ -802,6 +843,9 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     let batchFiles = try FileManager.default.contentsOfDirectory(atPath: batchDirectory.path)
     try expect(batchFiles.count == 2, "Expected both project photos to export.")
     try expect(batchFiles.allSatisfy { $0.contains("_jpeg") })
+    try expect(!editor.batchExportState.isExporting)
+    try expect(editor.batchExportState.completedCount == 2)
+    try expect(editor.batchExportState.exportedFileNames.count == 2)
 
     let recipeExportURL = directory.appendingPathComponent("recipe.json")
     editor.exportSelectedRecipeForTesting(to: recipeExportURL)
@@ -909,7 +953,13 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         try """
         LUT_3D_SIZE 2
         0.15 0.10 0.10
+        0.25 0.13 0.10
+        0.35 0.18 0.12
+        0.45 0.23 0.16
+        0.55 0.28 0.19
+        0.65 0.34 0.22
         0.75 0.40 0.25
+        0.85 0.45 0.28
         """.data(using: .utf8)?.write(to: lutURL)
         editor.importCalibrationAssetsForTesting(from: [lutURL])
         editor.saveProjectForTesting(to: projectURL)
@@ -944,6 +994,11 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         try expect(reopened.calibrationDataStatus.importedAssetNames == ["project-lut.cube"])
         try expect(reopened.calibrationDataStatus.redScale > reopened.calibrationDataStatus.blueScale)
         try expect(reopened.histogramSummary != nil)
+        let cacheHitsBeforeColorChange = reopened.previewCacheHitCount
+        reopened.colorManagementSettings.rawDevelopment.exposureEV = 0.25
+        try expect(reopened.project.colorManagementSettings.rawDevelopment.exposureEV == 0.25)
+        try expect(reopened.previewRenderStatus == "Preview ready")
+        try expect(reopened.previewCacheHitCount == cacheHitsBeforeColorChange)
 
         let secondURL = directory.appendingPathComponent("Second Photo.png")
         try writeTestPNG(to: secondURL, width: 8, height: 6)
@@ -1029,6 +1084,19 @@ func testWriteRenderedImageEncodesPngAndJpeg() throws {
     let p3Source = try require(CGImageSourceCreateWithURL(p3URL as CFURL, nil))
     let p3Properties = try require(CGImageSourceCopyPropertiesAtIndex(p3Source, 0, nil) as? [String: Any])
     try expect(p3Properties[kCGImagePropertyProfileName as String] as? String == "Display P3")
+
+    let minimalURL = directory.appendingPathComponent("render-minimal.jpg")
+    try processor.writeRenderedImage(
+        from: source,
+        recipe: recipe,
+        adjustments: adjustments(),
+        to: minimalURL,
+        settings: ExportSettings(fileFormat: .jpeg, preserveMetadata: false, embedColorProfile: false)
+    )
+    let minimalSource = try require(CGImageSourceCreateWithURL(minimalURL as CFURL, nil))
+    let minimalProperties = try require(CGImageSourceCopyPropertiesAtIndex(minimalSource, 0, nil) as? [String: Any])
+    let minimalExif = minimalProperties[kCGImagePropertyExifDictionary as String] as? [String: Any]
+    try expect(minimalExif?[kCGImagePropertyExifUserComment as String] as? String != "Rendered with Film Chef")
 
     let tiffURL = directory.appendingPathComponent("render.tiff")
     try processor.writeRenderedImage(
