@@ -12,7 +12,7 @@ The project is early, useful, and intentionally open-ended: the renderer is prof
 - Original, edited, split, and side-by-side preview modes with bounded pan, loupe placement, zoom, and draggable comparison
 - RGB, luminance, and RGB parade scopes with clipping readouts and pixel sampling
 - ImageIO export to JPEG, PNG, or TIFF with quality, scale, metadata, ICC profile, and naming options
-- Batch export for every photo in the current project
+- Background batch export for every photo in the current project with progress and cancellation
 - Cancelable async preview rendering in-app, plus synchronous rendering for tests
 - JSON-backed recipes that are easy to inspect, edit, and share
 
@@ -153,7 +153,7 @@ Film Chef is an initial implementation. Areas that still need deeper work includ
 - Richer before/after review controls and saved review workspaces
 - Scope overlays and more advanced histogram tooling
 - Camera-profile ingestion and deeper RAW/color-management support
-- Render caching, progress reporting, and background export
+- Render cache tuning and detailed export diagnostics
 - Export presets and delivery recipes
 - App icon assets and update distribution
 

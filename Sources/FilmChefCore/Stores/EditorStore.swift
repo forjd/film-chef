@@ -20,6 +20,16 @@ public final class EditorStore: ObservableObject {
         var histogram: HistogramSummary
     }
 
+    private struct BatchExportRequest {
+        var directory: URL
+        var items: [FilmProjectItem]
+        var recipes: [FilmRecipe]
+        var fallbackRecipeID: String?
+        var exportSettings: ExportSettings
+        var calibration: CalibrationDataStatus
+        var colorSettings: ColorManagementSettings
+    }
+
     package struct RecipeDraft: Equatable {
         package var displayName: String
         package var manufacturer: String
@@ -263,6 +273,7 @@ public final class EditorStore: ObservableObject {
     private let previewRenderCacheLimit = 8
     private var suppressSettingsUpdates = false
     private var cancelBatchExportRequested = false
+    private var batchExportTask: Task<Void, Never>?
     private var activeLocalMaskPointIndex: Int?
 
     public init(recipeStore: RecipeStore) {
@@ -829,6 +840,7 @@ public final class EditorStore: ObservableObject {
 
     public func cancelBatchExport() {
         cancelBatchExportRequested = true
+        batchExportTask?.cancel()
     }
 
     public func saveProject() {
@@ -923,7 +935,7 @@ public final class EditorStore: ObservableObject {
             }
 
             Task { @MainActor in
-                self?.writeProjectExports(to: url)
+                self?.startProjectExportTask(to: url)
             }
         }
     }
@@ -1256,6 +1268,82 @@ public final class EditorStore: ObservableObject {
         }
     }
 
+    private func startProjectExportTask(to directory: URL) {
+        updateCurrentProjectItem()
+        let request = makeBatchExportRequest(directory: directory)
+        cancelBatchExportRequested = false
+        batchExportTask?.cancel()
+        batchExportState = BatchExportState(
+            isExporting: true,
+            completedCount: 0,
+            totalCount: request.items.count
+        )
+
+        batchExportTask = Task.detached(priority: .userInitiated) { [imageProcessor] in
+            var exportedNames: [String] = []
+
+            do {
+                try FileManager.default.createDirectory(at: request.directory, withIntermediateDirectories: true)
+
+                for (index, item) in request.items.enumerated() {
+                    if Task.isCancelled {
+                        let exportedNamesSnapshot = exportedNames
+                        await MainActor.run {
+                            self.batchExportState = BatchExportState(
+                                isExporting: false,
+                                completedCount: index,
+                                totalCount: request.items.count,
+                                wasCancelled: true,
+                                exportedFileNames: exportedNamesSnapshot
+                            )
+                        }
+                        return
+                    }
+
+                    let exportedNamesSnapshot = exportedNames
+                    await MainActor.run {
+                        self.batchExportState = BatchExportState(
+                            isExporting: true,
+                            completedCount: index,
+                            totalCount: request.items.count,
+                            currentItemName: item.displayName,
+                            exportedFileNames: exportedNamesSnapshot
+                        )
+                    }
+
+                    let exportedURL = try Self.writeProjectExport(
+                        for: item,
+                        request: request,
+                        imageProcessor: imageProcessor
+                    )
+                    exportedNames.append(exportedURL.lastPathComponent)
+                }
+
+                let exportedNamesSnapshot = exportedNames
+                await MainActor.run {
+                    self.batchExportState = BatchExportState(
+                        isExporting: false,
+                        completedCount: request.items.count,
+                        totalCount: request.items.count,
+                        exportedFileNames: exportedNamesSnapshot
+                    )
+                    self.batchExportTask = nil
+                }
+            } catch {
+                await MainActor.run {
+                    self.batchExportState = BatchExportState(
+                        isExporting: false,
+                        completedCount: self.batchExportState.completedCount,
+                        totalCount: self.batchExportState.totalCount,
+                        exportedFileNames: self.batchExportState.exportedFileNames
+                    )
+                    self.errorMessage = error.localizedDescription
+                    self.batchExportTask = nil
+                }
+            }
+        }
+    }
+
     private func writeProjectExports(to directory: URL) {
         updateCurrentProjectItem()
         cancelBatchExportRequested = false
@@ -1268,12 +1356,13 @@ public final class EditorStore: ObservableObject {
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             var exportedNames: [String] = []
-            for (index, item) in project.items.enumerated() {
+            let request = makeBatchExportRequest(directory: directory)
+            for (index, item) in request.items.enumerated() {
                 if cancelBatchExportRequested {
                     batchExportState = BatchExportState(
                         isExporting: false,
                         completedCount: index,
-                        totalCount: project.items.count,
+                        totalCount: request.items.count,
                         wasCancelled: true,
                         exportedFileNames: exportedNames
                     )
@@ -1283,17 +1372,17 @@ public final class EditorStore: ObservableObject {
                 batchExportState = BatchExportState(
                     isExporting: true,
                     completedCount: index,
-                    totalCount: project.items.count,
+                    totalCount: request.items.count,
                     currentItemName: item.displayName,
                     exportedFileNames: exportedNames
                 )
-                let exportedURL = try writeProjectExport(for: item, to: directory)
+                let exportedURL = try writeProjectExport(for: item, request: request)
                 exportedNames.append(exportedURL.lastPathComponent)
             }
             batchExportState = BatchExportState(
                 isExporting: false,
-                completedCount: project.items.count,
-                totalCount: project.items.count,
+                completedCount: request.items.count,
+                totalCount: request.items.count,
                 exportedFileNames: exportedNames
             )
         } catch {
@@ -1307,8 +1396,28 @@ public final class EditorStore: ObservableObject {
         }
     }
 
-    private func writeProjectExport(for item: FilmProjectItem, to directory: URL) throws -> URL {
-        let sourceURL = try resolveAndRefreshPhotoURL(for: item)
+    private func makeBatchExportRequest(directory: URL) -> BatchExportRequest {
+        BatchExportRequest(
+            directory: directory,
+            items: project.items,
+            recipes: recipes,
+            fallbackRecipeID: selectedRecipeID,
+            exportSettings: exportSettings,
+            calibration: calibrationDataStatus,
+            colorSettings: colorManagementSettings
+        )
+    }
+
+    private func writeProjectExport(for item: FilmProjectItem, request: BatchExportRequest) throws -> URL {
+        try Self.writeProjectExport(for: item, request: request, imageProcessor: imageProcessor)
+    }
+
+    nonisolated private static func writeProjectExport(
+        for item: FilmProjectItem,
+        request: BatchExportRequest,
+        imageProcessor: ImageProcessor
+    ) throws -> URL {
+        let sourceURL = try ProjectStore().resolvePhotoURL(for: item)
         let didStartAccessing = sourceURL.startAccessingSecurityScopedResource()
         defer {
             if didStartAccessing {
@@ -1316,22 +1425,25 @@ public final class EditorStore: ObservableObject {
             }
         }
 
-        let source = try imageProcessor.loadSourceImage(from: sourceURL, colorSettings: colorManagementSettings)
-        let recipe = recipes.first { $0.id == item.selectedRecipeID } ?? selectedRecipe ?? recipes[0]
-        let exportURL = uniqueExportURL(
-            in: directory,
+        let source = try imageProcessor.loadSourceImage(from: sourceURL, colorSettings: request.colorSettings)
+        let recipe = request.recipes.first { $0.id == item.selectedRecipeID } ??
+            request.recipes.first { $0.id == request.fallbackRecipeID } ??
+            request.recipes[0]
+        let exportURL = Self.uniqueExportURL(
+            in: request.directory,
             item: item,
-            recipe: recipe
+            recipe: recipe,
+            settings: request.exportSettings
         )
         try imageProcessor.writeRenderedImage(
             from: source,
             recipe: recipe,
             adjustments: item.adjustments,
             to: exportURL,
-            settings: exportSettings,
+            settings: request.exportSettings,
             localAdjustments: item.localAdjustments,
-            calibration: calibrationDataStatus,
-            colorSettings: colorManagementSettings
+            calibration: request.calibration,
+            colorSettings: request.colorSettings
         )
         return exportURL
     }
@@ -1716,16 +1828,30 @@ public final class EditorStore: ObservableObject {
         item: FilmProjectItem,
         recipe: FilmRecipe
     ) -> URL {
+        Self.uniqueExportURL(
+            in: directory,
+            item: item,
+            recipe: recipe,
+            settings: exportSettings
+        )
+    }
+
+    nonisolated private static func uniqueExportURL(
+        in directory: URL,
+        item: FilmProjectItem,
+        recipe: FilmRecipe,
+        settings: ExportSettings
+    ) -> URL {
         let baseName = sanitizedFileComponent(
-            exportSettings.namingTemplate
+            settings.namingTemplate
                 .replacingOccurrences(
                     of: "{photo}",
                     with: URL(fileURLWithPath: item.displayName).deletingPathExtension().lastPathComponent
                 )
                 .replacingOccurrences(of: "{recipe}", with: recipe.name)
-                .replacingOccurrences(of: "{format}", with: exportSettings.fileFormat.label)
+                .replacingOccurrences(of: "{format}", with: settings.fileFormat.label)
         )
-        let fileExtension = exportSettings.fileFormat.preferredPathExtension
+        let fileExtension = settings.fileFormat.preferredPathExtension
         var candidate = directory.appendingPathComponent("\(baseName).\(fileExtension)")
         var suffix = 2
 
@@ -1737,7 +1863,7 @@ public final class EditorStore: ObservableObject {
         return candidate
     }
 
-    private func sanitizedFileComponent(_ value: String) -> String {
+    nonisolated private static func sanitizedFileComponent(_ value: String) -> String {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_ "))
         let cleaned = value
             .components(separatedBy: allowed.inverted)
