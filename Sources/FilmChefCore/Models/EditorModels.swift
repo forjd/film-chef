@@ -9,6 +9,7 @@ package struct FilmProject: Codable, Equatable {
     package var editHistory: [EditSnapshot]
     package var editHistoryIndex: Int?
     package var exportSettings: ExportSettings
+    package var exportPresets: [ExportPreset]
     package var colorManagementSettings: ColorManagementSettings
     package var calibrationDataStatus: CalibrationDataStatus
     package var createdAt: Date
@@ -23,6 +24,7 @@ package struct FilmProject: Codable, Equatable {
         editHistory: [EditSnapshot] = [],
         editHistoryIndex: Int? = nil,
         exportSettings: ExportSettings = .defaults,
+        exportPresets: [ExportPreset] = ExportPreset.defaults,
         colorManagementSettings: ColorManagementSettings = .defaults,
         calibrationDataStatus: CalibrationDataStatus = .descriptiveOnly,
         createdAt: Date = Date(),
@@ -36,10 +38,28 @@ package struct FilmProject: Codable, Equatable {
         self.editHistory = editHistory
         self.editHistoryIndex = editHistoryIndex
         self.exportSettings = exportSettings
+        self.exportPresets = exportPresets
         self.colorManagementSettings = colorManagementSettings
         self.calibrationDataStatus = calibrationDataStatus
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+
+    package init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        items = try container.decode([FilmProjectItem].self, forKey: .items)
+        selectedItemID = try container.decodeIfPresent(UUID.self, forKey: .selectedItemID)
+        editHistory = try container.decode([EditSnapshot].self, forKey: .editHistory)
+        editHistoryIndex = try container.decodeIfPresent(Int.self, forKey: .editHistoryIndex)
+        exportSettings = try container.decode(ExportSettings.self, forKey: .exportSettings)
+        exportPresets = try container.decodeIfPresent([ExportPreset].self, forKey: .exportPresets) ?? ExportPreset.defaults
+        colorManagementSettings = try container.decode(ColorManagementSettings.self, forKey: .colorManagementSettings)
+        calibrationDataStatus = try container.decode(CalibrationDataStatus.self, forKey: .calibrationDataStatus)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 }
 
@@ -320,6 +340,28 @@ package struct ExportSettings: Codable, Equatable, Hashable {
     }
 
     package static let defaults = ExportSettings()
+}
+
+package struct ExportPreset: Codable, Equatable, Hashable, Identifiable {
+    package var id: UUID
+    package var name: String
+    package var settings: ExportSettings
+
+    package init(
+        id: UUID = UUID(),
+        name: String,
+        settings: ExportSettings
+    ) {
+        self.id = id
+        self.name = name
+        self.settings = settings
+    }
+
+    package static let defaults = [
+        ExportPreset(name: "Web JPEG", settings: ExportSettings(fileFormat: .jpeg, jpegQuality: 0.86, scale: 1.0, preserveMetadata: false, embedColorProfile: true, namingTemplate: "{photo}-{recipe}")),
+        ExportPreset(name: "Archive TIFF", settings: ExportSettings(fileFormat: .tiff, jpegQuality: 1.0, scale: 1.0, preserveMetadata: true, embedColorProfile: true, namingTemplate: "{photo}-{recipe}-archive")),
+        ExportPreset(name: "Review PNG", settings: ExportSettings(fileFormat: .png, jpegQuality: 1.0, scale: 0.5, preserveMetadata: false, embedColorProfile: true, namingTemplate: "{photo}-{recipe}-review"))
+    ]
 }
 
 package struct HistogramSummary: Codable, Equatable {

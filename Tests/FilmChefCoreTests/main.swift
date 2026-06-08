@@ -708,8 +708,25 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     try expect(editor.displayedPreviewImage === editor.originalPreviewImage)
     editor.comparisonMode = .split
     try expect(editor.comparisonMode == .split)
+    editor.previewZoom = 2.0
+    editor.panPreview(deltaX: 24, deltaY: -12)
+    try expect(editor.previewPanX == 24)
+    try expect(editor.previewPanY == -12)
+    editor.loupeEnabled = true
+    editor.loupeZoom = 3.0
+    try expect(editor.canResetPreviewView)
+    editor.resetPreviewView()
+    try expect(editor.previewZoom == 1.0)
+    try expect(editor.previewPanX == 0)
+    try expect(editor.previewPanY == 0)
+    try expect(!editor.loupeEnabled)
 
     editor.intensity = 0.25
+    try expect(editor.previewRenderProgress == 1.0)
+    try expect(editor.previewRenderStatus == "Preview ready")
+    let cacheHitsBeforeRepeat = editor.previewCacheHitCount
+    editor.intensity = 0.25
+    try expect(editor.previewCacheHitCount > cacheHitsBeforeRepeat)
     editor.exposureTrim = 0.2
     editor.contrastTrim = -0.1
     editor.saturationTrim = 0.15
@@ -763,11 +780,23 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     try expect(suggestedName.hasPrefix("Sample Photo-"))
     try expect(suggestedName.hasSuffix(".jpg"))
 
+    try expect(editor.exportPresets.count >= 3)
+    editor.exportPresetDraftName = "Small Review"
+    editor.exportSettings = ExportSettings(fileFormat: .png, jpegQuality: 1.0, scale: 0.5, preserveMetadata: false, embedColorProfile: true, namingTemplate: "{photo}-small")
+    editor.saveExportPreset()
+    let smallReviewPreset = try require(editor.exportPresets.first { $0.name == "Small Review" })
+    try expect(editor.selectedExportPresetID == smallReviewPreset.id)
+    editor.exportSettings = .defaults
+    editor.applySelectedExportPreset()
+    try expect(editor.exportSettings.fileFormat == .png)
+    try expect(editor.exportSettings.scale == 0.5)
+
     let exportURL = directory.appendingPathComponent("export.jpeg")
     editor.exportEditedPhotoForTesting(to: exportURL)
     try expect(FileManager.default.fileExists(atPath: exportURL.path))
 
     let batchDirectory = directory.appendingPathComponent("batch", isDirectory: true)
+    editor.exportSettings.fileFormat = .jpeg
     editor.exportSettings.namingTemplate = "{photo}_{recipe}_{format}"
     editor.exportProjectPhotosForTesting(to: batchDirectory)
     let batchFiles = try FileManager.default.contentsOfDirectory(atPath: batchDirectory.path)
@@ -874,6 +903,8 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         editor.splitPosition = 0.35
         editor.histogramChannelMode = .rgb
         editor.exportSettings = ExportSettings(fileFormat: .tiff, jpegQuality: 0.8, scale: 1.25, namingTemplate: "{photo}_custom")
+        editor.exportPresetDraftName = "Project TIFF"
+        editor.saveExportPreset()
         let lutURL = directory.appendingPathComponent("project-lut.cube")
         try """
         LUT_3D_SIZE 2
@@ -892,6 +923,7 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         try expect(loadedProject.editHistory.count == editor.editHistory.count)
         try expect(loadedProject.exportSettings.fileFormat == .tiff)
         try expect(loadedProject.exportSettings.namingTemplate == "{photo}_custom")
+        try expect(loadedProject.exportPresets.contains { $0.name == "Project TIFF" })
         try expect(loadedProject.calibrationDataStatus.supportsThreeDimensionalLUTs)
         try expect(loadedProject.calibrationDataStatus.redScale > loadedProject.calibrationDataStatus.blueScale)
 
@@ -908,6 +940,7 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         try expect(reopened.localAdjustments[0].pathPoints.count == 3)
         try expect(reopened.exportSettings.fileFormat == .tiff)
         try expect(reopened.exportSettings.namingTemplate == "{photo}_custom")
+        try expect(reopened.exportPresets.contains { $0.name == "Project TIFF" })
         try expect(reopened.calibrationDataStatus.importedAssetNames == ["project-lut.cube"])
         try expect(reopened.calibrationDataStatus.redScale > reopened.calibrationDataStatus.blueScale)
         try expect(reopened.histogramSummary != nil)

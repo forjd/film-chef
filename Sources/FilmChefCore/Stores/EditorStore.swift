@@ -5,6 +5,21 @@ import UniformTypeIdentifiers
 
 @MainActor
 public final class EditorStore: ObservableObject {
+    private struct PreviewRenderCacheKey: Hashable {
+        var sourceIdentifier: String
+        var sourceWidth: Int
+        var sourceHeight: Int
+        var recipe: FilmRecipe
+        var adjustments: RenderAdjustments
+        var localAdjustments: [LocalAdjustmentLayer]
+        var calibration: CalibrationDataStatus
+    }
+
+    private struct PreviewRenderResult {
+        var image: NSImage
+        var histogram: HistogramSummary
+    }
+
     package struct RecipeDraft: Equatable {
         package var displayName: String
         package var manufacturer: String
@@ -91,6 +106,9 @@ public final class EditorStore: ObservableObject {
     @Published package private(set) var histogramSummary: HistogramSummary?
     @Published package private(set) var pixelSample: PixelSample?
     @Published package private(set) var isRenderingPreview = false
+    @Published package private(set) var previewRenderProgress = 0.0
+    @Published package private(set) var previewRenderStatus = "Idle"
+    @Published package private(set) var previewCacheHitCount = 0
     @Published package var isImporting = false
     @Published package var isImportingRecipe = false
     @Published package var isImportingCalibration = false
@@ -99,11 +117,18 @@ public final class EditorStore: ObservableObject {
 
     @Published package var comparisonMode = PreviewComparisonMode.edited
     @Published package var previewZoom = 1.0
+    @Published package var previewPanX = 0.0
+    @Published package var previewPanY = 0.0
+    @Published package var loupeEnabled = false
+    @Published package var loupeZoom = 2.0
     @Published package var splitPosition = 0.5
     @Published package private(set) var samplerX = 0.5
     @Published package private(set) var samplerY = 0.5
     @Published package var histogramChannelMode = HistogramChannelMode.all
     @Published package var exportSettings = ExportSettings.defaults
+    @Published package var exportPresets = ExportPreset.defaults
+    @Published package var selectedExportPresetID: UUID?
+    @Published package var exportPresetDraftName = "Custom Preset"
     @Published package var colorManagementSettings = ColorManagementSettings.defaults
     @Published package private(set) var calibrationDataStatus = CalibrationDataStatus.descriptiveOnly
     @Published package var localAdjustments: [LocalAdjustmentLayer] = [] {
@@ -150,6 +175,8 @@ public final class EditorStore: ObservableObject {
     private var isApplyingEditSnapshot = false
     private var previewRenderTask: Task<Void, Never>?
     private var previewRenderGeneration = 0
+    private var previewRenderCache: [PreviewRenderCacheKey: PreviewRenderResult] = [:]
+    private let previewRenderCacheLimit = 8
 
     public init(recipeStore: RecipeStore) {
         self.recipeStore = recipeStore
@@ -197,6 +224,13 @@ public final class EditorStore: ObservableObject {
         return FilmRecipeValidator.issues(for: draftRecipe)
     }
 
+    package var selectedRecipeValidationIssues: [RecipeValidationIssue] {
+        guard let selectedRecipe else {
+            return []
+        }
+        return FilmRecipeValidator.issues(for: selectedRecipe)
+    }
+
     package var canApplyRecipeDraft: Bool {
         guard let selectedRecipe, selectedRecipeIsEditable else {
             return false
@@ -232,6 +266,13 @@ public final class EditorStore: ObservableObject {
             return false
         }
         return editHistoryIndex < editHistory.count - 1
+    }
+
+    package var canResetPreviewView: Bool {
+        abs(previewZoom - 1.0) > 0.001 ||
+            abs(previewPanX) > 0.001 ||
+            abs(previewPanY) > 0.001 ||
+            loupeEnabled
     }
 
     package var currentAdjustments: RenderAdjustments {
@@ -362,9 +403,29 @@ public final class EditorStore: ObservableObject {
         saturationTrim = RenderAdjustments.defaults.saturationTrim
         grainEnabled = RenderAdjustments.defaults.grainEnabled
         comparisonMode = .edited
+        resetPreviewView()
         suppressPreviewUpdates = false
         recordCurrentEditSnapshot(note: "Reset adjustments")
         renderPreviewIfNeeded()
+    }
+
+    public func resetPreviewView() {
+        previewZoom = 1.0
+        previewPanX = 0
+        previewPanY = 0
+        loupeEnabled = false
+    }
+
+    public func panPreview(deltaX: Double, deltaY: Double) {
+        guard previewZoom > 1.0 else {
+            previewPanX = 0
+            previewPanY = 0
+            return
+        }
+
+        let limit = (previewZoom - 1.0) * 160
+        previewPanX = min(max(previewPanX + deltaX, -limit), limit)
+        previewPanY = min(max(previewPanY + deltaY, -limit), limit)
     }
 
     public func undoEdit() {
@@ -428,6 +489,49 @@ public final class EditorStore: ObservableObject {
         replaceRecipe(updatedRecipe)
         recipeImportStatus = .imported(name: updatedRecipe.name)
         renderPreviewIfNeeded()
+    }
+
+    public func applySelectedExportPreset() {
+        guard let selectedExportPresetID,
+              let preset = exportPresets.first(where: { $0.id == selectedExportPresetID })
+        else {
+            return
+        }
+
+        exportSettings = preset.settings
+        exportPresetDraftName = preset.name
+        project.exportSettings = exportSettings
+        project.updatedAt = Date()
+    }
+
+    public func saveExportPreset() {
+        let trimmedName = exportPresetDraftName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = trimmedName.isEmpty ? "Custom Preset" : trimmedName
+
+        if let selectedExportPresetID,
+           let index = exportPresets.firstIndex(where: { $0.id == selectedExportPresetID }) {
+            exportPresets[index].name = name
+            exportPresets[index].settings = exportSettings
+        } else {
+            let preset = ExportPreset(name: uniqueExportPresetName(base: name), settings: exportSettings)
+            exportPresets.append(preset)
+            selectedExportPresetID = preset.id
+        }
+
+        syncExportPresetsToProject()
+    }
+
+    public func deleteSelectedExportPreset() {
+        guard let selectedExportPresetID,
+              exportPresets.count > 1
+        else {
+            return
+        }
+
+        exportPresets.removeAll { $0.id == selectedExportPresetID }
+        self.selectedExportPresetID = exportPresets.first?.id
+        exportPresetDraftName = exportPresets.first?.name ?? "Custom Preset"
+        syncExportPresetsToProject()
     }
 
     public func resetRecipeDraft() {
@@ -660,6 +764,9 @@ public final class EditorStore: ObservableObject {
             editHistory = loadedProject.editHistory
             editHistoryIndex = loadedProject.editHistoryIndex
             exportSettings = loadedProject.exportSettings
+            exportPresets = loadedProject.exportPresets.isEmpty ? ExportPreset.defaults : loadedProject.exportPresets
+            selectedExportPresetID = exportPresets.first?.id
+            exportPresetDraftName = exportPresets.first?.name ?? "Custom Preset"
             colorManagementSettings = loadedProject.colorManagementSettings
             calibrationDataStatus = loadedProject.calibrationDataStatus
 
@@ -676,6 +783,7 @@ public final class EditorStore: ObservableObject {
         project.editHistory = editHistory
         project.editHistoryIndex = editHistoryIndex
         project.exportSettings = exportSettings
+        project.exportPresets = exportPresets
         project.colorManagementSettings = colorManagementSettings
         project.calibrationDataStatus = calibrationDataStatus
         project.updatedAt = Date()
@@ -698,6 +806,24 @@ public final class EditorStore: ObservableObject {
             recipeImportStatus = recipeImportStatus(for: error, url: url)
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func syncExportPresetsToProject() {
+        project.exportPresets = exportPresets
+        project.updatedAt = Date()
+    }
+
+    private func uniqueExportPresetName(base: String) -> String {
+        var candidate = base
+        var index = 2
+        let existingNames = Set(exportPresets.map(\.name))
+
+        while existingNames.contains(candidate) {
+            candidate = "\(base) \(index)"
+            index += 1
+        }
+
+        return candidate
     }
 
     private func importCalibrationAssets(from urls: [URL]) {
@@ -954,12 +1080,34 @@ public final class EditorStore: ObservableObject {
         previewRenderGeneration += 1
         let generation = previewRenderGeneration
         let adjustments = currentAdjustments
+        let localAdjustments = self.localAdjustments
+        let calibration = calibrationDataStatus
+        let cacheKey = previewCacheKey(
+            sourceImage: sourceImage,
+            recipe: selectedRecipe,
+            adjustments: adjustments,
+            localAdjustments: localAdjustments,
+            calibration: calibration
+        )
+
+        if let cached = previewRenderCache[cacheKey] {
+            editedPreviewImage = cached.image
+            histogramSummary = cached.histogram
+            previewCacheHitCount += 1
+            isRenderingPreview = false
+            previewRenderProgress = 1.0
+            previewRenderStatus = "Loaded cached preview"
+            return
+        }
 
         if rendersSynchronouslyForTesting {
             renderPreviewSynchronously(
                 sourceImage: sourceImage,
                 recipe: selectedRecipe,
                 adjustments: adjustments,
+                localAdjustments: localAdjustments,
+                calibration: calibration,
+                cacheKey: cacheKey,
                 generation: generation
             )
             return
@@ -967,6 +1115,8 @@ public final class EditorStore: ObservableObject {
 
         previewRenderTask?.cancel()
         isRenderingPreview = true
+        previewRenderProgress = 0.15
+        previewRenderStatus = "Preparing preview"
         previewRenderTask = Task { [imageProcessor] in
             try? await Task.sleep(nanoseconds: 120_000_000)
             guard !Task.isCancelled else {
@@ -974,22 +1124,29 @@ public final class EditorStore: ObservableObject {
             }
 
             do {
-                let previewImage = try imageProcessor.renderPreviewImage(
+                await MainActor.run {
+                    guard generation == self.previewRenderGeneration else {
+                        return
+                    }
+                    self.previewRenderProgress = 0.45
+                    self.previewRenderStatus = "Rendering look"
+                }
+                let renderedSource = imageProcessor.renderedPreviewSource(
                     from: sourceImage,
                     recipe: selectedRecipe,
                     adjustments: adjustments,
-                    localAdjustments: self.localAdjustments,
-                    calibration: self.calibrationDataStatus
+                    localAdjustments: localAdjustments,
+                    calibration: calibration
                 )
-                let histogram = try imageProcessor.makeHistogramSummary(
-                    from: imageProcessor.renderedPreviewSource(
-                        from: sourceImage,
-                        recipe: selectedRecipe,
-                        adjustments: adjustments,
-                        localAdjustments: self.localAdjustments,
-                        calibration: self.calibrationDataStatus
-                    )
-                )
+                await MainActor.run {
+                    guard generation == self.previewRenderGeneration else {
+                        return
+                    }
+                    self.previewRenderProgress = 0.75
+                    self.previewRenderStatus = "Building scopes"
+                }
+                let previewImage = try imageProcessor.makeNSImageForTesting(from: renderedSource)
+                let histogram = try imageProcessor.makeHistogramSummary(from: renderedSource)
 
                 await MainActor.run {
                     guard generation == self.previewRenderGeneration else {
@@ -997,7 +1154,13 @@ public final class EditorStore: ObservableObject {
                     }
                     self.editedPreviewImage = previewImage
                     self.histogramSummary = histogram
+                    self.storePreviewRenderResult(
+                        PreviewRenderResult(image: previewImage, histogram: histogram),
+                        for: cacheKey
+                    )
                     self.isRenderingPreview = false
+                    self.previewRenderProgress = 1.0
+                    self.previewRenderStatus = "Preview ready"
                 }
             } catch {
                 await MainActor.run {
@@ -1006,6 +1169,8 @@ public final class EditorStore: ObservableObject {
                     }
                     self.errorMessage = error.localizedDescription
                     self.isRenderingPreview = false
+                    self.previewRenderProgress = 0
+                    self.previewRenderStatus = "Preview failed"
                 }
             }
         }
@@ -1015,9 +1180,14 @@ public final class EditorStore: ObservableObject {
         sourceImage: CIImage,
         recipe: FilmRecipe,
         adjustments: RenderAdjustments,
+        localAdjustments: [LocalAdjustmentLayer],
+        calibration: CalibrationDataStatus,
+        cacheKey: PreviewRenderCacheKey,
         generation: Int
     ) {
         isRenderingPreview = true
+        previewRenderProgress = 0.2
+        previewRenderStatus = "Rendering preview"
 
         do {
             let renderedSource = imageProcessor.renderedPreviewSource(
@@ -1025,17 +1195,53 @@ public final class EditorStore: ObservableObject {
                 recipe: recipe,
                 adjustments: adjustments,
                 localAdjustments: localAdjustments,
-                calibration: calibrationDataStatus
+                calibration: calibration
             )
             editedPreviewImage = try imageProcessor.makeNSImageForTesting(from: renderedSource)
             histogramSummary = try imageProcessor.makeHistogramSummary(from: renderedSource)
+            if let editedPreviewImage, let histogramSummary {
+                storePreviewRenderResult(
+                    PreviewRenderResult(image: editedPreviewImage, histogram: histogramSummary),
+                    for: cacheKey
+                )
+            }
             if generation == previewRenderGeneration {
                 isRenderingPreview = false
+                previewRenderProgress = 1.0
+                previewRenderStatus = "Preview ready"
             }
         } catch {
             errorMessage = error.localizedDescription
             isRenderingPreview = false
+            previewRenderProgress = 0
+            previewRenderStatus = "Preview failed"
         }
+    }
+
+    private func previewCacheKey(
+        sourceImage: CIImage,
+        recipe: FilmRecipe,
+        adjustments: RenderAdjustments,
+        localAdjustments: [LocalAdjustmentLayer],
+        calibration: CalibrationDataStatus
+    ) -> PreviewRenderCacheKey {
+        PreviewRenderCacheKey(
+            sourceIdentifier: sourceURL?.path ?? importedImageName ?? "memory-source",
+            sourceWidth: Int(sourceImage.extent.width.rounded()),
+            sourceHeight: Int(sourceImage.extent.height.rounded()),
+            recipe: recipe,
+            adjustments: adjustments,
+            localAdjustments: localAdjustments,
+            calibration: calibration
+        )
+    }
+
+    private func storePreviewRenderResult(_ result: PreviewRenderResult, for key: PreviewRenderCacheKey) {
+        if previewRenderCache.count >= previewRenderCacheLimit,
+           let firstKey = previewRenderCache.keys.first {
+            previewRenderCache.removeValue(forKey: firstKey)
+        }
+        previewRenderCache[key] = result
     }
 
     private func handleAdjustmentChanged(note: String) {

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PreviewPaneView: View {
     @ObservedObject var editor: EditorStore
+    @State private var panDragStart = CGSize.zero
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,6 +35,12 @@ struct PreviewPaneView: View {
             }
 
             Spacer()
+
+            if editor.isRenderingPreview {
+                ProgressView(value: editor.previewRenderProgress)
+                    .frame(width: 120)
+                    .help(editor.previewRenderStatus)
+            }
 
             Picker("Compare", selection: $editor.comparisonMode) {
                 ForEach(PreviewComparisonMode.allCases) { mode in
@@ -77,12 +84,34 @@ struct PreviewPaneView: View {
             ZStack {
                 previewContent
                 samplerOverlay(in: proxy.size)
+                loupeOverlay(in: proxy.size)
             }
             .contentShape(Rectangle())
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
+                        if editor.previewZoom > 1.0 {
+                            editor.previewPanX = panDragStart.width + value.translation.width
+                            editor.previewPanY = panDragStart.height + value.translation.height
+                        }
                         samplePreview(at: value.location, in: proxy.size)
+                    }
+                    .onEnded { _ in
+                        panDragStart = CGSize(width: editor.previewPanX, height: editor.previewPanY)
+                    }
+            )
+            .onChange(of: editor.previewZoom) {
+                if editor.previewZoom <= 1.0 {
+                    editor.previewPanX = 0
+                    editor.previewPanY = 0
+                    panDragStart = .zero
+                }
+            }
+            .simultaneousGesture(
+                TapGesture(count: 2)
+                    .onEnded {
+                        editor.resetPreviewView()
+                        panDragStart = .zero
                     }
             )
         }
@@ -95,6 +124,7 @@ struct PreviewPaneView: View {
             .antialiased(true)
             .scaledToFit()
             .scaleEffect(editor.previewZoom)
+            .offset(x: editor.previewPanX, y: editor.previewPanY)
             .shadow(color: .black.opacity(0.24), radius: 18, y: 8)
             .padding(32)
     }
@@ -187,6 +217,47 @@ struct PreviewPaneView: View {
             }
         }
         .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private func loupeOverlay(in size: CGSize) -> some View {
+        if editor.loupeEnabled,
+           let image = editor.displayedPreviewImage ?? editor.editedPreviewImage {
+            let markerX = size.width * editor.samplerX
+            let markerY = size.height * (1 - editor.samplerY)
+            let diameter: CGFloat = 154
+            let loupeX = clamped(markerX + 112, lower: diameter / 2 + 12, upper: max(diameter / 2 + 12, size.width - diameter / 2 - 12))
+            let loupeY = clamped(markerY + 96, lower: diameter / 2 + 12, upper: max(diameter / 2 + 12, size.height - diameter / 2 - 12))
+
+            ZStack {
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFill()
+                    .scaleEffect(editor.loupeZoom)
+                    .offset(
+                        x: (0.5 - editor.samplerX) * diameter * editor.loupeZoom,
+                        y: (editor.samplerY - 0.5) * diameter * editor.loupeZoom
+                    )
+                    .frame(width: diameter, height: diameter)
+                    .clipShape(Circle())
+
+                Circle()
+                    .stroke(.white.opacity(0.9), lineWidth: 2)
+                    .overlay(Circle().stroke(.black.opacity(0.35), lineWidth: 1))
+
+                Rectangle()
+                    .fill(.white.opacity(0.8))
+                    .frame(width: 1, height: diameter * 0.78)
+                Rectangle()
+                    .fill(.white.opacity(0.8))
+                    .frame(width: diameter * 0.78, height: 1)
+            }
+            .frame(width: diameter, height: diameter)
+            .shadow(color: .black.opacity(0.28), radius: 14, y: 7)
+            .position(x: loupeX, y: loupeY)
+            .allowsHitTesting(false)
+        }
     }
 
     private func samplePreview(at location: CGPoint, in size: CGSize) {
