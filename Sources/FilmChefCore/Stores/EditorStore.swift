@@ -559,6 +559,60 @@ public final class EditorStore: ObservableObject {
         recordCurrentEditSnapshot(note: note, force: true)
     }
 
+    public func restoreVariant(id: UUID) {
+        guard let index = editHistory.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        applyEditSnapshot(at: index)
+    }
+
+    public func renameVariant(id: UUID, note: String) {
+        guard let index = editHistory.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        editHistory[index].note = trimmedNote.isEmpty ? "Untitled variant" : trimmedNote
+        updateCurrentProjectItem()
+    }
+
+    public func duplicateVariant(id: UUID) {
+        guard let index = editHistory.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let source = editHistory[index]
+        let duplicate = EditSnapshot(
+            recipeID: source.recipeID,
+            adjustments: source.adjustments,
+            note: uniqueVariantNote(base: "\(source.note) Copy")
+        )
+        editHistory.insert(duplicate, at: index + 1)
+        editHistoryIndex = index + 1
+        updateCurrentProjectItem()
+        applyEditSnapshot(at: index + 1)
+    }
+
+    public func deleteVariant(id: UUID) {
+        guard editHistory.count > 1,
+              let index = editHistory.firstIndex(where: { $0.id == id })
+        else {
+            return
+        }
+
+        editHistory.remove(at: index)
+        let nextIndex: Int
+        if let editHistoryIndex, editHistoryIndex > index {
+            nextIndex = editHistoryIndex - 1
+        } else if let editHistoryIndex, editHistoryIndex < editHistory.count {
+            nextIndex = editHistoryIndex
+        } else {
+            nextIndex = max(0, editHistory.count - 1)
+        }
+        applyEditSnapshot(at: nextIndex)
+    }
+
     public func duplicateSelectedRecipeForEditing() {
         guard let selectedRecipe else {
             return
@@ -1016,6 +1070,19 @@ public final class EditorStore: ObservableObject {
         let existingNames = Set(exportPresets.map(\.name))
 
         while existingNames.contains(candidate) {
+            candidate = "\(base) \(index)"
+            index += 1
+        }
+
+        return candidate
+    }
+
+    private func uniqueVariantNote(base: String) -> String {
+        var candidate = base
+        var index = 2
+        let existingNotes = Set(editHistory.map(\.note))
+
+        while existingNotes.contains(candidate) {
             candidate = "\(base) \(index)"
             index += 1
         }

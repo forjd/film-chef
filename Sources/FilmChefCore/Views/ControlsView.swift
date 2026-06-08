@@ -418,6 +418,40 @@ struct ControlsView: View {
                     }
 
                     InfoRow("Snapshots", value: "\(editor.editHistory.count)")
+
+                    ForEach(Array(editor.editHistory.enumerated()), id: \.element.id) { index, snapshot in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 8) {
+                                Image(systemName: editor.editHistoryIndex == index ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(editor.editHistoryIndex == index ? Color.accentColor : Color.secondary)
+                                    .frame(width: 16)
+
+                                TextField("Variant Name", text: variantNoteBinding(snapshot.id))
+                                    .textFieldStyle(.roundedBorder)
+                            }
+
+                            HStack(spacing: 8) {
+                                Button(action: { editor.restoreVariant(id: snapshot.id) }) {
+                                    Label("Restore", systemImage: "arrow.clockwise")
+                                        .frame(maxWidth: .infinity)
+                                }
+
+                                Button(action: { editor.duplicateVariant(id: snapshot.id) }) {
+                                    Label("Duplicate", systemImage: "plus.square.on.square")
+                                        .frame(maxWidth: .infinity)
+                                }
+
+                                Button(action: { editor.deleteVariant(id: snapshot.id) }) {
+                                    Label("Delete", systemImage: "trash")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .disabled(editor.editHistory.count <= 1)
+                            }
+                            .controlSize(.small)
+                        }
+                        .padding(8)
+                        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    }
                 }
 
                 InspectorSection("Local") {
@@ -703,6 +737,13 @@ struct ControlsView: View {
                 }
                 editor.localAdjustments[selectedLocalAdjustmentIndex()][keyPath: keyPath] = value
             }
+        )
+    }
+
+    fileprivate func variantNoteBinding(_ id: UUID) -> Binding<String> {
+        Binding(
+            get: { editor.editHistory.first(where: { $0.id == id })?.note ?? "" },
+            set: { editor.renameVariant(id: id, note: $0) }
         )
     }
 
