@@ -88,6 +88,17 @@ func mutatedRecipe(
     return try decoder.decode(FilmRecipe.self, from: data)
 }
 
+func writeRecipeJSON(
+    from recipe: FilmRecipe,
+    to url: URL,
+    mutate: (inout [String: Any]) -> Void = { _ in }
+) throws {
+    var object = try makeRecipeObject(recipe)
+    mutate(&object)
+    let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+    try data.write(to: url)
+}
+
 func makeTestImage(width: Int = 16, height: Int = 12) -> CIImage {
     CIImage(color: CIColor(red: 0.28, green: 0.48, blue: 0.72, alpha: 1.0))
         .cropped(to: CGRect(x: 0, y: 0, width: width, height: height))
@@ -176,6 +187,7 @@ func testBundledRecipesConformToRenderableSchemaExpectations() throws {
     let expectedCurveChannels = Set(["red", "green", "blue"])
 
     for recipe in recipes {
+        try FilmRecipeValidator.validate(recipe)
         try expect(recipe.schemaVersion == "1.0", "\(recipe.profileId) uses an unsupported schema.")
         try expect(!recipe.profileId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         try expect(!recipe.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -205,6 +217,67 @@ func testBundledRecipesConformToRenderableSchemaExpectations() throws {
         }
         try expect(recipe.renderer.whitePoint > recipe.renderer.blackPoint, "\(recipe.profileId) has invalid points.")
         try expect(recipe.output.bitDepth > 0, "\(recipe.profileId) has an invalid output bit depth.")
+    }
+}
+
+func testRecipeValidatorReportsActionableIssues() throws {
+    let recipes = try loadTestRecipes()
+    let recipe = try require(recipes.first { $0.stock.family != .blackAndWhiteNegative })
+    let invalidRecipe = try mutatedRecipe(from: recipe) { object in
+        object["schema_version"] = "99.0"
+        object["display_name"] = "   "
+        setJSONValue(0, path: ["stock", "box_speed_iso"], object: &object)
+        setJSONValue([], path: ["layer_model", "rgb_to_layer_matrix"], object: &object)
+        setJSONValue(0, path: ["renderer", "white_point"], object: &object)
+        setJSONValue(0, path: ["renderer", "black_point"], object: &object)
+    }
+
+    let issues = FilmRecipeValidator.issues(for: invalidRecipe).map(\.message)
+    try expect(issues.contains("Unsupported schema_version '99.0'."))
+    try expect(issues.contains("display_name must not be empty."))
+    try expect(issues.contains("stock.box_speed_iso must be greater than 0."))
+    try expect(issues.contains("layer_model.rgb_to_layer_matrix must include at least one row."))
+    try expect(issues.contains("Color recipes must provide a 3-row layer_model.rgb_to_layer_matrix."))
+    try expect(issues.contains("renderer.white_point must be greater than renderer.black_point."))
+}
+
+func testRecipeStoreRejectsInvalidAndDuplicateRecipes() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let recipes = try loadTestRecipes()
+    let recipe = try require(recipes.first)
+    let validURL = directory.appendingPathComponent("valid.json")
+    let duplicateURL = directory.appendingPathComponent("duplicate.json")
+    let invalidURL = directory.appendingPathComponent("invalid.json")
+
+    try writeRecipeJSON(from: recipe, to: validURL)
+    try writeRecipeJSON(from: recipe, to: duplicateURL)
+    try writeRecipeJSON(from: recipe, to: invalidURL) { object in
+        object["schema_version"] = "99.0"
+        setJSONValue(-400, path: ["exposure", "exposed_at_iso"], object: &object)
+    }
+
+    do {
+        _ = try RecipeStore(recipeURLProvider: { [invalidURL] }).loadRecipe(from: invalidURL)
+        try expect(false, "Expected invalid imported recipe to fail validation.")
+    } catch let error as FilmRecipeValidationError {
+        let description = try require(error.errorDescription)
+        try expect(description.contains("Recipe validation failed for \(recipe.profileId):"))
+        try expect(description.contains("Unsupported schema_version '99.0'."))
+        try expect(description.contains("exposure.exposed_at_iso must be greater than 0."))
+    }
+
+    do {
+        _ = try RecipeStore(recipeURLProvider: { [validURL, duplicateURL] }).loadRecipes()
+        try expect(false, "Expected duplicate profile IDs to fail collection validation.")
+    } catch let error as FilmRecipeValidationError {
+        let description = try require(error.errorDescription)
+        try expect(description.contains("Duplicate profile_id '\(recipe.profileId)' is not allowed."))
     }
 }
 
@@ -676,6 +749,16 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     editor.importRecipeForTesting(from: recipeExportURL)
     try expect(editor.selectedRecipe != nil)
 
+    let invalidRecipeURL = directory.appendingPathComponent("invalid-recipe.json")
+    try writeRecipeJSON(from: recipe, to: invalidRecipeURL) { object in
+        setJSONValue(0, path: ["output", "bit_depth"], object: &object)
+    }
+    let selectedRecipeID = editor.selectedRecipeID
+    editor.errorMessage = nil
+    editor.importRecipeForTesting(from: invalidRecipeURL)
+    try expect(editor.selectedRecipeID == selectedRecipeID)
+    try expect(editor.errorMessage?.contains("output.bit_depth must be greater than 0.") == true)
+
     let fallbackEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
     try expect(fallbackEditor.suggestedExportFileNameForTesting() == "film-chef-photo-edited.jpg")
     fallbackEditor.triggerExportPanelForTesting()
@@ -708,6 +791,12 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
 
 func testErrorDescriptionsAreStable() throws {
     try expect(RecipeStore.RecipeStoreError.missingResource.errorDescription == "No film recipe JSON files could be found.")
+    try expect(
+        FilmRecipeValidationError.invalidRecipe(
+            profileID: "sample",
+            issues: [RecipeValidationIssue("schema_version must not be empty.")]
+        ).errorDescription == "Recipe validation failed for sample:\n- schema_version must not be empty."
+    )
     try expect(ProjectStore.ProjectStoreError.missingPhotoReference.errorDescription != nil)
     try expect(ProjectStore.ProjectStoreError.unsupportedSchema(99).errorDescription != nil)
 }
@@ -886,6 +975,8 @@ func testWriteRenderedImageEncodesPngAndJpeg() throws {
 let tests: [TestCase] = [
     TestCase(name: "loads expected bundled recipes sorted by display name", run: testLoadsExpectedBundledRecipesSortedByDisplayName),
     TestCase(name: "bundled recipes conform to renderable schema expectations", run: testBundledRecipesConformToRenderableSchemaExpectations),
+    TestCase(name: "recipe validator reports actionable issues", run: testRecipeValidatorReportsActionableIssues),
+    TestCase(name: "recipe store rejects invalid and duplicate recipes", run: testRecipeStoreRejectsInvalidAndDuplicateRecipes),
     TestCase(name: "stock family maps to UI stock type", run: testStockFamilyMapsToUiStockType),
     TestCase(name: "recipe display metadata accessors", run: testRecipeDisplayMetadataAccessors),
     TestCase(name: "every bundled recipe renders a small image without changing extent", run: testEveryBundledRecipeRendersSmallImageWithoutChangingExtent),
