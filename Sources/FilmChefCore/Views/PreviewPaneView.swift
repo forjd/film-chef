@@ -83,6 +83,7 @@ struct PreviewPaneView: View {
         GeometryReader { proxy in
             ZStack {
                 previewContent
+                maskOverlay(in: proxy.size)
                 samplerOverlay(in: proxy.size)
                 loupeOverlay(in: proxy.size)
             }
@@ -217,6 +218,93 @@ struct PreviewPaneView: View {
             }
         }
         .allowsHitTesting(false)
+    }
+
+    private func maskOverlay(in size: CGSize) -> some View {
+        ZStack {
+            ForEach(editor.localAdjustments.filter(\.isEnabled)) { layer in
+                maskShape(for: layer, in: size)
+                    .fill(.white.opacity(0.10))
+                    .overlay {
+                        maskShape(for: layer, in: size)
+                            .stroke(
+                                layer.id == editor.selectedLocalAdjustmentID ? .yellow.opacity(0.95) : .white.opacity(0.65),
+                                style: StrokeStyle(lineWidth: 2, dash: [6, 4])
+                            )
+                    }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func maskShape(for layer: LocalAdjustmentLayer, in size: CGSize) -> Path {
+        let center = CGPoint(
+            x: size.width * CGFloat(layer.centerX),
+            y: size.height * CGFloat(1 - layer.centerY)
+        )
+        var path = Path()
+
+        switch layer.mask {
+        case .radial:
+            let radius = min(size.width, size.height) * CGFloat(layer.radius)
+            path.addEllipse(
+                in: CGRect(
+                    x: center.x - radius,
+                    y: center.y - radius,
+                    width: radius * 2,
+                    height: radius * 2
+                )
+            )
+        case .linear:
+            let width = max(18, size.width * CGFloat(layer.radius))
+            path.addRect(
+                CGRect(
+                    x: center.x - width / 2,
+                    y: 0,
+                    width: width,
+                    height: size.height
+                )
+            )
+        case .brush:
+            let points = layer.pathPoints.isEmpty ? [NormalizedMaskPoint(x: layer.centerX, y: layer.centerY)] : layer.pathPoints
+            let radius = max(4, min(size.width, size.height) * CGFloat(layer.brushSize) / 2)
+            for point in points {
+                let mapped = CGPoint(
+                    x: size.width * CGFloat(point.x),
+                    y: size.height * CGFloat(1 - point.y)
+                )
+                path.addEllipse(
+                    in: CGRect(
+                        x: mapped.x - radius,
+                        y: mapped.y - radius,
+                        width: radius * 2,
+                        height: radius * 2
+                    )
+                )
+            }
+        case .path:
+            let points = layer.pathPoints.isEmpty ? LocalAdjustmentLayer.defaultPathPoints : layer.pathPoints
+            guard let first = points.first else {
+                return path
+            }
+            path.move(
+                to: CGPoint(
+                    x: size.width * CGFloat(first.x),
+                    y: size.height * CGFloat(1 - first.y)
+                )
+            )
+            for point in points.dropFirst() {
+                path.addLine(
+                    to: CGPoint(
+                        x: size.width * CGFloat(point.x),
+                        y: size.height * CGFloat(1 - point.y)
+                    )
+                )
+            }
+            path.closeSubpath()
+        }
+
+        return path
     }
 
     @ViewBuilder

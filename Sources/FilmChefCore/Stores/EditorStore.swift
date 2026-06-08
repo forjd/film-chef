@@ -5,6 +5,20 @@ import UniformTypeIdentifiers
 
 @MainActor
 public final class EditorStore: ObservableObject {
+    private enum CalibrationImportError: LocalizedError {
+        case unsupportedAsset(String)
+        case invalidAsset(String, String)
+
+        var errorDescription: String? {
+            switch self {
+            case .unsupportedAsset(let name):
+                return "\(name) is not a supported calibration asset."
+            case .invalidAsset(let name, let reason):
+                return "\(name) is not a valid calibration asset. \(reason)"
+            }
+        }
+    }
+
     private struct PreviewRenderCacheKey: Hashable {
         var sourceIdentifier: String
         var sourceWidth: Int
@@ -24,27 +38,97 @@ public final class EditorStore: ObservableObject {
         package var displayName: String
         package var manufacturer: String
         package var summary: String
+        package var stockBoxSpeedIso: Double
+        package var exposureBoxSpeedIso: Double
+        package var exposedAtIso: Double
+        package var exposureCompensationEv: Double
+        package var colourSaturation: Double
+        package var colourWarmth: Double
+        package var grainStrength: Double
+        package var grainSize: Double
+        package var halationStrength: Double
+        package var halationRadius: Double
+        package var rendererContrast: Double
+        package var rendererSaturation: Double
+        package var outputColourSpace: String
+        package var outputBitDepth: Double
 
         package init(
             displayName: String = "",
             manufacturer: String = "",
-            summary: String = ""
+            summary: String = "",
+            stockBoxSpeedIso: Double = 400,
+            exposureBoxSpeedIso: Double = 400,
+            exposedAtIso: Double = 400,
+            exposureCompensationEv: Double = 0,
+            colourSaturation: Double = 1,
+            colourWarmth: Double = 0,
+            grainStrength: Double = 0,
+            grainSize: Double = 1,
+            halationStrength: Double = 0,
+            halationRadius: Double = 0,
+            rendererContrast: Double = 1,
+            rendererSaturation: Double = 1,
+            outputColourSpace: String = "srgb",
+            outputBitDepth: Double = 8
         ) {
             self.displayName = displayName
             self.manufacturer = manufacturer
             self.summary = summary
+            self.stockBoxSpeedIso = stockBoxSpeedIso
+            self.exposureBoxSpeedIso = exposureBoxSpeedIso
+            self.exposedAtIso = exposedAtIso
+            self.exposureCompensationEv = exposureCompensationEv
+            self.colourSaturation = colourSaturation
+            self.colourWarmth = colourWarmth
+            self.grainStrength = grainStrength
+            self.grainSize = grainSize
+            self.halationStrength = halationStrength
+            self.halationRadius = halationRadius
+            self.rendererContrast = rendererContrast
+            self.rendererSaturation = rendererSaturation
+            self.outputColourSpace = outputColourSpace
+            self.outputBitDepth = outputBitDepth
         }
 
         package init(recipe: FilmRecipe) {
             displayName = recipe.displayName
             manufacturer = recipe.manufacturer
             summary = recipe.summary
+            stockBoxSpeedIso = Double(recipe.stock.boxSpeedIso)
+            exposureBoxSpeedIso = Double(recipe.exposure.boxSpeedIso)
+            exposedAtIso = Double(recipe.exposure.exposedAtIso)
+            exposureCompensationEv = recipe.exposure.exposureCompensationEv
+            colourSaturation = recipe.colourModel.saturation ?? 1
+            colourWarmth = recipe.colourModel.warmth ?? 0
+            grainStrength = recipe.grain.strength
+            grainSize = recipe.grain.size
+            halationStrength = recipe.halation.strength
+            halationRadius = recipe.halation.radius
+            rendererContrast = recipe.renderer.contrast
+            rendererSaturation = recipe.renderer.saturation
+            outputColourSpace = recipe.output.colourSpace
+            outputBitDepth = Double(recipe.output.bitDepth)
         }
 
         package func hasChanges(comparedTo recipe: FilmRecipe) -> Bool {
             displayName != recipe.displayName ||
                 manufacturer != recipe.manufacturer ||
-                summary != recipe.summary
+                summary != recipe.summary ||
+                Int(stockBoxSpeedIso.rounded()) != recipe.stock.boxSpeedIso ||
+                Int(exposureBoxSpeedIso.rounded()) != recipe.exposure.boxSpeedIso ||
+                Int(exposedAtIso.rounded()) != recipe.exposure.exposedAtIso ||
+                abs(exposureCompensationEv - recipe.exposure.exposureCompensationEv) > 0.001 ||
+                abs(colourSaturation - (recipe.colourModel.saturation ?? 1)) > 0.001 ||
+                abs(colourWarmth - (recipe.colourModel.warmth ?? 0)) > 0.001 ||
+                abs(grainStrength - recipe.grain.strength) > 0.001 ||
+                abs(grainSize - recipe.grain.size) > 0.001 ||
+                abs(halationStrength - recipe.halation.strength) > 0.001 ||
+                abs(halationRadius - recipe.halation.radius) > 0.001 ||
+                abs(rendererContrast - recipe.renderer.contrast) > 0.001 ||
+                abs(rendererSaturation - recipe.renderer.saturation) > 0.001 ||
+                trimmedOutputColourSpace() != recipe.output.colourSpace ||
+                Int(outputBitDepth.rounded()) != recipe.output.bitDepth
         }
 
         fileprivate func trimmedDisplayName() -> String {
@@ -57,6 +141,10 @@ public final class EditorStore: ObservableObject {
 
         fileprivate func trimmedSummary() -> String {
             summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        fileprivate func trimmedOutputColourSpace() -> String {
+            outputColourSpace.trimmingCharacters(in: .whitespacesAndNewlines)
         }
     }
 
@@ -125,12 +213,18 @@ public final class EditorStore: ObservableObject {
     @Published package private(set) var samplerX = 0.5
     @Published package private(set) var samplerY = 0.5
     @Published package var histogramChannelMode = HistogramChannelMode.all
-    @Published package var exportSettings = ExportSettings.defaults
+    @Published package var exportSettings = ExportSettings.defaults {
+        didSet { handleExportSettingsChanged() }
+    }
     @Published package var exportPresets = ExportPreset.defaults
     @Published package var selectedExportPresetID: UUID?
     @Published package var exportPresetDraftName = "Custom Preset"
-    @Published package var colorManagementSettings = ColorManagementSettings.defaults
+    @Published package var colorManagementSettings = ColorManagementSettings.defaults {
+        didSet { handleColorManagementChanged() }
+    }
     @Published package private(set) var calibrationDataStatus = CalibrationDataStatus.descriptiveOnly
+    @Published package private(set) var batchExportState = BatchExportState()
+    @Published package var selectedLocalAdjustmentID: UUID?
     @Published package var localAdjustments: [LocalAdjustmentLayer] = [] {
         didSet {
             guard !suppressPreviewUpdates else {
@@ -176,7 +270,10 @@ public final class EditorStore: ObservableObject {
     private var previewRenderTask: Task<Void, Never>?
     private var previewRenderGeneration = 0
     private var previewRenderCache: [PreviewRenderCacheKey: PreviewRenderResult] = [:]
+    private var previewRenderCacheAccessOrder: [PreviewRenderCacheKey] = []
     private let previewRenderCacheLimit = 8
+    private var suppressSettingsUpdates = false
+    private var cancelBatchExportRequested = false
 
     public init(recipeStore: RecipeStore) {
         self.recipeStore = recipeStore
@@ -220,6 +317,21 @@ public final class EditorStore: ObservableObject {
             displayName: recipeDraft.trimmedDisplayName(),
             manufacturer: recipeDraft.trimmedManufacturer(),
             summary: recipeDraft.trimmedSummary()
+        ).replacingEditableSettings(
+            stockBoxSpeedIso: Int(recipeDraft.stockBoxSpeedIso.rounded()),
+            exposureBoxSpeedIso: Int(recipeDraft.exposureBoxSpeedIso.rounded()),
+            exposedAtIso: Int(recipeDraft.exposedAtIso.rounded()),
+            exposureCompensationEv: recipeDraft.exposureCompensationEv,
+            colourSaturation: recipeDraft.colourSaturation,
+            colourWarmth: recipeDraft.colourWarmth,
+            grainStrength: recipeDraft.grainStrength,
+            grainSize: recipeDraft.grainSize,
+            halationStrength: recipeDraft.halationStrength,
+            halationRadius: recipeDraft.halationRadius,
+            rendererContrast: recipeDraft.rendererContrast,
+            rendererSaturation: recipeDraft.rendererSaturation,
+            outputColourSpace: recipeDraft.trimmedOutputColourSpace(),
+            outputBitDepth: Int(recipeDraft.outputBitDepth.rounded())
         )
         return FilmRecipeValidator.issues(for: draftRecipe)
     }
@@ -229,6 +341,10 @@ public final class EditorStore: ObservableObject {
             return []
         }
         return FilmRecipeValidator.issues(for: selectedRecipe)
+    }
+
+    package var previewRenderCacheSize: Int {
+        previewRenderCache.count
     }
 
     package var canApplyRecipeDraft: Bool {
@@ -251,7 +367,7 @@ public final class EditorStore: ObservableObject {
     }
 
     public var canBatchExport: Bool {
-        !project.items.isEmpty && !recipes.isEmpty
+        !project.items.isEmpty && !recipes.isEmpty && !batchExportState.isExporting
     }
 
     package var canUndoEdit: Bool {
@@ -478,6 +594,21 @@ public final class EditorStore: ObservableObject {
             displayName: recipeDraft.trimmedDisplayName(),
             manufacturer: recipeDraft.trimmedManufacturer(),
             summary: recipeDraft.trimmedSummary()
+        ).replacingEditableSettings(
+            stockBoxSpeedIso: Int(recipeDraft.stockBoxSpeedIso.rounded()),
+            exposureBoxSpeedIso: Int(recipeDraft.exposureBoxSpeedIso.rounded()),
+            exposedAtIso: Int(recipeDraft.exposedAtIso.rounded()),
+            exposureCompensationEv: recipeDraft.exposureCompensationEv,
+            colourSaturation: recipeDraft.colourSaturation,
+            colourWarmth: recipeDraft.colourWarmth,
+            grainStrength: recipeDraft.grainStrength,
+            grainSize: recipeDraft.grainSize,
+            halationStrength: recipeDraft.halationStrength,
+            halationRadius: recipeDraft.halationRadius,
+            rendererContrast: recipeDraft.rendererContrast,
+            rendererSaturation: recipeDraft.rendererSaturation,
+            outputColourSpace: recipeDraft.trimmedOutputColourSpace(),
+            outputBitDepth: Int(recipeDraft.outputBitDepth.rounded())
         )
 
         let issues = FilmRecipeValidator.issues(for: updatedRecipe)
@@ -488,6 +619,7 @@ public final class EditorStore: ObservableObject {
 
         replaceRecipe(updatedRecipe)
         recipeImportStatus = .imported(name: updatedRecipe.name)
+        recordCurrentEditSnapshot(note: "Edited recipe")
         renderPreviewIfNeeded()
     }
 
@@ -565,11 +697,32 @@ public final class EditorStore: ObservableObject {
     }
 
     public func addLocalAdjustment() {
-        localAdjustments.append(.centeredDodge)
+        let layer = LocalAdjustmentLayer(
+            name: uniqueLocalAdjustmentName(base: "Local Layer"),
+            exposureEV: 0.25,
+            contrast: 0.05
+        )
+        localAdjustments.append(layer)
+        selectedLocalAdjustmentID = layer.id
     }
 
     public func removeLocalAdjustments() {
         localAdjustments.removeAll()
+        selectedLocalAdjustmentID = nil
+    }
+
+    public func removeSelectedLocalAdjustment() {
+        guard let selectedLocalAdjustmentID else {
+            removeLocalAdjustments()
+            return
+        }
+
+        localAdjustments.removeAll { $0.id == selectedLocalAdjustmentID }
+        self.selectedLocalAdjustmentID = localAdjustments.first?.id
+    }
+
+    public func cancelBatchExport() {
+        cancelBatchExportRequested = true
     }
 
     public func saveProject() {
@@ -760,6 +913,7 @@ public final class EditorStore: ObservableObject {
     private func openProject(from url: URL) {
         do {
             let loadedProject = try projectStore.loadProject(from: url)
+            suppressSettingsUpdates = true
             project = loadedProject
             editHistory = loadedProject.editHistory
             editHistoryIndex = loadedProject.editHistoryIndex
@@ -769,11 +923,13 @@ public final class EditorStore: ObservableObject {
             exportPresetDraftName = exportPresets.first?.name ?? "Custom Preset"
             colorManagementSettings = loadedProject.colorManagementSettings
             calibrationDataStatus = loadedProject.calibrationDataStatus
+            suppressSettingsUpdates = false
 
             if let selectedItem = loadedProject.items.first(where: { $0.id == loadedProject.selectedItemID }) ?? loadedProject.items.first {
                 applyProjectItem(selectedItem)
             }
         } catch {
+            suppressSettingsUpdates = false
             errorMessage = error.localizedDescription
         }
     }
@@ -831,107 +987,179 @@ public final class EditorStore: ObservableObject {
             return
         }
 
+        do {
+            let parsed = try parseCalibrationAssets(from: urls)
+            calibrationDataStatus = parsed
+            project.calibrationDataStatus = calibrationDataStatus
+            project.updatedAt = Date()
+            clearPreviewCache()
+            renderPreviewIfNeeded()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func parseCalibrationAssets(from urls: [URL]) throws -> CalibrationDataStatus {
+        var lutScale = (red: 1.0, green: 1.0, blue: 1.0)
+        var supportsLUT = false
+        var supportsSpectral = false
+        var supportsDensity = false
+        var supportsGrain = false
+        var spectralValues: [Double] = []
+        var densityValues: [Double] = []
+        var grainValues: [Double] = []
+
+        for url in urls {
+            let name = url.lastPathComponent.lowercased()
+            switch url.pathExtension.lowercased() {
+            case "cube":
+                lutScale = try parseCubeCalibration(url)
+                supportsLUT = true
+            case "json":
+                let values = try parseJSONCalibration(url)
+                if name.contains("spectral") || name.contains("spectrum") {
+                    supportsSpectral = true
+                    spectralValues.append(contentsOf: values)
+                }
+                if name.contains("density") || name.contains("hd") || name.contains("h-d") {
+                    supportsDensity = true
+                    densityValues.append(contentsOf: values)
+                }
+                if name.contains("grain") || name.contains("granularity") {
+                    supportsGrain = true
+                    grainValues.append(contentsOf: values)
+                }
+            case "csv", "txt":
+                let values = try parseDelimitedCalibration(url)
+                if name.contains("spectral") || name.contains("spectrum") {
+                    supportsSpectral = true
+                    spectralValues.append(contentsOf: values)
+                }
+                if name.contains("density") || name.contains("hd") || name.contains("h-d") {
+                    supportsDensity = true
+                    densityValues.append(contentsOf: values)
+                }
+                if name.contains("grain") || name.contains("granularity") {
+                    supportsGrain = true
+                    grainValues.append(contentsOf: values)
+                }
+            default:
+                throw CalibrationImportError.unsupportedAsset(url.lastPathComponent)
+            }
+        }
+
+        let spectralSignal = calibrationSignal(spectralValues)
+        let densitySignal = calibrationSignal(densityValues)
+        let grainSignal = calibrationSignal(grainValues)
+        let spectralBias = supportsSpectral ? 0.025 + (spectralSignal * 0.02) : 0
         let names = urls.map(\.lastPathComponent).sorted {
             $0.localizedStandardCompare($1) == .orderedAscending
         }
-        let lowercasedNames = names.map { $0.lowercased() }
-        let supportsSpectralCurves = lowercasedNames.contains { $0.contains("spectral") || $0.contains("spectrum") }
-        let supportsMeasuredDensityCurves = lowercasedNames.contains { $0.contains("density") || $0.contains("hd") || $0.contains("h-d") }
-        let supportsGrainSpectra = lowercasedNames.contains { $0.contains("grain") || $0.contains("granularity") }
-        let lutScale = calibrationScale(from: urls)
-        let spectralSignal = calibrationSignal(from: urls, matching: ["spectral", "spectrum"])
-        let densitySignal = calibrationSignal(from: urls, matching: ["density", "hd", "h-d"])
-        let grainSignal = calibrationSignal(from: urls, matching: ["grain", "granularity"])
-        let spectralBias = supportsSpectralCurves ? 0.025 + (spectralSignal * 0.02) : 0
-        calibrationDataStatus = CalibrationDataStatus(
-            supportsSpectralCurves: supportsSpectralCurves,
-            supportsMeasuredDensityCurves: supportsMeasuredDensityCurves,
-            supportsGrainSpectra: supportsGrainSpectra,
-            supportsThreeDimensionalLUTs: lowercasedNames.contains { $0.hasSuffix(".cube") || $0.contains("lut") },
+
+        return CalibrationDataStatus(
+            supportsSpectralCurves: supportsSpectral,
+            supportsMeasuredDensityCurves: supportsDensity,
+            supportsGrainSpectra: supportsGrain,
+            supportsThreeDimensionalLUTs: supportsLUT,
             importedAssetNames: names,
             redScale: lutScale.red * (1.0 + spectralBias),
             greenScale: lutScale.green,
             blueScale: lutScale.blue * (1.0 - spectralBias),
-            densityGamma: supportsMeasuredDensityCurves ? 1.0 + (densitySignal * 0.08) : 1.0,
-            grainAmount: supportsGrainSpectra ? 0.035 + (grainSignal * 0.045) : 0.0,
-            note: "Imported \(names.count) calibration asset\(names.count == 1 ? "" : "s") with render calibration."
+            densityGamma: supportsDensity ? 1.0 + (densitySignal * 0.08) : 1.0,
+            grainAmount: supportsGrain ? 0.035 + (grainSignal * 0.045) : 0.0,
+            note: "Imported \(names.count) validated calibration asset\(names.count == 1 ? "" : "s")."
         )
-        project.calibrationDataStatus = calibrationDataStatus
-        project.updatedAt = Date()
-        renderPreviewIfNeeded()
     }
 
-    private func calibrationScale(from urls: [URL]) -> (red: Double, green: Double, blue: Double) {
-        var redTotal = 0.0
-        var greenTotal = 0.0
-        var blueTotal = 0.0
-        var count = 0.0
+    private func parseCubeCalibration(_ url: URL) throws -> (red: Double, green: Double, blue: Double) {
+        let text = try String(contentsOf: url, encoding: .utf8)
+        var lutSize: Int?
+        var rows: [[Double]] = []
 
-        for url in urls where url.pathExtension.lowercased() == "cube" {
-            guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+        for line in text.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else {
                 continue
             }
 
-            for line in text.components(separatedBy: .newlines) {
-                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else {
-                    continue
-                }
+            let parts = trimmed.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
+            if parts.first?.uppercased() == "LUT_3D_SIZE", parts.count == 2 {
+                lutSize = Int(parts[1])
+                continue
+            }
 
-                let parts = trimmed.split(whereSeparator: { $0 == " " || $0 == "\t" }).compactMap(Double.init)
-                guard parts.count == 3 else {
-                    continue
+            let values = parts.compactMap(Double.init)
+            if values.count == 3 {
+                guard values.allSatisfy({ $0.isFinite && (0...1).contains($0) }) else {
+                    throw CalibrationImportError.invalidAsset(url.lastPathComponent, "LUT RGB values must be between 0 and 1.")
                 }
-
-                redTotal += parts[0]
-                greenTotal += parts[1]
-                blueTotal += parts[2]
-                count += 1
+                rows.append(values)
             }
         }
 
-        guard count > 0 else {
-            return (1.0, 1.0, 1.0)
+        guard let lutSize, lutSize > 1 else {
+            throw CalibrationImportError.invalidAsset(url.lastPathComponent, "Missing valid LUT_3D_SIZE.")
+        }
+        let expectedRows = lutSize * lutSize * lutSize
+        guard rows.count == expectedRows else {
+            throw CalibrationImportError.invalidAsset(url.lastPathComponent, "Expected \(expectedRows) LUT rows but found \(rows.count).")
         }
 
-        let redAverage = redTotal / count
-        let greenAverage = greenTotal / count
-        let blueAverage = blueTotal / count
-        let neutralAverage = max((redAverage + greenAverage + blueAverage) / 3.0, 0.001)
+        let totals = rows.reduce((red: 0.0, green: 0.0, blue: 0.0)) { partial, row in
+            (partial.red + row[0], partial.green + row[1], partial.blue + row[2])
+        }
+        let count = Double(rows.count)
+        let averages = (red: totals.red / count, green: totals.green / count, blue: totals.blue / count)
+        let neutralAverage = max((averages.red + averages.green + averages.blue) / 3.0, 0.001)
         return (
-            red: redAverage / neutralAverage,
-            green: greenAverage / neutralAverage,
-            blue: blueAverage / neutralAverage
+            red: averages.red / neutralAverage,
+            green: averages.green / neutralAverage,
+            blue: averages.blue / neutralAverage
         )
     }
 
-    private func calibrationSignal(from urls: [URL], matching tokens: [String]) -> Double {
-        var total = 0.0
-        var count = 0.0
-
-        for url in urls {
-            let name = url.lastPathComponent.lowercased()
-            guard tokens.contains(where: { name.contains($0) }),
-                  let text = try? String(contentsOf: url, encoding: .utf8)
-            else {
-                continue
-            }
-
-            let values = text
-                .components(separatedBy: CharacterSet(charactersIn: "0123456789.-+eE").inverted)
-                .compactMap(Double.init)
-
-            for value in values where value.isFinite {
-                total += abs(value)
-                count += 1
-            }
+    private func parseJSONCalibration(_ url: URL) throws -> [Double] {
+        let data = try Data(contentsOf: url)
+        let object = try JSONSerialization.jsonObject(with: data)
+        let values = numericValues(in: object)
+        guard !values.isEmpty else {
+            throw CalibrationImportError.invalidAsset(url.lastPathComponent, "No numeric calibration values found.")
         }
+        return values
+    }
 
-        guard count > 0 else {
+    private func parseDelimitedCalibration(_ url: URL) throws -> [Double] {
+        let text = try String(contentsOf: url, encoding: .utf8)
+        let values = text
+            .components(separatedBy: CharacterSet(charactersIn: "0123456789.-+eE").inverted)
+            .compactMap(Double.init)
+            .filter(\.isFinite)
+        guard !values.isEmpty else {
+            throw CalibrationImportError.invalidAsset(url.lastPathComponent, "No numeric calibration values found.")
+        }
+        return values
+    }
+
+    private func numericValues(in object: Any) -> [Double] {
+        if let number = object as? NSNumber {
+            return [number.doubleValue].filter(\.isFinite)
+        }
+        if let array = object as? [Any] {
+            return array.flatMap(numericValues)
+        }
+        if let dictionary = object as? [String: Any] {
+            return dictionary.values.flatMap(numericValues)
+        }
+        return []
+    }
+
+    private func calibrationSignal(_ values: [Double]) -> Double {
+        guard !values.isEmpty else {
             return 0.5
         }
 
-        return min(max((total / count).truncatingRemainder(dividingBy: 1.0), 0), 1)
+        let average = values.map(abs).reduce(0, +) / Double(values.count)
+        return min(max(average.truncatingRemainder(dividingBy: 1.0), 0), 1)
     }
 
     private func writeRecipe(_ recipe: FilmRecipe, to url: URL) {
@@ -1030,19 +1258,57 @@ public final class EditorStore: ObservableObject {
 
     private func writeProjectExports(to directory: URL) {
         updateCurrentProjectItem()
+        cancelBatchExportRequested = false
+        batchExportState = BatchExportState(
+            isExporting: true,
+            completedCount: 0,
+            totalCount: project.items.count
+        )
 
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            for item in project.items {
-                try writeProjectExport(for: item, to: directory)
+            var exportedNames: [String] = []
+            for (index, item) in project.items.enumerated() {
+                if cancelBatchExportRequested {
+                    batchExportState = BatchExportState(
+                        isExporting: false,
+                        completedCount: index,
+                        totalCount: project.items.count,
+                        wasCancelled: true,
+                        exportedFileNames: exportedNames
+                    )
+                    return
+                }
+
+                batchExportState = BatchExportState(
+                    isExporting: true,
+                    completedCount: index,
+                    totalCount: project.items.count,
+                    currentItemName: item.displayName,
+                    exportedFileNames: exportedNames
+                )
+                let exportedURL = try writeProjectExport(for: item, to: directory)
+                exportedNames.append(exportedURL.lastPathComponent)
             }
+            batchExportState = BatchExportState(
+                isExporting: false,
+                completedCount: project.items.count,
+                totalCount: project.items.count,
+                exportedFileNames: exportedNames
+            )
         } catch {
+            batchExportState = BatchExportState(
+                isExporting: false,
+                completedCount: batchExportState.completedCount,
+                totalCount: batchExportState.totalCount,
+                exportedFileNames: batchExportState.exportedFileNames
+            )
             errorMessage = error.localizedDescription
         }
     }
 
-    private func writeProjectExport(for item: FilmProjectItem, to directory: URL) throws {
-        let sourceURL = try projectStore.resolvePhotoURL(for: item)
+    private func writeProjectExport(for item: FilmProjectItem, to directory: URL) throws -> URL {
+        let sourceURL = try resolveAndRefreshPhotoURL(for: item)
         let didStartAccessing = sourceURL.startAccessingSecurityScopedResource()
         defer {
             if didStartAccessing {
@@ -1067,6 +1333,7 @@ public final class EditorStore: ObservableObject {
             calibration: calibrationDataStatus,
             colorSettings: colorManagementSettings
         )
+        return exportURL
     }
 
     private func renderPreviewIfNeeded() {
@@ -1091,6 +1358,7 @@ public final class EditorStore: ObservableObject {
         )
 
         if let cached = previewRenderCache[cacheKey] {
+            markPreviewCacheKeyUsed(cacheKey)
             editedPreviewImage = cached.image
             histogramSummary = cached.histogram
             previewCacheHitCount += 1
@@ -1237,11 +1505,24 @@ public final class EditorStore: ObservableObject {
     }
 
     private func storePreviewRenderResult(_ result: PreviewRenderResult, for key: PreviewRenderCacheKey) {
+        markPreviewCacheKeyUsed(key)
         if previewRenderCache.count >= previewRenderCacheLimit,
-           let firstKey = previewRenderCache.keys.first {
-            previewRenderCache.removeValue(forKey: firstKey)
+           !previewRenderCache.keys.contains(key),
+           let oldestKey = previewRenderCacheAccessOrder.first {
+            previewRenderCache.removeValue(forKey: oldestKey)
+            previewRenderCacheAccessOrder.removeAll { $0 == oldestKey }
         }
         previewRenderCache[key] = result
+    }
+
+    private func markPreviewCacheKeyUsed(_ key: PreviewRenderCacheKey) {
+        previewRenderCacheAccessOrder.removeAll { $0 == key }
+        previewRenderCacheAccessOrder.append(key)
+    }
+
+    private func clearPreviewCache() {
+        previewRenderCache.removeAll()
+        previewRenderCacheAccessOrder.removeAll()
     }
 
     private func handleAdjustmentChanged(note: String) {
@@ -1251,6 +1532,47 @@ public final class EditorStore: ObservableObject {
 
         recordCurrentEditSnapshot(note: note)
         renderPreviewIfNeeded()
+    }
+
+    private func handleExportSettingsChanged() {
+        guard !suppressSettingsUpdates else {
+            return
+        }
+        project.exportSettings = exportSettings
+        project.updatedAt = Date()
+    }
+
+    private func handleColorManagementChanged() {
+        guard !suppressSettingsUpdates else {
+            return
+        }
+
+        project.colorManagementSettings = colorManagementSettings
+        project.updatedAt = Date()
+        reloadCurrentSourceForColorSettings()
+    }
+
+    private func reloadCurrentSourceForColorSettings() {
+        guard let sourceURL else {
+            return
+        }
+
+        do {
+            let didStartAccessing = sourceURL.startAccessingSecurityScopedResource()
+            defer {
+                if didStartAccessing {
+                    sourceURL.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            let loadedImage = try imageProcessor.loadSourceImage(from: sourceURL, colorSettings: colorManagementSettings)
+            sourceImage = loadedImage
+            originalPreviewImage = try imageProcessor.makePreviewImage(from: loadedImage)
+            clearPreviewCache()
+            renderPreviewIfNeeded()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func recordCurrentEditSnapshot(note: String, force: Bool = false) {
@@ -1329,7 +1651,7 @@ public final class EditorStore: ObservableObject {
 
     private func applyProjectItem(_ item: FilmProjectItem) {
         do {
-            let url = try projectStore.resolvePhotoURL(for: item)
+            let url = try resolveAndRefreshPhotoURL(for: item)
             let didStartAccessing = url.startAccessingSecurityScopedResource()
             defer {
                 if didStartAccessing {
@@ -1351,6 +1673,7 @@ public final class EditorStore: ObservableObject {
             saturationTrim = item.adjustments.saturationTrim
             grainEnabled = item.adjustments.grainEnabled
             localAdjustments = item.localAdjustments
+            selectedLocalAdjustmentID = localAdjustments.first?.id
             suppressPreviewUpdates = false
             comparisonMode = .edited
 
@@ -1361,6 +1684,31 @@ public final class EditorStore: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func resolveAndRefreshPhotoURL(for item: FilmProjectItem) throws -> URL {
+        let reference = try projectStore.resolvePhotoReference(for: item)
+        if let refreshedBookmarkData = reference.refreshedBookmarkData,
+           let itemIndex = project.items.firstIndex(where: { $0.id == item.id }) {
+            project.items[itemIndex].originalBookmarkData = refreshedBookmarkData
+            project.items[itemIndex].originalURLPath = reference.url.path
+            project.items[itemIndex].updatedAt = Date()
+            project.updatedAt = Date()
+        }
+        return reference.url
+    }
+
+    private func uniqueLocalAdjustmentName(base: String) -> String {
+        var candidate = base
+        var index = 2
+        let existingNames = Set(localAdjustments.map(\.name))
+
+        while existingNames.contains(candidate) {
+            candidate = "\(base) \(index)"
+            index += 1
+        }
+
+        return candidate
     }
 
     private func uniqueExportURL(
