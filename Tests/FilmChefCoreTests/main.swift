@@ -758,6 +758,28 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     editor.addLocalAdjustment()
     try expect(editor.localAdjustments.count == 1)
     try expect(editor.selectedLocalAdjustmentID == editor.localAdjustments[0].id)
+    try expect(editor.canEditLocalMaskOnPreview)
+    editor.beginLocalMaskEditAtPreviewPoint(x: 0.35, y: 0.65)
+    editor.updateLocalMaskEditAtPreviewPoint(x: 0.45, y: 0.55)
+    editor.endLocalMaskEditAtPreviewPoint()
+    try expect(editor.localAdjustments[0].centerX == 0.45)
+    try expect(editor.localAdjustments[0].centerY == 0.55)
+    editor.localAdjustments[0].mask = .brush
+    editor.beginLocalMaskEditAtPreviewPoint(x: 0.2, y: 0.2)
+    editor.updateLocalMaskEditAtPreviewPoint(x: 0.24, y: 0.25)
+    editor.endLocalMaskEditAtPreviewPoint()
+    try expect(editor.localAdjustments[0].pathPoints.count == 2)
+    editor.localAdjustments[0].mask = .path
+    editor.localAdjustments[0].pathPoints = [
+        NormalizedMaskPoint(x: 0.1, y: 0.1),
+        NormalizedMaskPoint(x: 0.9, y: 0.1),
+        NormalizedMaskPoint(x: 0.5, y: 0.9)
+    ]
+    editor.beginLocalMaskEditAtPreviewPoint(x: 0.88, y: 0.12)
+    editor.updateLocalMaskEditAtPreviewPoint(x: 0.7, y: 0.3)
+    editor.endLocalMaskEditAtPreviewPoint()
+    try expect(editor.localAdjustments[0].pathPoints[1] == NormalizedMaskPoint(x: 0.7, y: 0.3))
+    editor.localAdjustments[0].mask = .radial
     editor.localAdjustments[0].centerX = 0.45
     editor.localAdjustments[0].exposureEV = 0.35
     try expect(editor.currentAdjustments.intensity == 0.25)

@@ -211,6 +211,7 @@ public final class EditorStore: ObservableObject {
     @Published package private(set) var calibrationDataStatus = CalibrationDataStatus.descriptiveOnly
     @Published package private(set) var batchExportState = BatchExportState()
     @Published package var selectedLocalAdjustmentID: UUID?
+    @Published package var localMaskEditingEnabled = false
     @Published package var localAdjustments: [LocalAdjustmentLayer] = [] {
         didSet {
             guard !suppressPreviewUpdates else {
@@ -261,6 +262,7 @@ public final class EditorStore: ObservableObject {
     private let previewRenderCacheLimit = 8
     private var suppressSettingsUpdates = false
     private var cancelBatchExportRequested = false
+    private var activeLocalMaskPointIndex: Int?
 
     public init(recipeStore: RecipeStore) {
         self.recipeStore = recipeStore
@@ -378,6 +380,10 @@ public final class EditorStore: ObservableObject {
             abs(previewPanX) > 0.001 ||
             abs(previewPanY) > 0.001 ||
             loupeEnabled
+    }
+
+    package var canEditLocalMaskOnPreview: Bool {
+        hasImportedImage && selectedLocalAdjustmentID != nil && !localAdjustments.isEmpty
     }
 
     package var currentAdjustments: RenderAdjustments {
@@ -698,6 +704,7 @@ public final class EditorStore: ObservableObject {
     public func removeLocalAdjustments() {
         localAdjustments.removeAll()
         selectedLocalAdjustmentID = nil
+        localMaskEditingEnabled = false
     }
 
     public func removeSelectedLocalAdjustment() {
@@ -708,6 +715,51 @@ public final class EditorStore: ObservableObject {
 
         localAdjustments.removeAll { $0.id == selectedLocalAdjustmentID }
         self.selectedLocalAdjustmentID = localAdjustments.first?.id
+        localMaskEditingEnabled = self.selectedLocalAdjustmentID != nil
+    }
+
+    package func beginLocalMaskEditAtPreviewPoint(x: Double, y: Double) {
+        guard let index = selectedLocalAdjustmentIndex() else {
+            return
+        }
+
+        let point = NormalizedMaskPoint(x: clampedUnit(x), y: clampedUnit(y))
+        switch localAdjustments[index].mask {
+        case .radial, .linear:
+            localAdjustments[index].centerX = point.x
+            localAdjustments[index].centerY = point.y
+            activeLocalMaskPointIndex = nil
+        case .brush:
+            localAdjustments[index].pathPoints = [point]
+            activeLocalMaskPointIndex = 0
+        case .path:
+            if localAdjustments[index].pathPoints.isEmpty {
+                localAdjustments[index].pathPoints = LocalAdjustmentLayer.defaultPathPoints
+            }
+            activeLocalMaskPointIndex = nearestPathPointIndex(to: point, in: localAdjustments[index])
+            updateActiveLocalMaskPathPoint(point, layerIndex: index)
+        }
+    }
+
+    package func updateLocalMaskEditAtPreviewPoint(x: Double, y: Double) {
+        guard let index = selectedLocalAdjustmentIndex() else {
+            return
+        }
+
+        let point = NormalizedMaskPoint(x: clampedUnit(x), y: clampedUnit(y))
+        switch localAdjustments[index].mask {
+        case .radial, .linear:
+            localAdjustments[index].centerX = point.x
+            localAdjustments[index].centerY = point.y
+        case .brush:
+            appendBrushPointIfNeeded(point, layerIndex: index)
+        case .path:
+            updateActiveLocalMaskPathPoint(point, layerIndex: index)
+        }
+    }
+
+    package func endLocalMaskEditAtPreviewPoint() {
+        activeLocalMaskPointIndex = nil
     }
 
     public func cancelBatchExport() {
@@ -969,6 +1021,46 @@ public final class EditorStore: ObservableObject {
         }
 
         return candidate
+    }
+
+    private func selectedLocalAdjustmentIndex() -> Int? {
+        guard let selectedLocalAdjustmentID else {
+            return nil
+        }
+        return localAdjustments.firstIndex { $0.id == selectedLocalAdjustmentID }
+    }
+
+    private func nearestPathPointIndex(to point: NormalizedMaskPoint, in layer: LocalAdjustmentLayer) -> Int? {
+        layer.pathPoints.indices.min { lhs, rhs in
+            squaredDistance(from: layer.pathPoints[lhs], to: point) < squaredDistance(from: layer.pathPoints[rhs], to: point)
+        }
+    }
+
+    private func updateActiveLocalMaskPathPoint(_ point: NormalizedMaskPoint, layerIndex: Int) {
+        guard let activeLocalMaskPointIndex,
+              localAdjustments[layerIndex].pathPoints.indices.contains(activeLocalMaskPointIndex)
+        else {
+            return
+        }
+
+        localAdjustments[layerIndex].pathPoints[activeLocalMaskPointIndex] = point
+    }
+
+    private func appendBrushPointIfNeeded(_ point: NormalizedMaskPoint, layerIndex: Int) {
+        guard let last = localAdjustments[layerIndex].pathPoints.last else {
+            localAdjustments[layerIndex].pathPoints = [point]
+            return
+        }
+
+        if squaredDistance(from: last, to: point) >= 0.0004 {
+            localAdjustments[layerIndex].pathPoints.append(point)
+        }
+    }
+
+    private func squaredDistance(from lhs: NormalizedMaskPoint, to rhs: NormalizedMaskPoint) -> Double {
+        let dx = lhs.x - rhs.x
+        let dy = lhs.y - rhs.y
+        return (dx * dx) + (dy * dy)
     }
 
     private func importCalibrationAssets(from urls: [URL]) {

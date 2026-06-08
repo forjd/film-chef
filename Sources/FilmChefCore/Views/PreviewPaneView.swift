@@ -3,6 +3,7 @@ import SwiftUI
 struct PreviewPaneView: View {
     @ObservedObject var editor: EditorStore
     @State private var panDragStart = CGSize.zero
+    @State private var isEditingLocalMaskDrag = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -91,13 +92,21 @@ struct PreviewPaneView: View {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        if editor.previewZoom > 1.0 {
+                        if editor.localMaskEditingEnabled, editor.canEditLocalMaskOnPreview {
+                            editLocalMask(at: value.location, in: proxy.size)
+                        } else if editor.previewZoom > 1.0 {
                             editor.previewPanX = panDragStart.width + value.translation.width
                             editor.previewPanY = panDragStart.height + value.translation.height
+                            samplePreview(at: value.location, in: proxy.size)
+                        } else {
+                            samplePreview(at: value.location, in: proxy.size)
                         }
-                        samplePreview(at: value.location, in: proxy.size)
                     }
                     .onEnded { _ in
+                        if isEditingLocalMaskDrag {
+                            editor.endLocalMaskEditAtPreviewPoint()
+                            isEditingLocalMaskDrag = false
+                        }
                         panDragStart = CGSize(width: editor.previewPanX, height: editor.previewPanY)
                     }
             )
@@ -357,6 +366,21 @@ struct PreviewPaneView: View {
             x: Double(location.x / size.width),
             y: Double(1 - (location.y / size.height))
         )
+    }
+
+    private func editLocalMask(at location: CGPoint, in size: CGSize) {
+        guard size.width > 0, size.height > 0 else {
+            return
+        }
+
+        let x = Double(location.x / size.width)
+        let y = Double(1 - (location.y / size.height))
+        if isEditingLocalMaskDrag {
+            editor.updateLocalMaskEditAtPreviewPoint(x: x, y: y)
+        } else {
+            editor.beginLocalMaskEditAtPreviewPoint(x: x, y: y)
+            isEditingLocalMaskDrag = true
+        }
     }
 
     private func sampleRGBText(_ sample: PixelSample) -> String {

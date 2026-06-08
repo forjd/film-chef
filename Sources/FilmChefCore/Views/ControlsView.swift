@@ -455,6 +455,9 @@ struct ControlsView: View {
                             }
                         }
 
+                        Toggle("Edit on Preview", isOn: $editor.localMaskEditingEnabled)
+                            .disabled(!editor.canEditLocalMaskOnPreview)
+
                         HStack(spacing: 8) {
                             Button("Center Brush") {
                                 let index = selectedLocalAdjustmentIndex()

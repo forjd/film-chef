@@ -8,7 +8,7 @@ The project is early, useful, and intentionally open-ended: the renderer is prof
 
 - Native SwiftUI macOS app with a three-pane editor: recipes, preview, and inspector controls
 - Multi-photo import, `.filmchef` project files, edit history, undo/redo, and variants
-- Non-destructive local adjustment layers with radial, linear, brush, and path masks
+- Non-destructive local adjustment layers with radial, linear, brush, and path masks, including direct preview editing
 - Original, edited, split, and side-by-side preview modes with zoom and draggable comparison
 - RGB, luminance, and RGB parade scopes with clipping readouts and pixel sampling
 - ImageIO export to JPEG, PNG, or TIFF with quality, scale, metadata, ICC profile, and naming options
@@ -149,7 +149,7 @@ Film Chef is an initial implementation. Areas that still need deeper work includ
 
 - Richer recipe editing and validation UI
 - Persistent user library metadata and bookmark refresh flows
-- Named non-destructive edit stacks and more complete mask editing
+- Named non-destructive edit stacks and richer mask editing handles
 - Pan, loupe, and richer before/after review controls
 - Scope overlays and more advanced histogram tooling
 - Camera-profile ingestion and deeper RAW/color-management support
