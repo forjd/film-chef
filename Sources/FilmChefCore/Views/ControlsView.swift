@@ -100,6 +100,28 @@ struct ControlsView: View {
                         .disabled(!editor.selectedRecipeIsEditable)
 
                         SliderControl(
+                            title: "Capture Temp",
+                            value: $editor.recipeDraft.captureColourTemperatureK,
+                            range: 2500...9000,
+                            step: 100,
+                            valueText: "\(Int(editor.recipeDraft.captureColourTemperatureK.rounded()))K"
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        TextField("Capture Filter", text: $editor.recipeDraft.captureFilterType)
+                            .textFieldStyle(.roundedBorder)
+                            .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
+                            title: "Filter Strength",
+                            value: $editor.recipeDraft.captureFilterStrength,
+                            range: 0...1,
+                            step: 0.01,
+                            valueText: "\(Int(editor.recipeDraft.captureFilterStrength * 100))%"
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
                             title: "Recipe Saturation",
                             value: $editor.recipeDraft.colourSaturation,
                             range: 0...3,
@@ -116,6 +138,36 @@ struct ControlsView: View {
                             valueText: signedValue(editor.recipeDraft.colourWarmth)
                         )
                         .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
+                            title: "Push/Pull",
+                            value: $editor.recipeDraft.processPushPullStops,
+                            range: -3...3,
+                            step: 0.05,
+                            valueText: signedValue(editor.recipeDraft.processPushPullStops)
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
+                            title: "Process Contrast",
+                            value: $editor.recipeDraft.processContrastMultiplier,
+                            range: 0.25...2.5,
+                            step: 0.01,
+                            valueText: String(format: "%.2f", editor.recipeDraft.processContrastMultiplier)
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
+                            title: "Process Grain",
+                            value: $editor.recipeDraft.processGrainMultiplier,
+                            range: 0...3,
+                            step: 0.01,
+                            valueText: String(format: "%.2f", editor.recipeDraft.processGrainMultiplier)
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        Toggle("Recipe Grain Enabled", isOn: $editor.recipeDraft.grainEnabled)
+                            .disabled(!editor.selectedRecipeIsEditable)
 
                         SliderControl(
                             title: "Grain Strength",
@@ -135,6 +187,9 @@ struct ControlsView: View {
                         )
                         .disabled(!editor.selectedRecipeIsEditable)
 
+                        Toggle("Recipe Halation Enabled", isOn: $editor.recipeDraft.halationEnabled)
+                            .disabled(!editor.selectedRecipeIsEditable)
+
                         SliderControl(
                             title: "Halation",
                             value: $editor.recipeDraft.halationStrength,
@@ -150,6 +205,15 @@ struct ControlsView: View {
                             range: 0...100,
                             step: 0.5,
                             valueText: String(format: "%.1f", editor.recipeDraft.halationRadius)
+                        )
+                        .disabled(!editor.selectedRecipeIsEditable)
+
+                        SliderControl(
+                            title: "Acutance",
+                            value: $editor.recipeDraft.sharpnessAcutance,
+                            range: 0...2,
+                            step: 0.01,
+                            valueText: String(format: "%.2f", editor.recipeDraft.sharpnessAcutance)
                         )
                         .disabled(!editor.selectedRecipeIsEditable)
 

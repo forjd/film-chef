@@ -50,6 +50,7 @@ The run script stages a local `.app` bundle under `dist/`. Do not commit `dist/`
 - Keep rendering behavior profile-driven through `FilmPipelineRenderer`; avoid hardcoding recipe-specific looks in Swift.
 - Make recipe changes in individual JSON files under `Sources/FilmChefCore/Resources/Recipes/`.
 - If the JSON schema changes, update `FilmRecipe.swift`, `RecipeStore.swift`, and `README.md` together.
+- Recipe editor changes should update `FilmRecipe.replacingEditableSettings`, `EditorStore.RecipeDraft`, validation tests, and README feature notes together.
 - Preserve non-destructive editing behavior for adjustments, named variants, preview-edited masks, and project persistence.
 - Keep preview review controls consistent across direct gestures and inspector buttons.
 - Keep batch export progress, cancellation, and output naming behavior aligned between UI and test paths.

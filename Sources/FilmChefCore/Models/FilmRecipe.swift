@@ -63,12 +63,21 @@ package struct FilmRecipe: Codable, Hashable, Identifiable {
         exposureBoxSpeedIso: Int? = nil,
         exposedAtIso: Int? = nil,
         exposureCompensationEv: Double? = nil,
+        captureColourTemperatureK: Int? = nil,
+        captureFilterType: String? = nil,
+        captureFilterStrength: Double? = nil,
         colourSaturation: Double? = nil,
         colourWarmth: Double? = nil,
+        processPushPullStops: Double? = nil,
+        processContrastMultiplier: Double? = nil,
+        processGrainMultiplier: Double? = nil,
+        grainEnabled: Bool? = nil,
         grainStrength: Double? = nil,
         grainSize: Double? = nil,
+        halationEnabled: Bool? = nil,
         halationStrength: Double? = nil,
         halationRadius: Double? = nil,
+        sharpnessAcutance: Double? = nil,
         rendererContrast: Double? = nil,
         rendererSaturation: Double? = nil,
         outputColourSpace: String? = nil,
@@ -100,7 +109,17 @@ package struct FilmRecipe: Codable, Hashable, Identifiable {
                 highlightProtection: exposure.highlightProtection,
                 shadowLiftBeforeFilm: exposure.shadowLiftBeforeFilm
             ),
-            captureConditions: captureConditions,
+            captureConditions: FilmCaptureConditions(
+                illuminant: captureConditions.illuminant,
+                colourTemperatureK: captureColourTemperatureK ?? captureConditions.colourTemperatureK,
+                lensContrast: captureConditions.lensContrast,
+                lensFlare: captureConditions.lensFlare,
+                filter: FilmCaptureFilter(
+                    type: captureFilterType ?? captureConditions.filter.type,
+                    strength: captureFilterStrength ?? captureConditions.filter.strength
+                ),
+                daylightMode: captureConditions.daylightMode
+            ),
             layerModel: layerModel,
             characteristicCurves: characteristicCurves,
             colourModel: FilmColourModel(
@@ -112,9 +131,18 @@ package struct FilmRecipe: Codable, Hashable, Identifiable {
                 orangeMask: colourModel.orangeMask,
                 toning: colourModel.toning
             ),
-            process: process,
+            process: FilmProcess(
+                type: process.type,
+                variant: process.variant,
+                developerStyle: process.developerStyle,
+                pushPullStops: processPushPullStops ?? process.pushPullStops,
+                contrastMultiplier: processContrastMultiplier ?? process.contrastMultiplier,
+                speedGainEv: process.speedGainEv,
+                grainMultiplier: processGrainMultiplier ?? process.grainMultiplier,
+                colourShift: process.colourShift
+            ),
             grain: FilmGrain(
-                enabled: grain.enabled,
+                enabled: grainEnabled ?? grain.enabled,
                 model: grain.model,
                 strength: grainStrength ?? grain.strength,
                 size: grainSize ?? grain.size,
@@ -127,7 +155,7 @@ package struct FilmRecipe: Codable, Hashable, Identifiable {
                 seedMode: grain.seedMode
             ),
             halation: FilmHalation(
-                enabled: halation.enabled,
+                enabled: halationEnabled ?? halation.enabled,
                 model: halation.model,
                 threshold: halation.threshold,
                 strength: halationStrength ?? halation.strength,
@@ -136,7 +164,12 @@ package struct FilmRecipe: Codable, Hashable, Identifiable {
                 affects: halation.affects,
                 edgePreservation: halation.edgePreservation
             ),
-            sharpness: sharpness,
+            sharpness: FilmSharpness(
+                filmMtfBlur: sharpness.filmMtfBlur,
+                scannerMtfBlur: sharpness.scannerMtfBlur,
+                acutance: sharpnessAcutance ?? sharpness.acutance,
+                digitalSharpening: sharpness.digitalSharpening
+            ),
             renderer: FilmRenderer(
                 type: renderer.type,
                 negativeInversion: renderer.negativeInversion,

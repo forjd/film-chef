@@ -654,9 +654,18 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     editor.recipeDraft.stockBoxSpeedIso = 500
     editor.recipeDraft.exposedAtIso = 320
     editor.recipeDraft.exposureCompensationEv = 0.15
+    editor.recipeDraft.captureColourTemperatureK = 6200
+    editor.recipeDraft.captureFilterType = "85"
+    editor.recipeDraft.captureFilterStrength = 0.4
     editor.recipeDraft.colourSaturation = 1.2
+    editor.recipeDraft.processPushPullStops = 0.5
+    editor.recipeDraft.processContrastMultiplier = 1.15
+    editor.recipeDraft.processGrainMultiplier = 1.25
+    editor.recipeDraft.grainEnabled = false
     editor.recipeDraft.grainStrength = 0.35
+    editor.recipeDraft.halationEnabled = true
     editor.recipeDraft.halationStrength = 0.2
+    editor.recipeDraft.sharpnessAcutance = 0.6
     editor.recipeDraft.rendererContrast = 1.1
     editor.recipeDraft.outputColourSpace = "display_p3"
     editor.recipeDraft.outputBitDepth = 16
@@ -667,9 +676,18 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     try expect(editor.selectedRecipe?.summary == "A user-adjusted metadata copy for export.")
     try expect(editor.selectedRecipe?.stock.boxSpeedIso == 500)
     try expect(editor.selectedRecipe?.exposure.exposedAtIso == 320)
+    try expect(editor.selectedRecipe?.captureConditions.colourTemperatureK == 6200)
+    try expect(editor.selectedRecipe?.captureConditions.filter.type == "85")
+    try expect(editor.selectedRecipe?.captureConditions.filter.strength == 0.4)
     try expect(editor.selectedRecipe?.colourModel.saturation == 1.2)
+    try expect(editor.selectedRecipe?.process.pushPullStops == 0.5)
+    try expect(editor.selectedRecipe?.process.contrastMultiplier == 1.15)
+    try expect(editor.selectedRecipe?.process.grainMultiplier == 1.25)
+    try expect(editor.selectedRecipe?.grain.enabled == false)
     try expect(editor.selectedRecipe?.grain.strength == 0.35)
+    try expect(editor.selectedRecipe?.halation.enabled == true)
     try expect(editor.selectedRecipe?.halation.strength == 0.2)
+    try expect(editor.selectedRecipe?.sharpness.acutance == 0.6)
     try expect(editor.selectedRecipe?.renderer.contrast == 1.1)
     try expect(editor.selectedRecipe?.output.colourSpace == "display_p3")
     try expect(editor.selectedRecipe?.output.bitDepth == 16)

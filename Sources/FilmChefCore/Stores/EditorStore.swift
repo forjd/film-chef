@@ -38,12 +38,21 @@ public final class EditorStore: ObservableObject {
         package var exposureBoxSpeedIso: Double
         package var exposedAtIso: Double
         package var exposureCompensationEv: Double
+        package var captureColourTemperatureK: Double
+        package var captureFilterType: String
+        package var captureFilterStrength: Double
         package var colourSaturation: Double
         package var colourWarmth: Double
+        package var processPushPullStops: Double
+        package var processContrastMultiplier: Double
+        package var processGrainMultiplier: Double
+        package var grainEnabled: Bool
         package var grainStrength: Double
         package var grainSize: Double
+        package var halationEnabled: Bool
         package var halationStrength: Double
         package var halationRadius: Double
+        package var sharpnessAcutance: Double
         package var rendererContrast: Double
         package var rendererSaturation: Double
         package var outputColourSpace: String
@@ -57,12 +66,21 @@ public final class EditorStore: ObservableObject {
             exposureBoxSpeedIso: Double = 400,
             exposedAtIso: Double = 400,
             exposureCompensationEv: Double = 0,
+            captureColourTemperatureK: Double = 5500,
+            captureFilterType: String = "none",
+            captureFilterStrength: Double = 0,
             colourSaturation: Double = 1,
             colourWarmth: Double = 0,
+            processPushPullStops: Double = 0,
+            processContrastMultiplier: Double = 1,
+            processGrainMultiplier: Double = 1,
+            grainEnabled: Bool = true,
             grainStrength: Double = 0,
             grainSize: Double = 1,
+            halationEnabled: Bool = false,
             halationStrength: Double = 0,
             halationRadius: Double = 0,
+            sharpnessAcutance: Double = 0,
             rendererContrast: Double = 1,
             rendererSaturation: Double = 1,
             outputColourSpace: String = "srgb",
@@ -75,12 +93,21 @@ public final class EditorStore: ObservableObject {
             self.exposureBoxSpeedIso = exposureBoxSpeedIso
             self.exposedAtIso = exposedAtIso
             self.exposureCompensationEv = exposureCompensationEv
+            self.captureColourTemperatureK = captureColourTemperatureK
+            self.captureFilterType = captureFilterType
+            self.captureFilterStrength = captureFilterStrength
             self.colourSaturation = colourSaturation
             self.colourWarmth = colourWarmth
+            self.processPushPullStops = processPushPullStops
+            self.processContrastMultiplier = processContrastMultiplier
+            self.processGrainMultiplier = processGrainMultiplier
+            self.grainEnabled = grainEnabled
             self.grainStrength = grainStrength
             self.grainSize = grainSize
+            self.halationEnabled = halationEnabled
             self.halationStrength = halationStrength
             self.halationRadius = halationRadius
+            self.sharpnessAcutance = sharpnessAcutance
             self.rendererContrast = rendererContrast
             self.rendererSaturation = rendererSaturation
             self.outputColourSpace = outputColourSpace
@@ -95,12 +122,21 @@ public final class EditorStore: ObservableObject {
             exposureBoxSpeedIso = Double(recipe.exposure.boxSpeedIso)
             exposedAtIso = Double(recipe.exposure.exposedAtIso)
             exposureCompensationEv = recipe.exposure.exposureCompensationEv
+            captureColourTemperatureK = Double(recipe.captureConditions.colourTemperatureK)
+            captureFilterType = recipe.captureConditions.filter.type
+            captureFilterStrength = recipe.captureConditions.filter.strength
             colourSaturation = recipe.colourModel.saturation ?? 1
             colourWarmth = recipe.colourModel.warmth ?? 0
+            processPushPullStops = recipe.process.pushPullStops
+            processContrastMultiplier = recipe.process.contrastMultiplier
+            processGrainMultiplier = recipe.process.grainMultiplier
+            grainEnabled = recipe.grain.enabled
             grainStrength = recipe.grain.strength
             grainSize = recipe.grain.size
+            halationEnabled = recipe.halation.enabled
             halationStrength = recipe.halation.strength
             halationRadius = recipe.halation.radius
+            sharpnessAcutance = recipe.sharpness.acutance
             rendererContrast = recipe.renderer.contrast
             rendererSaturation = recipe.renderer.saturation
             outputColourSpace = recipe.output.colourSpace
@@ -115,12 +151,21 @@ public final class EditorStore: ObservableObject {
                 Int(exposureBoxSpeedIso.rounded()) != recipe.exposure.boxSpeedIso ||
                 Int(exposedAtIso.rounded()) != recipe.exposure.exposedAtIso ||
                 abs(exposureCompensationEv - recipe.exposure.exposureCompensationEv) > 0.001 ||
+                Int(captureColourTemperatureK.rounded()) != recipe.captureConditions.colourTemperatureK ||
+                trimmedCaptureFilterType() != recipe.captureConditions.filter.type ||
+                abs(captureFilterStrength - recipe.captureConditions.filter.strength) > 0.001 ||
                 abs(colourSaturation - (recipe.colourModel.saturation ?? 1)) > 0.001 ||
                 abs(colourWarmth - (recipe.colourModel.warmth ?? 0)) > 0.001 ||
+                abs(processPushPullStops - recipe.process.pushPullStops) > 0.001 ||
+                abs(processContrastMultiplier - recipe.process.contrastMultiplier) > 0.001 ||
+                abs(processGrainMultiplier - recipe.process.grainMultiplier) > 0.001 ||
+                grainEnabled != recipe.grain.enabled ||
                 abs(grainStrength - recipe.grain.strength) > 0.001 ||
                 abs(grainSize - recipe.grain.size) > 0.001 ||
+                halationEnabled != recipe.halation.enabled ||
                 abs(halationStrength - recipe.halation.strength) > 0.001 ||
                 abs(halationRadius - recipe.halation.radius) > 0.001 ||
+                abs(sharpnessAcutance - recipe.sharpness.acutance) > 0.001 ||
                 abs(rendererContrast - recipe.renderer.contrast) > 0.001 ||
                 abs(rendererSaturation - recipe.renderer.saturation) > 0.001 ||
                 trimmedOutputColourSpace() != recipe.output.colourSpace ||
@@ -137,6 +182,10 @@ public final class EditorStore: ObservableObject {
 
         fileprivate func trimmedSummary() -> String {
             summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        fileprivate func trimmedCaptureFilterType() -> String {
+            captureFilterType.trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
         fileprivate func trimmedOutputColourSpace() -> String {
@@ -325,12 +374,21 @@ public final class EditorStore: ObservableObject {
             exposureBoxSpeedIso: Int(recipeDraft.exposureBoxSpeedIso.rounded()),
             exposedAtIso: Int(recipeDraft.exposedAtIso.rounded()),
             exposureCompensationEv: recipeDraft.exposureCompensationEv,
+            captureColourTemperatureK: Int(recipeDraft.captureColourTemperatureK.rounded()),
+            captureFilterType: recipeDraft.trimmedCaptureFilterType(),
+            captureFilterStrength: recipeDraft.captureFilterStrength,
             colourSaturation: recipeDraft.colourSaturation,
             colourWarmth: recipeDraft.colourWarmth,
+            processPushPullStops: recipeDraft.processPushPullStops,
+            processContrastMultiplier: recipeDraft.processContrastMultiplier,
+            processGrainMultiplier: recipeDraft.processGrainMultiplier,
+            grainEnabled: recipeDraft.grainEnabled,
             grainStrength: recipeDraft.grainStrength,
             grainSize: recipeDraft.grainSize,
+            halationEnabled: recipeDraft.halationEnabled,
             halationStrength: recipeDraft.halationStrength,
             halationRadius: recipeDraft.halationRadius,
+            sharpnessAcutance: recipeDraft.sharpnessAcutance,
             rendererContrast: recipeDraft.rendererContrast,
             rendererSaturation: recipeDraft.rendererSaturation,
             outputColourSpace: recipeDraft.trimmedOutputColourSpace(),
@@ -740,12 +798,21 @@ public final class EditorStore: ObservableObject {
             exposureBoxSpeedIso: Int(recipeDraft.exposureBoxSpeedIso.rounded()),
             exposedAtIso: Int(recipeDraft.exposedAtIso.rounded()),
             exposureCompensationEv: recipeDraft.exposureCompensationEv,
+            captureColourTemperatureK: Int(recipeDraft.captureColourTemperatureK.rounded()),
+            captureFilterType: recipeDraft.trimmedCaptureFilterType(),
+            captureFilterStrength: recipeDraft.captureFilterStrength,
             colourSaturation: recipeDraft.colourSaturation,
             colourWarmth: recipeDraft.colourWarmth,
+            processPushPullStops: recipeDraft.processPushPullStops,
+            processContrastMultiplier: recipeDraft.processContrastMultiplier,
+            processGrainMultiplier: recipeDraft.processGrainMultiplier,
+            grainEnabled: recipeDraft.grainEnabled,
             grainStrength: recipeDraft.grainStrength,
             grainSize: recipeDraft.grainSize,
+            halationEnabled: recipeDraft.halationEnabled,
             halationStrength: recipeDraft.halationStrength,
             halationRadius: recipeDraft.halationRadius,
+            sharpnessAcutance: recipeDraft.sharpnessAcutance,
             rendererContrast: recipeDraft.rendererContrast,
             rendererSaturation: recipeDraft.rendererSaturation,
             outputColourSpace: recipeDraft.trimmedOutputColourSpace(),
