@@ -89,7 +89,7 @@ Generated build output is staged under `dist/` and `.build/`; neither should be 
 Sources/FilmChef/App/              App entry point and commands
 Sources/FilmChefCore/Models/       Recipe, project, and adjustment models
 Sources/FilmChefCore/Stores/       Editor state, projects, and recipe loading
-Sources/FilmChefCore/Services/     Core Image processing and rendering
+Sources/FilmChefCore/Services/     Core Image processing, calibration parsing, and rendering
 Sources/FilmChefCore/Views/        SwiftUI editor views
 Sources/FilmChefCore/Resources/    Bundled recipe JSON files
 Tests/FilmChefCoreTests/           Executable core test runner

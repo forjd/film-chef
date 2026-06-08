@@ -37,6 +37,7 @@ The run script stages a local `.app` bundle under `dist/`. Do not commit `dist/`
 - `Sources/FilmChefCore/Stores/RecipeStore.swift` loads bundled JSON recipes.
 - `Sources/FilmChefCore/Services/ImageProcessor.swift` owns Core Image loading, preview scaling, and export encoding.
 - `Sources/FilmChefCore/Services/FilmPipelineRenderer.swift` owns the profile-driven Core Image rendering stages.
+- `Sources/FilmChefCore/Services/CalibrationAssetParser.swift` validates and summarizes imported calibration assets.
 - `Sources/FilmChefCore/Views/ContentView.swift` composes the native three-pane layout.
 - `Sources/FilmChefCore/Views/` contains sidebar, preview, controls, and histogram/scope UI.
 - `Sources/FilmChefCore/Resources/Recipes/*.json` contains one editable recipe per file.
