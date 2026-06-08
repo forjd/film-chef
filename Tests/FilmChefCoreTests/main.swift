@@ -983,6 +983,124 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     }
 }
 
+func testEditorRecipeDraftEditingFlow() throws {
+    try MainActor.assumeIsolated {
+        let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        editor.loadRecipesIfNeeded()
+        let recipe = try require(editor.selectedRecipe)
+
+        editor.duplicateSelectedRecipeForEditing()
+        editor.recipeDraft.displayName = "Focused Recipe"
+        editor.recipeDraft.manufacturer = "Film Chef Tests"
+        editor.recipeDraft.summary = "Focused recipe editing coverage."
+        editor.recipeDraft.captureFilterType = "80a"
+        editor.recipeDraft.captureFilterStrength = 0.3
+        editor.recipeDraft.processPushPullStops = -0.5
+        editor.recipeDraft.grainEnabled = !recipe.grain.enabled
+        editor.recipeDraft.halationEnabled = !recipe.halation.enabled
+        try expect(editor.canApplyRecipeDraft)
+
+        editor.applyRecipeDraft()
+        try expect(editor.selectedRecipe?.name == "Focused Recipe")
+        try expect(editor.selectedRecipe?.captureConditions.filter.type == "80a")
+        try expect(editor.selectedRecipe?.process.pushPullStops == -0.5)
+        try expect(editor.selectedRecipe?.grain.enabled == !recipe.grain.enabled)
+        try expect(editor.selectedRecipe?.halation.enabled == !recipe.halation.enabled)
+    }
+}
+
+func testEditorPreviewLocalMaskAndVariantControls() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let sourceURL = directory.appendingPathComponent("Preview Controls.png")
+    try writeTestPNG(to: sourceURL, width: 10, height: 8)
+
+    try MainActor.assumeIsolated {
+        let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        editor.loadRecipesIfNeeded()
+        editor.importPhotoForTesting(from: sourceURL)
+
+        editor.previewZoom = 2.0
+        editor.setPreviewPan(x: 1_000, y: -1_000)
+        try expect(editor.previewPanX == 220)
+        try expect(editor.previewPanY == -220)
+        editor.loupeEnabled = true
+        editor.loupePlacement = .bottomLeft
+        try expect(editor.canResetPreviewView)
+
+        editor.addLocalAdjustment()
+        editor.beginLocalMaskEditAtPreviewPoint(x: 0.25, y: 0.75)
+        editor.updateLocalMaskEditAtPreviewPoint(x: 0.45, y: 0.55)
+        editor.endLocalMaskEditAtPreviewPoint()
+        try expect(editor.localAdjustments.first?.centerX == 0.45)
+        try expect(editor.localAdjustments.first?.centerY == 0.55)
+
+        editor.captureVariant(note: "Focused variant")
+        let variant = try require(editor.editHistory.last)
+        editor.renameVariant(id: variant.id, note: "Focused variant renamed")
+        try expect(editor.editHistory.last?.note == "Focused variant renamed")
+        editor.duplicateVariant(id: variant.id)
+        try expect(editor.editHistory.count >= 3)
+    }
+}
+
+func testEditorCalibrationImportFlow() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let typedCalibrationURL = directory.appendingPathComponent("typed.json")
+    try """
+    {
+      "asset_types": ["spectral_curves", "density_curves", "grain_spectra"],
+      "values": [0.1, 0.2, 0.3],
+      "rgb_scale": { "red": 1.1, "green": 1.0, "blue": 0.9 }
+    }
+    """.data(using: .utf8)?.write(to: typedCalibrationURL)
+
+    try MainActor.assumeIsolated {
+        let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        editor.importCalibrationAssetsForTesting(from: [typedCalibrationURL])
+        try expect(editor.calibrationDataStatus.supportsSpectralCurves)
+        try expect(editor.calibrationDataStatus.supportsMeasuredDensityCurves)
+        try expect(editor.calibrationDataStatus.supportsGrainSpectra)
+        try expect(editor.calibrationDataStatus.supportsThreeDimensionalLUTs)
+    }
+}
+
+func testEditorExportSettingsAndBatchFlow() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let sourceURL = directory.appendingPathComponent("Export Flow.png")
+    try writeTestPNG(to: sourceURL, width: 10, height: 8)
+
+    try MainActor.assumeIsolated {
+        let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        editor.loadRecipesIfNeeded()
+        editor.importPhotoForTesting(from: sourceURL)
+
+        editor.exportSettings.namingTemplate = "{photo}-{bad}"
+        try expect(!editor.canExportCurrentSettings)
+        try expect(!editor.canBatchExport)
+        editor.exportSettings.namingTemplate = "{photo}_{recipe}_{format}"
+        try expect(editor.canExportCurrentSettings)
+        try expect(editor.canBatchExport)
+
+        let batchDirectory = directory.appendingPathComponent("batch", isDirectory: true)
+        editor.exportProjectPhotosForTesting(to: batchDirectory)
+        let batchFiles = try FileManager.default.contentsOfDirectory(atPath: batchDirectory.path)
+        try expect(batchFiles.count == 1)
+        try expect(editor.batchExportState.completedCount == 1)
+    }
+}
+
 func testErrorDescriptionsAreStable() throws {
     try expect(RecipeStore.RecipeStoreError.missingResource.errorDescription == "No film recipe JSON files could be found.")
     try expect(
@@ -1207,7 +1325,11 @@ let tests: [TestCase] = [
     TestCase(name: "preview scaling respects max dimension", run: testPreviewScalingRespectsMaxDimension),
     TestCase(name: "image processor loads renders and reports errors", run: testImageProcessorLoadsRendersAndReportsErrors),
     TestCase(name: "write rendered image encodes PNG and JPEG", run: testWriteRenderedImageEncodesPngAndJpeg),
-    TestCase(name: "editor store state import export and view construction", run: testEditorStoreStateImportExportAndViewConstruction),
+    TestCase(name: "editor store end to end smoke flow", run: testEditorStoreStateImportExportAndViewConstruction),
+    TestCase(name: "editor recipe draft editing flow", run: testEditorRecipeDraftEditingFlow),
+    TestCase(name: "editor preview local mask and variant controls", run: testEditorPreviewLocalMaskAndVariantControls),
+    TestCase(name: "editor calibration import flow", run: testEditorCalibrationImportFlow),
+    TestCase(name: "editor export settings and batch flow", run: testEditorExportSettingsAndBatchFlow),
     TestCase(name: "project store and editor persist restorable project", run: testProjectStoreAndEditorPersistRestorableProject),
     TestCase(name: "error descriptions are stable", run: testErrorDescriptionsAreStable)
 ]

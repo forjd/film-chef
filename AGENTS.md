@@ -58,6 +58,7 @@ The run script stages a local `.app` bundle under `dist/`. Do not commit `dist/`
 - Calibration JSON may use `asset_type` or `asset_types` for `spectral_curves`, `density_curves`, and `grain_spectra`; keep filename fallback for older assets.
 - Keep generated artifacts out of source control. `.gitignore` already excludes `.build/` and `dist/`.
 - After Swift edits, run `./script/test.sh` and `swift build`.
+- Keep editor-flow tests focused by behavior area; use broad end-to-end coverage only as a smoke test.
 - After app-flow, packaging, recipe, or resource-bundle edits, also run `./script/build_and_run.sh --verify`.
 
 ## Recipe Schema

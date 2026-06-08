@@ -93,7 +93,7 @@ Sources/FilmChefCore/Stores/       Editor state, projects, and recipe loading
 Sources/FilmChefCore/Services/     Core Image processing, calibration parsing, and rendering
 Sources/FilmChefCore/Views/        SwiftUI editor views
 Sources/FilmChefCore/Resources/    Bundled recipe JSON files
-Tests/FilmChefCoreTests/           Executable core test runner
+Tests/FilmChefCoreTests/           Executable core test runner with focused editor-flow coverage
 script/build_and_run.sh            Build, bundle, and launch script
 script/package_release.sh          Build, sign, verify, and archive a release app
 script/test.sh                     Test and coverage script
