@@ -78,21 +78,6 @@ Supported `stock.family` values:
 
 Keep recipe values descriptive and human-readable. Do not introduce binary LUT blobs until calibration data support is ready for them.
 
-## Current Scope
-
-The app has first-pass support for project save/load, recipe import/export, edit history, variants, local masked adjustments, before/after comparison modes, histogram/scopes, batch export, color-management settings, and calibration asset tracking.
-
-Areas still intentionally shallow include:
-
-- recipe editing and validation UX
-- richer persistent library metadata and bookmark refresh flows
-- named edit stacks and more complete freehand mask editing
-- pan, loupe, and advanced comparison controls
-- deeper scope overlays and histogram tooling
-- camera-profile ingestion and true measured spectral transforms
-- render caching, progress reporting, and background export
-- export presets, app icon assets, and update distribution
-
 ## Commit Style
 
 Use conventional commits, for example:
