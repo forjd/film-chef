@@ -95,8 +95,10 @@ struct PreviewPaneView: View {
                         if editor.localMaskEditingEnabled, editor.canEditLocalMaskOnPreview {
                             editLocalMask(at: value.location, in: proxy.size)
                         } else if editor.previewZoom > 1.0 {
-                            editor.previewPanX = panDragStart.width + value.translation.width
-                            editor.previewPanY = panDragStart.height + value.translation.height
+                            editor.setPreviewPan(
+                                x: panDragStart.width + value.translation.width,
+                                y: panDragStart.height + value.translation.height
+                            )
                             samplePreview(at: value.location, in: proxy.size)
                         } else {
                             samplePreview(at: value.location, in: proxy.size)
@@ -112,9 +114,10 @@ struct PreviewPaneView: View {
             )
             .onChange(of: editor.previewZoom) {
                 if editor.previewZoom <= 1.0 {
-                    editor.previewPanX = 0
-                    editor.previewPanY = 0
+                    editor.setPreviewPan(x: 0, y: 0)
                     panDragStart = .zero
+                } else {
+                    editor.setPreviewPan(x: editor.previewPanX, y: editor.previewPanY)
                 }
             }
             .simultaneousGesture(
@@ -323,8 +326,12 @@ struct PreviewPaneView: View {
             let markerX = size.width * editor.samplerX
             let markerY = size.height * (1 - editor.samplerY)
             let diameter: CGFloat = 154
-            let loupeX = clamped(markerX + 112, lower: diameter / 2 + 12, upper: max(diameter / 2 + 12, size.width - diameter / 2 - 12))
-            let loupeY = clamped(markerY + 96, lower: diameter / 2 + 12, upper: max(diameter / 2 + 12, size.height - diameter / 2 - 12))
+            let resolvedLoupePosition = loupePosition(
+                placement: editor.loupePlacement,
+                marker: CGPoint(x: markerX, y: markerY),
+                diameter: diameter,
+                size: size
+            )
 
             ZStack {
                 Image(nsImage: image)
@@ -352,8 +359,35 @@ struct PreviewPaneView: View {
             }
             .frame(width: diameter, height: diameter)
             .shadow(color: .black.opacity(0.28), radius: 14, y: 7)
-            .position(x: loupeX, y: loupeY)
+            .position(resolvedLoupePosition)
             .allowsHitTesting(false)
+        }
+    }
+
+    private func loupePosition(
+        placement: LoupePlacement,
+        marker: CGPoint,
+        diameter: CGFloat,
+        size: CGSize
+    ) -> CGPoint {
+        let inset = diameter / 2 + 12
+        let right = max(inset, size.width - inset)
+        let bottom = max(inset, size.height - inset)
+
+        switch placement {
+        case .nearSampler:
+            return CGPoint(
+                x: clamped(marker.x + 112, lower: inset, upper: right),
+                y: clamped(marker.y + 96, lower: inset, upper: bottom)
+            )
+        case .topLeft:
+            return CGPoint(x: inset, y: inset)
+        case .topRight:
+            return CGPoint(x: right, y: inset)
+        case .bottomLeft:
+            return CGPoint(x: inset, y: bottom)
+        case .bottomRight:
+            return CGPoint(x: right, y: bottom)
         }
     }
 

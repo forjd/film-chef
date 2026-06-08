@@ -731,8 +731,13 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     editor.panPreview(deltaX: 24, deltaY: -12)
     try expect(editor.previewPanX == 24)
     try expect(editor.previewPanY == -12)
+    editor.setPreviewPan(x: 1_000, y: -1_000)
+    try expect(editor.previewPanX == 220)
+    try expect(editor.previewPanY == -220)
     editor.loupeEnabled = true
     editor.loupeZoom = 3.0
+    editor.loupePlacement = .topRight
+    try expect(editor.loupePlacement == .topRight)
     try expect(editor.canResetPreviewView)
     editor.resetPreviewView()
     try expect(editor.previewZoom == 1.0)

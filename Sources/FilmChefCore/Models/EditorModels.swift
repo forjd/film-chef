@@ -285,6 +285,31 @@ package enum PreviewComparisonMode: String, CaseIterable, Codable, Equatable, Id
     }
 }
 
+package enum LoupePlacement: String, CaseIterable, Codable, Equatable, Identifiable {
+    case nearSampler
+    case topLeft
+    case topRight
+    case bottomLeft
+    case bottomRight
+
+    package var id: String { rawValue }
+
+    package var label: String {
+        switch self {
+        case .nearSampler:
+            return "Near Sample"
+        case .topLeft:
+            return "Top Left"
+        case .topRight:
+            return "Top Right"
+        case .bottomLeft:
+            return "Bottom Left"
+        case .bottomRight:
+            return "Bottom Right"
+        }
+    }
+}
+
 package enum ExportFileFormat: String, CaseIterable, Codable, Equatable, Identifiable {
     case jpeg
     case png

@@ -259,6 +259,13 @@ struct ControlsView: View {
                     )
                     .disabled(!editor.hasImportedImage || !editor.loupeEnabled)
 
+                    Picker("Loupe Position", selection: $editor.loupePlacement) {
+                        ForEach(LoupePlacement.allCases) { placement in
+                            Text(placement.label).tag(placement)
+                        }
+                    }
+                    .disabled(!editor.hasImportedImage || !editor.loupeEnabled)
+
                     HStack(spacing: 8) {
                         Button(action: { editor.panPreview(deltaX: -32, deltaY: 0) }) {
                             Label("Left", systemImage: "arrow.left")

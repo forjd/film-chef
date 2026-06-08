@@ -51,6 +51,7 @@ The run script stages a local `.app` bundle under `dist/`. Do not commit `dist/`
 - Make recipe changes in individual JSON files under `Sources/FilmChefCore/Resources/Recipes/`.
 - If the JSON schema changes, update `FilmRecipe.swift`, `RecipeStore.swift`, and `README.md` together.
 - Preserve non-destructive editing behavior for adjustments, named variants, preview-edited masks, and project persistence.
+- Keep preview review controls consistent across direct gestures and inspector buttons.
 - Keep generated artifacts out of source control. `.gitignore` already excludes `.build/` and `dist/`.
 - After Swift edits, run `./script/test.sh` and `swift build`.
 - After app-flow, packaging, recipe, or resource-bundle edits, also run `./script/build_and_run.sh --verify`.

@@ -195,6 +195,7 @@ public final class EditorStore: ObservableObject {
     @Published package var previewPanY = 0.0
     @Published package var loupeEnabled = false
     @Published package var loupeZoom = 2.0
+    @Published package var loupePlacement = LoupePlacement.nearSampler
     @Published package var splitPosition = 0.5
     @Published package private(set) var samplerX = 0.5
     @Published package private(set) var samplerY = 0.5
@@ -534,9 +535,19 @@ public final class EditorStore: ObservableObject {
             return
         }
 
-        let limit = (previewZoom - 1.0) * 160
-        previewPanX = min(max(previewPanX + deltaX, -limit), limit)
-        previewPanY = min(max(previewPanY + deltaY, -limit), limit)
+        setPreviewPan(x: previewPanX + deltaX, y: previewPanY + deltaY)
+    }
+
+    public func setPreviewPan(x: Double, y: Double) {
+        guard previewZoom > 1.0 else {
+            previewPanX = 0
+            previewPanY = 0
+            return
+        }
+
+        let limit = previewPanLimit()
+        previewPanX = min(max(x, -limit), limit)
+        previewPanY = min(max(y, -limit), limit)
     }
 
     public func undoEdit() {
@@ -1095,6 +1106,10 @@ public final class EditorStore: ObservableObject {
             return nil
         }
         return localAdjustments.firstIndex { $0.id == selectedLocalAdjustmentID }
+    }
+
+    private func previewPanLimit() -> Double {
+        max(0, (previewZoom - 1.0) * 220)
     }
 
     private func nearestPathPointIndex(to point: NormalizedMaskPoint, in layer: LocalAdjustmentLayer) -> Int? {
