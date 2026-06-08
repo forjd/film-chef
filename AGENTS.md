@@ -52,6 +52,7 @@ The run script stages a local `.app` bundle under `dist/`. Do not commit `dist/`
 - If the JSON schema changes, update `FilmRecipe.swift`, `RecipeStore.swift`, and `README.md` together.
 - Recipe editor changes should update `FilmRecipe.replacingEditableSettings`, `EditorStore.RecipeDraft`, validation tests, and README feature notes together.
 - Preserve non-destructive editing behavior for adjustments, named variants, preview-edited masks, and project persistence.
+- Project restoration should preserve security-scoped bookmark refresh and offer relink paths for missing photos.
 - Keep preview review controls consistent across direct gestures and inspector buttons.
 - Keep batch export progress, cancellation, and output naming behavior aligned between UI and test paths.
 - Export naming templates support `{photo}`, `{recipe}`, and `{format}`; reject unknown brace tokens consistently.

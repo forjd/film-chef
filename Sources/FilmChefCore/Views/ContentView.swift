@@ -67,6 +67,12 @@ public struct ContentView: View {
             allowsMultipleSelection: false,
             onCompletion: editor.handleProjectOpenResults
         )
+        .fileImporter(
+            isPresented: $editor.isRelinkingProjectPhoto,
+            allowedContentTypes: [.image],
+            allowsMultipleSelection: false,
+            onCompletion: editor.handleProjectRelinkResults
+        )
         .alert(
             "Film Chef",
             isPresented: Binding(

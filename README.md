@@ -7,7 +7,7 @@ The project is early, useful, and intentionally open-ended: the renderer is prof
 ## Highlights
 
 - Native SwiftUI macOS app with a three-pane editor: recipes, preview, and inspector controls
-- Multi-photo import, `.filmchef` project files, edit history, undo/redo, and named variants
+- Multi-photo import, `.filmchef` project files, missing-photo relink, edit history, undo/redo, and named variants
 - Non-destructive local adjustment layers with radial, linear, brush, and path masks, including direct preview editing
 - Original, edited, split, and side-by-side preview modes with bounded pan, loupe placement, zoom, and draggable comparison
 - RGB, luminance, and RGB parade scopes with clipping readouts and pixel sampling
@@ -163,7 +163,7 @@ Calibration import accepts `.cube`, `.json`, `.csv`, and `.txt` assets. JSON ass
 Film Chef is an initial implementation. Areas that still need deeper work include:
 
 - Curve and matrix editing for advanced recipe authoring
-- Persistent user library metadata and bookmark refresh flows
+- Persistent user library metadata beyond project-local relink and bookmark refresh
 - Named non-destructive edit stacks with richer comparison workflows
 - Richer before/after review controls and saved review workspaces
 - Scope overlays and more advanced histogram tooling

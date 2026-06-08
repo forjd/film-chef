@@ -246,7 +246,10 @@ public final class EditorStore: ObservableObject {
     @Published package var isImportingRecipe = false
     @Published package var isImportingCalibration = false
     @Published package var isOpeningProject = false
+    @Published package var isRelinkingProjectPhoto = false
     @Published package var errorMessage: String?
+    @Published package private(set) var projectItemNeedingRelinkID: UUID?
+    private var pendingRelinkProjectItemID: UUID?
 
     @Published package var comparisonMode = PreviewComparisonMode.edited
     @Published package var previewZoom = 1.0
@@ -593,6 +596,11 @@ public final class EditorStore: ObservableObject {
         isOpeningProject = true
     }
 
+    public func beginRelinkProjectItem(id: UUID) {
+        pendingRelinkProjectItemID = id
+        isRelinkingProjectPhoto = true
+    }
+
     package func handleImportResult(_ result: Result<URL, Error>) {
         switch result {
         case .success(let url):
@@ -644,6 +652,22 @@ public final class EditorStore: ObservableObject {
         case .failure(let error):
             errorMessage = error.localizedDescription
         }
+    }
+
+    package func handleProjectRelinkResults(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first,
+                  let pendingRelinkProjectItemID
+            else {
+                return
+            }
+
+            relinkProjectItem(id: pendingRelinkProjectItemID, to: url)
+        case .failure(let error):
+            errorMessage = error.localizedDescription
+        }
+        pendingRelinkProjectItemID = nil
     }
 
     public func resetControls() {
@@ -1109,6 +1133,10 @@ public final class EditorStore: ObservableObject {
         writeProject(to: url)
     }
 
+    package func relinkProjectItemForTesting(id: UUID, to url: URL) {
+        relinkProjectItem(id: id, to: url)
+    }
+
     package func exportSelectedRecipeForTesting(to url: URL) {
         guard let selectedRecipe else {
             return
@@ -1207,6 +1235,33 @@ public final class EditorStore: ObservableObject {
             try projectStore.writeProject(project, to: url)
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func relinkProjectItem(id: UUID, to url: URL) {
+        guard let itemIndex = project.items.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let didStartAccessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        do {
+            _ = try imageProcessor.loadSourceImage(from: url, colorSettings: colorManagementSettings)
+            project.items[itemIndex].displayName = url.lastPathComponent
+            project.items[itemIndex].originalURLPath = url.path
+            project.items[itemIndex].originalBookmarkData = projectStore.bookmarkData(for: url)
+            project.items[itemIndex].updatedAt = Date()
+            project.updatedAt = Date()
+            projectItemNeedingRelinkID = nil
+            selectProjectItem(id: id)
+        } catch {
+            errorMessage = error.localizedDescription
+            projectItemNeedingRelinkID = id
         }
     }
 
@@ -1932,9 +1987,13 @@ public final class EditorStore: ObservableObject {
 
             editHistory = item.variants
             editHistoryIndex = editHistory.isEmpty ? nil : editHistory.count - 1
+            if projectItemNeedingRelinkID == item.id {
+                projectItemNeedingRelinkID = nil
+            }
 
             renderPreviewIfNeeded()
         } catch {
+            projectItemNeedingRelinkID = item.id
             errorMessage = error.localizedDescription
         }
     }

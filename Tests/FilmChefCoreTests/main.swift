@@ -1210,6 +1210,31 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         reopened.exportProjectPhotosForTesting(to: batchDirectory)
         let batchFiles = try FileManager.default.contentsOfDirectory(atPath: batchDirectory.path)
         try expect(batchFiles.count == 2)
+
+        let missingItemID = UUID()
+        let missingProject = FilmProject(
+            items: [
+                FilmProjectItem(
+                    id: missingItemID,
+                    displayName: "Missing Photo.png",
+                    originalURLPath: directory.appendingPathComponent("missing-photo.png").path,
+                    selectedRecipeID: reopened.selectedRecipeID,
+                    adjustments: RenderAdjustments.defaults
+                )
+            ],
+            selectedItemID: missingItemID
+        )
+        let missingProjectURL = directory.appendingPathComponent("Missing Project.filmchef")
+        try ProjectStore().writeProject(missingProject, to: missingProjectURL)
+
+        let relinkEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        relinkEditor.loadRecipesIfNeeded()
+        relinkEditor.openProjectForTesting(from: missingProjectURL)
+        try expect(relinkEditor.projectItemNeedingRelinkID == missingItemID)
+        relinkEditor.relinkProjectItemForTesting(id: missingItemID, to: sourceURL)
+        try expect(relinkEditor.projectItemNeedingRelinkID == nil)
+        try expect(relinkEditor.hasImportedImage)
+        try expect(relinkEditor.project.items.first?.originalURLPath == sourceURL.path)
     }
 
     let missingReference = FilmProjectItem(

@@ -12,21 +12,31 @@ struct SidebarView: View {
             Section("Project") {
                 LabeledContent("Photos", value: "\(editor.project.items.count)")
                 ForEach(editor.project.items) { item in
-                    Button(action: { editor.selectProjectItem(id: item.id) }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: item.id == editor.project.selectedItemID ? "photo.fill" : "photo")
-                                .foregroundStyle(.secondary)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.displayName)
-                                    .lineLimit(1)
-                                Text(item.selectedRecipeID ?? "No recipe")
-                                    .font(.caption2)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Button(action: { editor.selectProjectItem(id: item.id) }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: item.id == editor.project.selectedItemID ? "photo.fill" : "photo")
                                     .foregroundStyle(.secondary)
-                                    .lineLimit(1)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.displayName)
+                                        .lineLimit(1)
+                                    Text(item.selectedRecipeID ?? "No recipe")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
                             }
                         }
+                        .buttonStyle(.plain)
+
+                        if item.id == editor.projectItemNeedingRelinkID {
+                            Button(action: { editor.beginRelinkProjectItem(id: item.id) }) {
+                                Label("Relink Photo", systemImage: "link.badge.plus")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .controlSize(.small)
+                        }
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
