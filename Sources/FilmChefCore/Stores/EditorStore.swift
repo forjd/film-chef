@@ -369,8 +369,78 @@ public final class EditorStore: ObservableObject {
         sourceImage != nil && selectedRecipe != nil
     }
 
+    public var canExportCurrentSettings: Bool {
+        canExport && exportNamingTemplateIssues.isEmpty
+    }
+
     public var canBatchExport: Bool {
-        !project.items.isEmpty && !recipes.isEmpty && !batchExportState.isExporting
+        !project.items.isEmpty && !recipes.isEmpty && !batchExportState.isExporting && exportNamingTemplateIssues.isEmpty
+    }
+
+    package var canSaveExportPreset: Bool {
+        exportNamingTemplateIssues.isEmpty
+    }
+
+    package var exportNamingTemplateIssues: [String] {
+        Self.exportNamingTemplateIssues(for: exportSettings.namingTemplate)
+    }
+
+    package var exportFileNamePreview: String {
+        let item = FilmProjectItem(
+            displayName: importedImageName ?? "Sample Photo.png",
+            originalURLPath: nil,
+            selectedRecipeID: selectedRecipeID,
+            adjustments: currentAdjustments
+        )
+        let recipe = selectedRecipe ?? recipes.first
+        guard let recipe else {
+            return "sample-photo-edited.\(exportSettings.fileFormat.preferredPathExtension)"
+        }
+        return Self.uniqueExportURL(
+            in: URL(fileURLWithPath: "/tmp"),
+            item: item,
+            recipe: recipe,
+            settings: exportSettings
+        ).lastPathComponent
+    }
+
+    package static func exportNamingTemplateIssues(for template: String) -> [String] {
+        let trimmed = template.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return ["Naming template must not be empty."]
+        }
+
+        var issues: [String] = []
+        let allowedTokens = Set(["photo", "recipe", "format"])
+        let scanner = Array(trimmed)
+        var index = scanner.startIndex
+
+        while index < scanner.endIndex {
+            let character = scanner[index]
+            if character == "}" {
+                issues.append("Naming template has a closing brace without an opening brace.")
+                index = scanner.index(after: index)
+                continue
+            }
+            guard character == "{" else {
+                index = scanner.index(after: index)
+                continue
+            }
+
+            guard let closeIndex = scanner[index...].firstIndex(of: "}") else {
+                issues.append("Naming template has an opening brace without a closing brace.")
+                break
+            }
+
+            let tokenStart = scanner.index(after: index)
+            let token = String(scanner[tokenStart..<closeIndex])
+            if !allowedTokens.contains(token) {
+                issues.append("Unsupported naming token {\(token)}. Use {photo}, {recipe}, or {format}.")
+            }
+            index = scanner.index(after: closeIndex)
+        }
+
+        return Array(Set(issues)).sorted()
     }
 
     package var canUndoEdit: Bool {
@@ -708,6 +778,10 @@ public final class EditorStore: ObservableObject {
     }
 
     public func saveExportPreset() {
+        guard canSaveExportPreset else {
+            return
+        }
+
         let trimmedName = exportPresetDraftName.trimmingCharacters(in: .whitespacesAndNewlines)
         let name = trimmedName.isEmpty ? "Custom Preset" : trimmedName
 
@@ -896,7 +970,7 @@ public final class EditorStore: ObservableObject {
     }
 
     public func exportEditedPhoto() {
-        guard canExport else {
+        guard canExportCurrentSettings else {
             return
         }
 

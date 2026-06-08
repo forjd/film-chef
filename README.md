@@ -11,7 +11,7 @@ The project is early, useful, and intentionally open-ended: the renderer is prof
 - Non-destructive local adjustment layers with radial, linear, brush, and path masks, including direct preview editing
 - Original, edited, split, and side-by-side preview modes with bounded pan, loupe placement, zoom, and draggable comparison
 - RGB, luminance, and RGB parade scopes with clipping readouts and pixel sampling
-- ImageIO export to JPEG, PNG, or TIFF with quality, scale, metadata, ICC profile, and naming options
+- ImageIO export to JPEG, PNG, or TIFF with quality, scale, metadata, ICC profile, and validated naming templates
 - Background batch export for every photo in the current project with progress and cancellation
 - Cancelable async preview rendering in-app, plus synchronous rendering for tests
 - JSON-backed recipes that are easy to inspect, edit, and share
@@ -142,6 +142,16 @@ Supported `stock.family` values:
 - `specialty`
 
 The renderer currently translates descriptive recipe values into Core Image stages. The schema is designed to grow toward calibrated data such as spectral curves, measured density curves, grain spectra, and 3D LUTs without changing the high-level pipeline.
+
+## Export Naming
+
+Export presets use a filename template with these supported tokens:
+
+- `{photo}`: source photo name without extension
+- `{recipe}`: selected recipe display name
+- `{format}`: export format label
+
+Templates with unknown or unmatched brace tokens are rejected before export or preset save.
 
 ## Roadmap
 

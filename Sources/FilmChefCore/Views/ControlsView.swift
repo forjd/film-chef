@@ -353,6 +353,7 @@ struct ControlsView: View {
                             Label("Save Preset", systemImage: "tray.and.arrow.down")
                                 .frame(maxWidth: .infinity)
                         }
+                        .disabled(!editor.canSaveExportPreset)
 
                         Button(action: editor.deleteSelectedExportPreset) {
                             Label("Delete", systemImage: "trash")
@@ -388,6 +389,12 @@ struct ControlsView: View {
                     Toggle("Embed Color Profile", isOn: $editor.exportSettings.embedColorProfile)
                     TextField("Naming", text: $editor.exportSettings.namingTemplate)
                         .textFieldStyle(.roundedBorder)
+                    InfoRow("Preview Name", value: editor.exportFileNamePreview)
+                    ForEach(editor.exportNamingTemplateIssues, id: \.self) { issue in
+                        Label(issue, systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
 
                     HStack(spacing: 8) {
                         Button(action: editor.resetControls) {
@@ -399,7 +406,7 @@ struct ControlsView: View {
                             Label("Export", systemImage: "square.and.arrow.down")
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(!editor.canExport)
+                        .disabled(!editor.canExportCurrentSettings)
                         .frame(maxWidth: .infinity)
                     }
                 }

@@ -41,7 +41,7 @@ public struct ContentView: View {
                 Button(action: editor.exportEditedPhoto) {
                     Label("Export", systemImage: "square.and.arrow.down")
                 }
-                .disabled(!editor.canExport)
+                .disabled(!editor.canExportCurrentSettings)
 
                 Button(action: editor.exportProjectPhotos) {
                     Label("Batch Export", systemImage: "square.and.arrow.up.on.square")

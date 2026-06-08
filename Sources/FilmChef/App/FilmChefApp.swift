@@ -54,7 +54,7 @@ struct FilmChefCommands: Commands {
                 editor.exportEditedPhoto()
             }
             .keyboardShortcut("e", modifiers: [.command])
-            .disabled(!editor.canExport)
+            .disabled(!editor.canExportCurrentSettings)
 
             Button("Export Project Photos...") {
                 editor.exportProjectPhotos()

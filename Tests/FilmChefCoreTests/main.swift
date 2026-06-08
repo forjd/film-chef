@@ -860,6 +860,14 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     try expect(suggestedName.hasSuffix(".jpg"))
 
     try expect(editor.exportPresets.count >= 3)
+    try expect(editor.exportNamingTemplateIssues.isEmpty)
+    try expect(editor.exportFileNamePreview.hasSuffix(".jpg"))
+    editor.exportSettings.namingTemplate = "{photo}-{bad}"
+    try expect(editor.exportNamingTemplateIssues.contains("Unsupported naming token {bad}. Use {photo}, {recipe}, or {format}."))
+    try expect(!editor.canSaveExportPreset)
+    editor.exportSettings.namingTemplate = "{photo-{recipe}"
+    try expect(editor.exportNamingTemplateIssues.contains("Unsupported naming token {photo-{recipe}. Use {photo}, {recipe}, or {format}."))
+    editor.exportSettings.namingTemplate = "{photo}-{recipe}"
     editor.exportPresetDraftName = "Small Review"
     editor.exportSettings = ExportSettings(fileFormat: .png, jpegQuality: 1.0, scale: 0.5, preserveMetadata: false, embedColorProfile: true, namingTemplate: "{photo}-small")
     editor.saveExportPreset()
