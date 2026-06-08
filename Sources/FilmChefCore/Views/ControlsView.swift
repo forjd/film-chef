@@ -36,6 +36,18 @@ struct ControlsView: View {
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
+
+                        if editor.selectedRecipeValidationIssues.isEmpty {
+                            Label("Recipe schema valid", systemImage: "checkmark.seal")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        } else {
+                            ForEach(editor.selectedRecipeValidationIssues, id: \.self) { issue in
+                                Label(issue.message, systemImage: "exclamationmark.triangle")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
                     }
 
                     InspectorSection("Pipeline") {
@@ -117,11 +129,42 @@ struct ControlsView: View {
                     SliderControl(
                         title: "Zoom",
                         value: $editor.previewZoom,
-                        range: 0.5...2.0,
+                        range: 0.5...4.0,
                         step: 0.25,
                         valueText: "\(Int(editor.previewZoom * 100))%"
                     )
                     .disabled(!editor.hasImportedImage)
+
+                    Toggle("Loupe", isOn: $editor.loupeEnabled)
+                        .disabled(!editor.hasImportedImage)
+
+                    SliderControl(
+                        title: "Loupe Zoom",
+                        value: $editor.loupeZoom,
+                        range: 1.5...5.0,
+                        step: 0.25,
+                        valueText: "\(String(format: "%.1f", editor.loupeZoom))x"
+                    )
+                    .disabled(!editor.hasImportedImage || !editor.loupeEnabled)
+
+                    HStack(spacing: 8) {
+                        Button(action: { editor.panPreview(deltaX: -32, deltaY: 0) }) {
+                            Label("Left", systemImage: "arrow.left")
+                                .frame(maxWidth: .infinity)
+                        }
+
+                        Button(action: { editor.panPreview(deltaX: 32, deltaY: 0) }) {
+                            Label("Right", systemImage: "arrow.right")
+                                .frame(maxWidth: .infinity)
+                        }
+
+                        Button(action: editor.resetPreviewView) {
+                            Label("Center", systemImage: "scope")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .disabled(!editor.canResetPreviewView)
+                    }
+                    .disabled(!editor.hasImportedImage || editor.previewZoom <= 1.0)
 
                     SliderControl(
                         title: "Split",
@@ -173,6 +216,32 @@ struct ControlsView: View {
                 .disabled(!editor.hasImportedImage)
 
                 InspectorSection("Output") {
+                    Picker("Preset", selection: $editor.selectedExportPresetID) {
+                        Text("Current Settings").tag(Optional<UUID>.none)
+                        ForEach(editor.exportPresets) { preset in
+                            Text(preset.name).tag(Optional(preset.id))
+                        }
+                    }
+                    .onChange(of: editor.selectedExportPresetID) {
+                        editor.applySelectedExportPreset()
+                    }
+
+                    TextField("Preset Name", text: $editor.exportPresetDraftName)
+                        .textFieldStyle(.roundedBorder)
+
+                    HStack(spacing: 8) {
+                        Button(action: editor.saveExportPreset) {
+                            Label("Save Preset", systemImage: "tray.and.arrow.down")
+                                .frame(maxWidth: .infinity)
+                        }
+
+                        Button(action: editor.deleteSelectedExportPreset) {
+                            Label("Delete", systemImage: "trash")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .disabled(editor.selectedExportPresetID == nil || editor.exportPresets.count <= 1)
+                    }
+
                     Picker("Format", selection: $editor.exportSettings.fileFormat) {
                         ForEach(ExportFileFormat.allCases) { format in
                             Text(format.label).tag(format)
@@ -364,7 +433,12 @@ struct ControlsView: View {
                     }
 
                     if editor.isRenderingPreview {
-                        Label("Rendering preview", systemImage: "hourglass")
+                        Label(editor.previewRenderStatus, systemImage: "hourglass")
+                            .foregroundStyle(.secondary)
+                        ProgressView(value: editor.previewRenderProgress)
+                    } else if editor.previewCacheHitCount > 0 {
+                        Label("Preview cache hits \(editor.previewCacheHitCount)", systemImage: "bolt")
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
 
