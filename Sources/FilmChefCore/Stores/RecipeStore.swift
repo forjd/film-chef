@@ -37,6 +37,8 @@ public final class RecipeStore {
             return try decoder.decode(FilmRecipe.self, from: data)
         }
 
+        try FilmRecipeValidator.validateCollection(recipes)
+
         return recipes.sorted {
             $0.name.localizedStandardCompare($1.name) == .orderedAscending
         }
@@ -46,7 +48,9 @@ public final class RecipeStore {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let data = try Data(contentsOf: url)
-        return try decoder.decode(FilmRecipe.self, from: data)
+        let recipe = try decoder.decode(FilmRecipe.self, from: data)
+        try FilmRecipeValidator.validate(recipe)
+        return recipe
     }
 
     package func writeRecipe(_ recipe: FilmRecipe, to url: URL) throws {
