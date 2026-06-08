@@ -622,8 +622,39 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
 
     let recipe = try require(editor.recipes.first)
     try expect(editor.selectedRecipe?.id == recipe.id)
+    try expect(!editor.selectedRecipeIsEditable)
+    try expect(editor.recipeDraft.displayName == recipe.displayName)
+    try expect(editor.recipeDraft.manufacturer == recipe.manufacturer)
+    try expect(editor.recipeDraft.summary == recipe.summary)
     try expect(!editor.hasImportedImage)
     try expect(!editor.canExport)
+
+    let bundledRecipeCount = editor.recipes.count
+    editor.recipeDraft.displayName = "Bundled Edit Attempt"
+    try expect(!editor.canApplyRecipeDraft)
+    editor.resetRecipeDraft()
+    try expect(editor.recipeDraft.displayName == recipe.displayName)
+
+    editor.duplicateSelectedRecipeForEditing()
+    let duplicatedRecipe = try require(editor.selectedRecipe)
+    try expect(editor.recipes.count == bundledRecipeCount + 1)
+    try expect(editor.selectedRecipeIsEditable)
+    try expect(duplicatedRecipe.id.hasPrefix("\(recipe.id)-custom"))
+    try expect(duplicatedRecipe.name.hasPrefix("\(recipe.name) Copy"))
+    try expect(editor.recipeImportStatus?.title == "Recipe imported")
+
+    editor.recipeDraft.displayName = "   "
+    try expect(!editor.recipeDraftIssues.isEmpty)
+    try expect(!editor.canApplyRecipeDraft)
+    editor.recipeDraft.displayName = "Custom Gold 200"
+    editor.recipeDraft.manufacturer = "Film Chef Lab"
+    editor.recipeDraft.summary = "A user-adjusted metadata copy for export."
+    try expect(editor.canApplyRecipeDraft)
+    editor.applyRecipeDraft()
+    try expect(editor.selectedRecipe?.name == "Custom Gold 200")
+    try expect(editor.selectedRecipe?.maker == "Film Chef Lab")
+    try expect(editor.selectedRecipe?.summary == "A user-adjusted metadata copy for export.")
+    try expect(editor.recipeDraft.displayName == "Custom Gold 200")
 
     editor.beginImport()
     try expect(editor.isImporting)
@@ -748,6 +779,8 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     try expect(FileManager.default.fileExists(atPath: recipeExportURL.path))
     editor.importRecipeForTesting(from: recipeExportURL)
     try expect(editor.selectedRecipe != nil)
+    try expect(editor.selectedRecipeIsEditable)
+    try expect(editor.recipeImportStatus?.title == "Recipe imported")
 
     let invalidRecipeURL = directory.appendingPathComponent("invalid-recipe.json")
     try writeRecipeJSON(from: recipe, to: invalidRecipeURL) { object in
@@ -758,6 +791,14 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     editor.importRecipeForTesting(from: invalidRecipeURL)
     try expect(editor.selectedRecipeID == selectedRecipeID)
     try expect(editor.errorMessage?.contains("output.bit_depth must be greater than 0.") == true)
+    if case .failed(let name, let issues) = editor.recipeImportStatus {
+        try expect(name == "invalid-recipe.json")
+        try expect(issues.map(\.message).contains("output.bit_depth must be greater than 0."))
+    } else {
+        try expect(false, "Expected invalid recipe import to record structured validation issues.")
+    }
+    editor.clearRecipeImportStatus()
+    try expect(editor.recipeImportStatus == nil)
 
     let fallbackEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
     try expect(fallbackEditor.suggestedExportFileNameForTesting() == "film-chef-photo-edited.jpg")

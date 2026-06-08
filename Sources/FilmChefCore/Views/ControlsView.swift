@@ -8,6 +8,26 @@ struct ControlsView: View {
             VStack(alignment: .leading, spacing: 18) {
                 if let recipe = editor.selectedRecipe {
                     InspectorSection("Recipe") {
+                        HStack(alignment: .center, spacing: 8) {
+                            Label(
+                                editor.selectedRecipeIsEditable ? "Editable" : "Bundled",
+                                systemImage: editor.selectedRecipeIsEditable ? "pencil.circle" : "lock"
+                            )
+                            .foregroundStyle(.secondary)
+
+                            Spacer()
+
+                            Button(action: editor.duplicateSelectedRecipeForEditing) {
+                                Label("Duplicate", systemImage: "doc.on.doc")
+                            }
+
+                            Button(action: editor.exportSelectedRecipe) {
+                                Label("Export", systemImage: "square.and.arrow.up")
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
                         InfoRow("Stock", value: recipe.stock.family.label)
                         InfoRow("ISO", value: "\(recipe.iso)")
                         InfoRow("Balance", value: displayName(for: recipe.stock.nativeBalance))
@@ -24,6 +44,62 @@ struct ControlsView: View {
                         InfoRow("Layer Model", value: displayName(for: recipe.layerModel.type))
                         InfoRow("Grain", value: recipe.grain.enabled ? displayName(for: recipe.grain.model) : "Off")
                         InfoRow("Halation", value: recipe.halation.enabled ? displayName(for: recipe.halation.model) : "Off")
+                    }
+
+                    InspectorSection("Recipe Editor") {
+                        TextField("Name", text: $editor.recipeDraft.displayName)
+                            .textFieldStyle(.roundedBorder)
+                            .disabled(!editor.selectedRecipeIsEditable)
+
+                        TextField("Maker", text: $editor.recipeDraft.manufacturer)
+                            .textFieldStyle(.roundedBorder)
+                            .disabled(!editor.selectedRecipeIsEditable)
+
+                        TextField("Summary", text: $editor.recipeDraft.summary, axis: .vertical)
+                            .lineLimit(3...6)
+                            .textFieldStyle(.roundedBorder)
+                            .disabled(!editor.selectedRecipeIsEditable)
+
+                        if !editor.selectedRecipeIsEditable {
+                            Label("Duplicate this bundled recipe to edit its metadata.", systemImage: "lock")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        ForEach(editor.recipeDraftIssues, id: \.self) { issue in
+                            Label(issue.message, systemImage: "exclamationmark.triangle")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+
+                        HStack(spacing: 8) {
+                            Button(action: editor.resetRecipeDraft) {
+                                Label("Reset", systemImage: "arrow.counterclockwise")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .disabled(!editor.selectedRecipeIsEditable)
+
+                            Button(action: editor.applyRecipeDraft) {
+                                Label("Apply", systemImage: "checkmark")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!editor.canApplyRecipeDraft)
+                        }
+                    }
+                }
+
+                if let recipeImportStatus = editor.recipeImportStatus {
+                    InspectorSection(recipeImportStatus.title) {
+                        Text(recipeImportStatus.message)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Button(action: editor.clearRecipeImportStatus) {
+                            Label("Dismiss", systemImage: "xmark")
+                                .frame(maxWidth: .infinity)
+                        }
                     }
                 }
 
