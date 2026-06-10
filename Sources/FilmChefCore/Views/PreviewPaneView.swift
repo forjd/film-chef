@@ -6,6 +6,9 @@ struct PreviewPaneView: View {
     @State private var isEditingLocalMaskDrag = false
     @State private var isDraggingSplitDivider = false
     @State private var liveSplitPosition = 0.5
+    @State private var isDraggingSampler = false
+    @State private var liveSamplerX = 0.5
+    @State private var liveSamplerY = 0.5
 
     var body: some View {
         VStack(spacing: 0) {
@@ -110,6 +113,9 @@ struct PreviewPaneView: View {
                             editor.endLocalMaskEditAtPreviewPoint()
                             isEditingLocalMaskDrag = false
                         }
+                        if isDraggingSampler {
+                            commitLiveSampleMarker()
+                        }
                         isDraggingSplitDivider = false
                         panDragStart = CGSize(width: editor.previewPanX, height: editor.previewPanY)
                     }
@@ -129,6 +135,21 @@ struct PreviewPaneView: View {
                         panDragStart = .zero
                     }
             )
+            .onAppear {
+                syncLiveSampleMarker()
+            }
+            .onChange(of: editor.samplerX) { _, _ in
+                guard !isDraggingSampler else {
+                    return
+                }
+                syncLiveSampleMarker()
+            }
+            .onChange(of: editor.samplerY) { _, _ in
+                guard !isDraggingSampler else {
+                    return
+                }
+                syncLiveSampleMarker()
+            }
         }
     }
 
@@ -232,8 +253,10 @@ struct PreviewPaneView: View {
 
     private func samplerOverlay(in size: CGSize) -> some View {
         let imageFrame = previewImageFrame(in: size)
-        let markerX = imageFrame.minX + (imageFrame.width * editor.samplerX)
-        let markerY = imageFrame.minY + (imageFrame.height * (1 - editor.samplerY))
+        let samplerX = currentSamplerX
+        let samplerY = currentSamplerY
+        let markerX = imageFrame.minX + (imageFrame.width * samplerX)
+        let markerY = imageFrame.minY + (imageFrame.height * (1 - samplerY))
 
         return ZStack(alignment: .topLeading) {
             Circle()
@@ -248,7 +271,7 @@ struct PreviewPaneView: View {
                     Text(sampleRGBText(sample))
                         .font(.caption2.monospacedDigit())
                         .fontWeight(.semibold)
-                    Text(String(format: "X %.2f  Y %.2f  L %.2f", sample.x, sample.y, sample.luminance))
+                    Text(String(format: "X %.2f  Y %.2f  L %.2f", samplerX, samplerY, sample.luminance))
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -361,8 +384,10 @@ struct PreviewPaneView: View {
         if editor.loupeEnabled,
            let image = editor.displayedPreviewImage ?? editor.editedPreviewImage {
             let imageFrame = previewImageFrame(in: size)
-            let markerX = imageFrame.minX + (imageFrame.width * editor.samplerX)
-            let markerY = imageFrame.minY + (imageFrame.height * (1 - editor.samplerY))
+            let samplerX = currentSamplerX
+            let samplerY = currentSamplerY
+            let markerX = imageFrame.minX + (imageFrame.width * samplerX)
+            let markerY = imageFrame.minY + (imageFrame.height * (1 - samplerY))
             let diameter: CGFloat = 154
             let resolvedLoupePosition = loupePosition(
                 placement: editor.loupePlacement,
@@ -378,8 +403,8 @@ struct PreviewPaneView: View {
                     .scaledToFill()
                     .scaleEffect(editor.loupeZoom)
                     .offset(
-                        x: (0.5 - editor.samplerX) * diameter * editor.loupeZoom,
-                        y: (editor.samplerY - 0.5) * diameter * editor.loupeZoom
+                        x: (0.5 - samplerX) * diameter * editor.loupeZoom,
+                        y: (samplerY - 0.5) * diameter * editor.loupeZoom
                     )
                     .frame(width: diameter, height: diameter)
                     .clipShape(Circle())
@@ -435,10 +460,38 @@ struct PreviewPaneView: View {
             return
         }
 
-        editor.schedulePreviewPixelSample(
+        updateLiveSampleMarker(
             x: Double((location.x - imageFrame.minX) / imageFrame.width),
             y: Double(1 - ((location.y - imageFrame.minY) / imageFrame.height))
         )
+    }
+
+    private var currentSamplerX: Double {
+        isDraggingSampler ? liveSamplerX : editor.samplerX
+    }
+
+    private var currentSamplerY: Double {
+        isDraggingSampler ? liveSamplerY : editor.samplerY
+    }
+
+    private func updateLiveSampleMarker(x: Double, y: Double) {
+        isDraggingSampler = true
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            liveSamplerX = clampedUnit(x)
+            liveSamplerY = clampedUnit(y)
+        }
+    }
+
+    private func commitLiveSampleMarker() {
+        editor.schedulePreviewPixelSample(x: liveSamplerX, y: liveSamplerY)
+        isDraggingSampler = false
+    }
+
+    private func syncLiveSampleMarker() {
+        liveSamplerX = editor.samplerX
+        liveSamplerY = editor.samplerY
     }
 
     private var currentSplitPosition: Double {
