@@ -280,11 +280,6 @@ package enum PreviewComparisonMode: String, CaseIterable, Codable, Equatable, Id
     case edited
     case original
     case split
-    case sideBySide
-
-    package static var allCases: [PreviewComparisonMode] {
-        [.edited, .original, .split]
-    }
 
     package var id: String { rawValue }
 
@@ -296,8 +291,6 @@ package enum PreviewComparisonMode: String, CaseIterable, Codable, Equatable, Id
             return "Original"
         case .split:
             return "Split"
-        case .sideBySide:
-            return "Side by Side"
         }
     }
 }

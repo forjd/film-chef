@@ -74,10 +74,6 @@ struct PreviewPaneView: View {
             if let original = editor.originalPreviewImage, let edited = editor.editedPreviewImage {
                 splitPreview(original: original, edited: edited)
             }
-        case .sideBySide:
-            if let original = editor.originalPreviewImage, let edited = editor.editedPreviewImage {
-                splitPreview(original: original, edited: edited)
-            }
         }
     }
 
@@ -589,13 +585,7 @@ struct PreviewPaneView: View {
         min(max(value, lower), upper)
     }
 
-    private var originalToggle: some View {
-        Toggle("Original", isOn: $editor.showOriginal)
-            .toggleStyle(.switch)
-                .disabled(!editor.hasImportedImage)
-    }
-
-    fileprivate var emptyState: some View {
+    private var emptyState: some View {
         VStack(spacing: 14) {
             Image(systemName: "photo")
                 .font(.system(size: 52, weight: .light))
@@ -619,13 +609,4 @@ struct PreviewPaneView: View {
         }
     }
 
-}
-
-package enum PreviewPaneViewCoverageProbe {
-    @MainActor
-    package static func touch(editor: EditorStore) {
-        let previewPaneView = PreviewPaneView(editor: editor)
-        _ = previewPaneView.body
-        _ = previewPaneView.emptyState
-    }
 }

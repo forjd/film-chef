@@ -360,6 +360,7 @@ public final class EditorStore: ObservableObject {
     private var previewRenderCache: [PreviewRenderCacheKey: PreviewRenderResult] = [:]
     private var previewRenderCacheAccessOrder: [PreviewRenderCacheKey] = []
     private let previewRenderCacheLimit = 8
+    private let previewRenderCacheByteLimit = 256 * 1024 * 1024
     private var suppressSettingsUpdates = false
     private var cancelBatchExportRequested = false
     private var batchExportTask: Task<Void, Never>?
@@ -517,7 +518,7 @@ public final class EditorStore: ObservableObject {
             return true
         case .split:
             return samplerX <= splitPosition
-        case .edited, .sideBySide:
+        case .edited:
             return false
         }
     }
@@ -553,12 +554,7 @@ public final class EditorStore: ObservableObject {
         guard let recipe else {
             return "sample-photo-edited.\(exportSettings.fileFormat.preferredPathExtension)"
         }
-        return Self.uniqueExportURL(
-            in: URL(fileURLWithPath: "/tmp"),
-            item: item,
-            recipe: recipe,
-            settings: exportSettings
-        ).lastPathComponent
+        return Self.exportFileName(item: item, recipe: recipe, settings: exportSettings)
     }
 
     package var canUndoEdit: Bool {
@@ -1296,7 +1292,7 @@ public final class EditorStore: ObservableObject {
         }
 
         do {
-            _ = try imageProcessor.loadSourceImage(from: url, colorSettings: colorManagementSettings)
+            try imageProcessor.validateReadableImage(at: url)
             let item = makeProjectItem(for: url)
             project.items.removeAll { $0.originalURLPath == url.path }
             project.items.append(item)
@@ -1327,6 +1323,7 @@ public final class EditorStore: ObservableObject {
             suppressSettingsUpdates = false
 
             if let selectedItem = loadedProject.items.first(where: { $0.id == loadedProject.selectedItemID }) ?? loadedProject.items.first {
+                project.selectedItemID = selectedItem.id
                 applyProjectItem(selectedItem)
             }
         } catch {
@@ -1365,7 +1362,7 @@ public final class EditorStore: ObservableObject {
         }
 
         do {
-            _ = try imageProcessor.loadSourceImage(from: url, colorSettings: colorManagementSettings)
+            try imageProcessor.validateReadableImage(at: url)
             project.items[itemIndex].displayName = url.lastPathComponent
             project.items[itemIndex].originalURLPath = url.path
             project.items[itemIndex].originalBookmarkData = projectStore.bookmarkData(for: url)
@@ -1607,34 +1604,28 @@ public final class EditorStore: ObservableObject {
 
                 for (index, item) in request.items.enumerated() {
                     if Task.isCancelled {
-                        let exportedNamesSnapshot = exportedNames
-                        let failuresSnapshot = failures
+                        let cancelledState = Self.batchFinishedState(
+                            request: request,
+                            completedCount: index,
+                            wasCancelled: true,
+                            exportedNames: exportedNames,
+                            failures: failures
+                        )
                         await MainActor.run {
-                            self.batchExportState = BatchExportState(
-                                isExporting: false,
-                                completedCount: index,
-                                totalCount: request.items.count,
-                                wasCancelled: true,
-                                exportedFileNames: exportedNamesSnapshot,
-                                failures: failuresSnapshot,
-                                outputDirectoryPath: request.directory.path
-                            )
+                            self.batchExportState = cancelledState
                         }
                         return
                     }
 
-                    let exportedNamesSnapshot = exportedNames
-                    let failuresSnapshot = failures
+                    let progressState = Self.batchProgressState(
+                        request: request,
+                        completedCount: index,
+                        currentItemName: item.displayName,
+                        exportedNames: exportedNames,
+                        failures: failures
+                    )
                     await MainActor.run {
-                        self.batchExportState = BatchExportState(
-                            isExporting: true,
-                            completedCount: index,
-                            totalCount: request.items.count,
-                            currentItemName: item.displayName,
-                            exportedFileNames: exportedNamesSnapshot,
-                            failures: failuresSnapshot,
-                            outputDirectoryPath: request.directory.path
-                        )
+                        self.batchExportState = progressState
                     }
 
                     do {
@@ -1649,32 +1640,22 @@ public final class EditorStore: ObservableObject {
                     }
                 }
 
-                let exportedNamesSnapshot = exportedNames
-                let failuresSnapshot = failures
+                let finishedState = Self.batchFinishedState(
+                    request: request,
+                    completedCount: request.items.count,
+                    exportedNames: exportedNames,
+                    failures: failures
+                )
                 await MainActor.run {
-                    self.batchExportState = BatchExportState(
-                        isExporting: false,
-                        completedCount: request.items.count,
-                        totalCount: request.items.count,
-                        exportedFileNames: exportedNamesSnapshot,
-                        failures: failuresSnapshot,
-                        outputDirectoryPath: request.directory.path
-                    )
-                    if !failuresSnapshot.isEmpty {
-                        self.errorMessage = "\(failuresSnapshot.count) batch export item\(failuresSnapshot.count == 1 ? "" : "s") failed."
+                    self.batchExportState = finishedState
+                    if !finishedState.failures.isEmpty {
+                        self.errorMessage = Self.batchFailureMessage(finishedState.failures)
                     }
                     self.batchExportTask = nil
                 }
             } catch {
                 await MainActor.run {
-                    self.batchExportState = BatchExportState(
-                        isExporting: false,
-                        completedCount: self.batchExportState.completedCount,
-                        totalCount: self.batchExportState.totalCount,
-                        exportedFileNames: self.batchExportState.exportedFileNames,
-                        failures: self.batchExportState.failures,
-                        outputDirectoryPath: self.batchExportState.outputDirectoryPath
-                    )
+                    self.batchExportState.isExporting = false
                     self.errorMessage = error.localizedDescription
                     self.batchExportTask = nil
                 }
@@ -1685,40 +1666,36 @@ public final class EditorStore: ObservableObject {
     private func writeProjectExports(to directory: URL) {
         updateCurrentProjectItem()
         cancelBatchExportRequested = false
+        let request = makeBatchExportRequest(directory: directory)
         batchExportState = BatchExportState(
             isExporting: true,
             completedCount: 0,
-            totalCount: project.items.count,
-            outputDirectoryPath: directory.path
+            totalCount: request.items.count,
+            outputDirectoryPath: request.directory.path
         )
 
         do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: request.directory, withIntermediateDirectories: true)
             var exportedNames: [String] = []
             var failures: [BatchExportFailure] = []
-            let request = makeBatchExportRequest(directory: directory)
             for (index, item) in request.items.enumerated() {
                 if cancelBatchExportRequested {
-                    batchExportState = BatchExportState(
-                        isExporting: false,
+                    batchExportState = Self.batchFinishedState(
+                        request: request,
                         completedCount: index,
-                        totalCount: request.items.count,
                         wasCancelled: true,
-                        exportedFileNames: exportedNames,
-                        failures: failures,
-                        outputDirectoryPath: request.directory.path
+                        exportedNames: exportedNames,
+                        failures: failures
                     )
                     return
                 }
 
-                batchExportState = BatchExportState(
-                    isExporting: true,
+                batchExportState = Self.batchProgressState(
+                    request: request,
                     completedCount: index,
-                    totalCount: request.items.count,
                     currentItemName: item.displayName,
-                    exportedFileNames: exportedNames,
-                    failures: failures,
-                    outputDirectoryPath: request.directory.path
+                    exportedNames: exportedNames,
+                    failures: failures
                 )
                 do {
                     let exportedURL = try writeProjectExport(for: item, request: request)
@@ -1727,28 +1704,59 @@ public final class EditorStore: ObservableObject {
                     failures.append(BatchExportFailure(itemName: item.displayName, message: error.localizedDescription))
                 }
             }
-            batchExportState = BatchExportState(
-                isExporting: false,
+            batchExportState = Self.batchFinishedState(
+                request: request,
                 completedCount: request.items.count,
-                totalCount: request.items.count,
-                exportedFileNames: exportedNames,
-                failures: failures,
-                outputDirectoryPath: request.directory.path
+                exportedNames: exportedNames,
+                failures: failures
             )
             if !failures.isEmpty {
-                errorMessage = "\(failures.count) batch export item\(failures.count == 1 ? "" : "s") failed."
+                errorMessage = Self.batchFailureMessage(failures)
             }
         } catch {
-            batchExportState = BatchExportState(
-                isExporting: false,
-                completedCount: batchExportState.completedCount,
-                totalCount: batchExportState.totalCount,
-                exportedFileNames: batchExportState.exportedFileNames,
-                failures: batchExportState.failures,
-                outputDirectoryPath: batchExportState.outputDirectoryPath
-            )
+            batchExportState.isExporting = false
             errorMessage = error.localizedDescription
         }
+    }
+
+    nonisolated private static func batchProgressState(
+        request: BatchExportRequest,
+        completedCount: Int,
+        currentItemName: String?,
+        exportedNames: [String],
+        failures: [BatchExportFailure]
+    ) -> BatchExportState {
+        BatchExportState(
+            isExporting: true,
+            completedCount: completedCount,
+            totalCount: request.items.count,
+            currentItemName: currentItemName,
+            exportedFileNames: exportedNames,
+            failures: failures,
+            outputDirectoryPath: request.directory.path
+        )
+    }
+
+    nonisolated private static func batchFinishedState(
+        request: BatchExportRequest,
+        completedCount: Int,
+        wasCancelled: Bool = false,
+        exportedNames: [String],
+        failures: [BatchExportFailure]
+    ) -> BatchExportState {
+        BatchExportState(
+            isExporting: false,
+            completedCount: completedCount,
+            totalCount: request.items.count,
+            wasCancelled: wasCancelled,
+            exportedFileNames: exportedNames,
+            failures: failures,
+            outputDirectoryPath: request.directory.path
+        )
+    }
+
+    nonisolated private static func batchFailureMessage(_ failures: [BatchExportFailure]) -> String {
+        "\(failures.count) batch export item\(failures.count == 1 ? "" : "s") failed."
     }
 
     private func makeBatchExportRequest(directory: URL) -> BatchExportRequest {
@@ -1855,59 +1863,45 @@ public final class EditorStore: ObservableObject {
         previewRenderStatus = "Preparing preview"
         previewRenderTask = Task { [imageProcessor] in
             try? await Task.sleep(nanoseconds: 120_000_000)
-            guard !Task.isCancelled else {
+            guard !Task.isCancelled, generation == self.previewRenderGeneration else {
                 return
             }
 
-            do {
-                await MainActor.run {
-                    guard generation == self.previewRenderGeneration else {
-                        return
-                    }
-                    self.previewRenderProgress = 0.45
-                    self.previewRenderStatus = "Rendering look"
-                }
-                let renderedSource = imageProcessor.renderedPreviewSource(
-                    from: sourceImage,
-                    recipe: selectedRecipe,
-                    adjustments: adjustments,
-                    localAdjustments: localAdjustments,
-                    calibration: calibration
-                )
-                await MainActor.run {
-                    guard generation == self.previewRenderGeneration else {
-                        return
-                    }
-                    self.previewRenderProgress = 0.75
-                    self.previewRenderStatus = "Building scopes"
-                }
-                let previewImage = try imageProcessor.makeNSImageForTesting(from: renderedSource)
-                let histogram = try imageProcessor.makeHistogramSummary(from: renderedSource)
+            self.previewRenderProgress = 0.45
+            self.previewRenderStatus = "Rendering look"
 
-                await MainActor.run {
-                    guard generation == self.previewRenderGeneration else {
-                        return
-                    }
-                    self.editedPreviewImage = previewImage
-                    self.histogramSummary = histogram
-                    self.storePreviewRenderResult(
-                        PreviewRenderResult(image: previewImage, histogram: histogram),
-                        for: cacheKey
+            do {
+                // Rasterizing the preview and histogram is expensive; keep it off the main actor.
+                let result = try await Task.detached(priority: .userInitiated) {
+                    let renderedSource = imageProcessor.renderedPreviewSource(
+                        from: sourceImage,
+                        recipe: selectedRecipe,
+                        adjustments: adjustments,
+                        localAdjustments: localAdjustments,
+                        calibration: calibration
                     )
-                    self.isRenderingPreview = false
-                    self.previewRenderProgress = 1.0
-                    self.previewRenderStatus = "Preview ready"
+                    let previewImage = try imageProcessor.makeNSImageForTesting(from: renderedSource)
+                    let histogram = try imageProcessor.makeHistogramSummary(from: renderedSource)
+                    return PreviewRenderResult(image: previewImage, histogram: histogram)
+                }.value
+
+                guard generation == self.previewRenderGeneration else {
+                    return
                 }
+                self.editedPreviewImage = result.image
+                self.histogramSummary = result.histogram
+                self.storePreviewRenderResult(result, for: cacheKey)
+                self.isRenderingPreview = false
+                self.previewRenderProgress = 1.0
+                self.previewRenderStatus = "Preview ready"
             } catch {
-                await MainActor.run {
-                    guard generation == self.previewRenderGeneration else {
-                        return
-                    }
-                    self.errorMessage = error.localizedDescription
-                    self.isRenderingPreview = false
-                    self.previewRenderProgress = 0
-                    self.previewRenderStatus = "Preview failed"
+                guard generation == self.previewRenderGeneration else {
+                    return
                 }
+                self.errorMessage = error.localizedDescription
+                self.isRenderingPreview = false
+                self.previewRenderProgress = 0
+                self.previewRenderStatus = "Preview failed"
             }
         }
     }
@@ -1974,13 +1968,23 @@ public final class EditorStore: ObservableObject {
 
     private func storePreviewRenderResult(_ result: PreviewRenderResult, for key: PreviewRenderCacheKey) {
         markPreviewCacheKeyUsed(key)
-        if previewRenderCache.count >= previewRenderCacheLimit,
-           !previewRenderCache.keys.contains(key),
-           let oldestKey = previewRenderCacheAccessOrder.first {
-            previewRenderCache.removeValue(forKey: oldestKey)
-            previewRenderCacheAccessOrder.removeAll { $0 == oldestKey }
-        }
         previewRenderCache[key] = result
+
+        var totalCost = previewRenderCache.values.reduce(0) { $0 + previewCacheCost($1) }
+        while previewRenderCache.count > 1,
+              previewRenderCache.count > previewRenderCacheLimit || totalCost > previewRenderCacheByteLimit,
+              let oldestKey = previewRenderCacheAccessOrder.first,
+              oldestKey != key {
+            if let removed = previewRenderCache.removeValue(forKey: oldestKey) {
+                totalCost -= previewCacheCost(removed)
+            }
+            previewRenderCacheAccessOrder.removeFirst()
+        }
+    }
+
+    private func previewCacheCost(_ result: PreviewRenderResult) -> Int {
+        let size = result.image.size
+        return max(1, Int(size.width) * Int(size.height) * 4)
     }
 
     private func markPreviewCacheKeyUsed(_ key: PreviewRenderCacheKey) {
@@ -2188,19 +2192,6 @@ public final class EditorStore: ObservableObject {
         }
 
         return candidate
-    }
-
-    private func uniqueExportURL(
-        in directory: URL,
-        item: FilmProjectItem,
-        recipe: FilmRecipe
-    ) -> URL {
-        Self.uniqueExportURL(
-            in: directory,
-            item: item,
-            recipe: recipe,
-            settings: exportSettings
-        )
     }
 
     private func clampedUnit(_ value: Double) -> Double {

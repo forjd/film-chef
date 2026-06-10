@@ -660,6 +660,9 @@ struct ControlsView: View {
                         HStack(spacing: 8) {
                             Button("Center Brush") {
                                 let index = selectedLocalAdjustmentIndex()
+                                guard editor.localAdjustments.indices.contains(index) else {
+                                    return
+                                }
                                 editor.localAdjustments[index].mask = .brush
                                 editor.localAdjustments[index].pathPoints = [
                                     NormalizedMaskPoint(
@@ -672,6 +675,9 @@ struct ControlsView: View {
 
                             Button("Shape Path") {
                                 let index = selectedLocalAdjustmentIndex()
+                                guard editor.localAdjustments.indices.contains(index) else {
+                                    return
+                                }
                                 editor.localAdjustments[index].mask = .path
                                 editor.localAdjustments[index].pathPoints = LocalAdjustmentLayer.defaultPathPoints
                             }
@@ -688,7 +694,7 @@ struct ControlsView: View {
                             value: localLayerBinding(\.centerX),
                             range: 0...1,
                             step: 0.01,
-                            valueText: "\(Int(editor.localAdjustments[selectedLocalAdjustmentIndex()].centerX * 100))%"
+                            valueText: "\(Int(selectedLocalLayer.centerX * 100))%"
                         )
 
                         SliderControl(
@@ -696,7 +702,7 @@ struct ControlsView: View {
                             value: localLayerBinding(\.centerY),
                             range: 0...1,
                             step: 0.01,
-                            valueText: "\(Int(editor.localAdjustments[selectedLocalAdjustmentIndex()].centerY * 100))%"
+                            valueText: "\(Int(selectedLocalLayer.centerY * 100))%"
                         )
 
                         SliderControl(
@@ -704,19 +710,19 @@ struct ControlsView: View {
                             value: localLayerBinding(\.radius),
                             range: 0.05...1,
                             step: 0.01,
-                            valueText: "\(Int(editor.localAdjustments[selectedLocalAdjustmentIndex()].radius * 100))%"
+                            valueText: "\(Int(selectedLocalLayer.radius * 100))%"
                         )
 
-                        if editor.localAdjustments[selectedLocalAdjustmentIndex()].mask == .brush || editor.localAdjustments[selectedLocalAdjustmentIndex()].mask == .path {
+                        if selectedLocalLayer.mask == .brush || selectedLocalLayer.mask == .path {
                             SliderControl(
                                 title: "Brush Size",
                                 value: localLayerBinding(\.brushSize),
                                 range: 0.02...0.5,
                                 step: 0.01,
-                                valueText: "\(Int(editor.localAdjustments[selectedLocalAdjustmentIndex()].brushSize * 100))%"
+                                valueText: "\(Int(selectedLocalLayer.brushSize * 100))%"
                             )
 
-                            InfoRow("Path Points", value: "\(editor.localAdjustments[selectedLocalAdjustmentIndex()].pathPoints.count)")
+                            InfoRow("Path Points", value: "\(selectedLocalLayer.pathPoints.count)")
                         }
 
                         SliderControl(
@@ -724,7 +730,7 @@ struct ControlsView: View {
                             value: localLayerBinding(\.exposureEV),
                             range: -1...1,
                             step: 0.05,
-                            valueText: signedValue(editor.localAdjustments[selectedLocalAdjustmentIndex()].exposureEV)
+                            valueText: signedValue(selectedLocalLayer.exposureEV)
                         )
 
                         SliderControl(
@@ -732,7 +738,7 @@ struct ControlsView: View {
                             value: localLayerBinding(\.contrast),
                             range: -0.5...0.5,
                             step: 0.01,
-                            valueText: signedValue(editor.localAdjustments[selectedLocalAdjustmentIndex()].contrast)
+                            valueText: signedValue(selectedLocalLayer.contrast)
                         )
 
                         SliderControl(
@@ -740,7 +746,7 @@ struct ControlsView: View {
                             value: localLayerBinding(\.saturation),
                             range: -0.75...0.75,
                             step: 0.01,
-                            valueText: signedValue(editor.localAdjustments[selectedLocalAdjustmentIndex()].saturation)
+                            valueText: signedValue(selectedLocalLayer.saturation)
                         )
                     }
                 }
@@ -848,6 +854,12 @@ struct ControlsView: View {
                     InfoRow("Output Profile", value: editor.selectedOutputProfile.label)
                     InfoRow("Calibration", value: editor.calibrationDataStatus.note)
                     if !editor.calibrationDataStatus.importedAssetNames.isEmpty {
+                        Label(
+                            "Values below are preview placeholders derived from imported assets, not measured calibration.",
+                            systemImage: "info.circle"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                         InfoRow("Assets", value: "\(editor.calibrationDataStatus.importedAssetNames.count)")
                         ForEach(editor.calibrationDataStatus.importedAssetSummaries, id: \.self) { summary in
                             Label(summary, systemImage: "checkmark.seal")
@@ -949,19 +961,28 @@ struct ControlsView: View {
             return "Orig"
         case .split:
             return "Split"
-        case .sideBySide:
-            return "Side"
         }
+    }
+
+    private static let fallbackLocalLayer = LocalAdjustmentLayer(name: "")
+
+    fileprivate var selectedLocalLayer: LocalAdjustmentLayer {
+        let index = selectedLocalAdjustmentIndex()
+        guard editor.localAdjustments.indices.contains(index) else {
+            return Self.fallbackLocalLayer
+        }
+        return editor.localAdjustments[index]
     }
 
     fileprivate func localLayerBinding<Value>(_ keyPath: WritableKeyPath<LocalAdjustmentLayer, Value>) -> Binding<Value> {
         Binding(
-            get: { editor.localAdjustments[selectedLocalAdjustmentIndex()][keyPath: keyPath] },
+            get: { selectedLocalLayer[keyPath: keyPath] },
             set: { value in
-                guard !editor.localAdjustments.isEmpty else {
+                let index = selectedLocalAdjustmentIndex()
+                guard editor.localAdjustments.indices.contains(index) else {
                     return
                 }
-                editor.localAdjustments[selectedLocalAdjustmentIndex()][keyPath: keyPath] = value
+                editor.localAdjustments[index][keyPath: keyPath] = value
             }
         )
     }
@@ -1013,24 +1034,4 @@ struct ControlsView: View {
         return index
     }
 
-}
-
-package enum ControlsViewCoverageProbe {
-    @MainActor
-    package static func touch(editor: EditorStore) {
-        let controlsView = ControlsView(editor: editor)
-        _ = controlsView.body
-        _ = controlsView.signedValue(0.2)
-        _ = controlsView.signedValue(-0.2)
-        _ = controlsView.displayName(for: "test_value")
-
-        var value = 0.5
-        _ = SliderControl(
-            title: "Test",
-            value: Binding(get: { value }, set: { value = $0 }),
-            range: 0...1,
-            step: 0.1,
-            valueText: "50%"
-        ).body
-    }
 }

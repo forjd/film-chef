@@ -101,7 +101,7 @@ struct SidebarView: View {
         }
     }
 
-    fileprivate func recipeRow(for recipe: FilmRecipe) -> some View {
+    private func recipeRow(for recipe: FilmRecipe) -> some View {
         RecipeRow(recipe: recipe)
             .tag(recipe.id as String?)
     }
@@ -128,15 +128,5 @@ private struct RecipeRow: View {
             }
         }
         .padding(.vertical, 4)
-    }
-}
-
-package enum SidebarViewCoverageProbe {
-    @MainActor
-    package static func touch(editor: EditorStore, recipe: FilmRecipe) {
-        let sidebarView = SidebarView(editor: editor)
-        _ = sidebarView.body
-        _ = sidebarView.recipeRow(for: recipe)
-        _ = RecipeRow(recipe: recipe).body
     }
 }
