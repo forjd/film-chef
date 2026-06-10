@@ -1057,6 +1057,9 @@ func testEditorRecipeDraftEditingFlow() throws {
         editor.recipeDraft.processPushPullStops = -0.5
         editor.recipeDraft.grainEnabled = !recipe.grain.enabled
         editor.recipeDraft.halationEnabled = !recipe.halation.enabled
+        editor.recipeDraft.layerRGBToLayerMatrix[0][0] = 0.77
+        let firstCurveChannel = try require(editor.recipeDraft.characteristicCurveGammas.keys.sorted().first)
+        editor.recipeDraft.characteristicCurveGammas[firstCurveChannel] = 1.42
         try expect(editor.canApplyRecipeDraft)
 
         editor.applyRecipeDraft()
@@ -1065,6 +1068,12 @@ func testEditorRecipeDraftEditingFlow() throws {
         try expect(editor.selectedRecipe?.process.pushPullStops == -0.5)
         try expect(editor.selectedRecipe?.grain.enabled == !recipe.grain.enabled)
         try expect(editor.selectedRecipe?.halation.enabled == !recipe.halation.enabled)
+        try expect(editor.selectedRecipe?.layerModel.rgbToLayerMatrix[0][0] == 0.77)
+        try expect(editor.selectedRecipe?.characteristicCurves.channels[firstCurveChannel]?.gamma == 1.42)
+
+        editor.recipeDraft.layerRGBToLayerMatrix[0][0] = 5.0
+        try expect(!editor.recipeDraftIssues.isEmpty)
+        try expect(!editor.canApplyRecipeDraft)
     }
 }
 

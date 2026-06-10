@@ -248,6 +248,44 @@ struct ControlsView: View {
                         )
                         .disabled(!editor.selectedRecipeIsEditable)
 
+                        if !editor.recipeDraft.layerRGBToLayerMatrix.isEmpty {
+                            Text("Layer Matrix")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.secondary)
+
+                            ForEach(editor.recipeDraft.layerRGBToLayerMatrix.indices, id: \.self) { rowIndex in
+                                ForEach(editor.recipeDraft.layerRGBToLayerMatrix[rowIndex].indices, id: \.self) { columnIndex in
+                                    SliderControl(
+                                        title: "M\(rowIndex + 1).\(columnIndex + 1)",
+                                        value: recipeMatrixBinding(row: rowIndex, column: columnIndex),
+                                        range: -2...2,
+                                        step: 0.01,
+                                        valueText: String(format: "%.2f", editor.recipeDraft.layerRGBToLayerMatrix[rowIndex][columnIndex])
+                                    )
+                                    .disabled(!editor.selectedRecipeIsEditable)
+                                }
+                            }
+                        }
+
+                        if !editor.recipeDraft.characteristicCurveGammas.isEmpty {
+                            Text("Curve Gamma")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.secondary)
+
+                            ForEach(editor.recipeDraft.characteristicCurveGammas.keys.sorted(), id: \.self) { channel in
+                                SliderControl(
+                                    title: displayName(for: channel),
+                                    value: recipeCurveGammaBinding(channel: channel),
+                                    range: 0.1...5,
+                                    step: 0.01,
+                                    valueText: String(format: "%.2f", editor.recipeDraft.characteristicCurveGammas[channel] ?? 1)
+                                )
+                                .disabled(!editor.selectedRecipeIsEditable)
+                            }
+                        }
+
                         if !editor.selectedRecipeIsEditable {
                             Label("Duplicate this bundled recipe to edit its metadata.", systemImage: "lock")
                                 .font(.caption)
@@ -882,6 +920,34 @@ struct ControlsView: View {
                 }
                 editor.localAdjustments[selectedLocalAdjustmentIndex()][keyPath: keyPath] = value
             }
+        )
+    }
+
+    fileprivate func recipeMatrixBinding(row: Int, column: Int) -> Binding<Double> {
+        Binding(
+            get: {
+                guard editor.recipeDraft.layerRGBToLayerMatrix.indices.contains(row),
+                      editor.recipeDraft.layerRGBToLayerMatrix[row].indices.contains(column)
+                else {
+                    return 0
+                }
+                return editor.recipeDraft.layerRGBToLayerMatrix[row][column]
+            },
+            set: { value in
+                guard editor.recipeDraft.layerRGBToLayerMatrix.indices.contains(row),
+                      editor.recipeDraft.layerRGBToLayerMatrix[row].indices.contains(column)
+                else {
+                    return
+                }
+                editor.recipeDraft.layerRGBToLayerMatrix[row][column] = value
+            }
+        )
+    }
+
+    fileprivate func recipeCurveGammaBinding(channel: String) -> Binding<Double> {
+        Binding(
+            get: { editor.recipeDraft.characteristicCurveGammas[channel] ?? 1 },
+            set: { editor.recipeDraft.characteristicCurveGammas[channel] = $0 }
         )
     }
 

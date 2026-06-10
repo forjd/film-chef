@@ -57,6 +57,8 @@ public final class EditorStore: ObservableObject {
         package var rendererSaturation: Double
         package var outputColourSpace: String
         package var outputBitDepth: Double
+        package var layerRGBToLayerMatrix: [[Double]]
+        package var characteristicCurveGammas: [String: Double]
 
         package init(
             displayName: String = "",
@@ -84,7 +86,9 @@ public final class EditorStore: ObservableObject {
             rendererContrast: Double = 1,
             rendererSaturation: Double = 1,
             outputColourSpace: String = "srgb",
-            outputBitDepth: Double = 8
+            outputBitDepth: Double = 8,
+            layerRGBToLayerMatrix: [[Double]] = [],
+            characteristicCurveGammas: [String: Double] = [:]
         ) {
             self.displayName = displayName
             self.manufacturer = manufacturer
@@ -112,6 +116,8 @@ public final class EditorStore: ObservableObject {
             self.rendererSaturation = rendererSaturation
             self.outputColourSpace = outputColourSpace
             self.outputBitDepth = outputBitDepth
+            self.layerRGBToLayerMatrix = layerRGBToLayerMatrix
+            self.characteristicCurveGammas = characteristicCurveGammas
         }
 
         package init(recipe: FilmRecipe) {
@@ -141,6 +147,8 @@ public final class EditorStore: ObservableObject {
             rendererSaturation = recipe.renderer.saturation
             outputColourSpace = recipe.output.colourSpace
             outputBitDepth = Double(recipe.output.bitDepth)
+            layerRGBToLayerMatrix = recipe.layerModel.rgbToLayerMatrix
+            characteristicCurveGammas = recipe.characteristicCurves.channels.mapValues(\.gamma)
         }
 
         package func hasChanges(comparedTo recipe: FilmRecipe) -> Bool {
@@ -169,7 +177,9 @@ public final class EditorStore: ObservableObject {
                 abs(rendererContrast - recipe.renderer.contrast) > 0.001 ||
                 abs(rendererSaturation - recipe.renderer.saturation) > 0.001 ||
                 trimmedOutputColourSpace() != recipe.output.colourSpace ||
-                Int(outputBitDepth.rounded()) != recipe.output.bitDepth
+                Int(outputBitDepth.rounded()) != recipe.output.bitDepth ||
+                layerRGBToLayerMatrix != recipe.layerModel.rgbToLayerMatrix ||
+                characteristicCurveGammas != recipe.characteristicCurves.channels.mapValues(\.gamma)
         }
 
         fileprivate func trimmedDisplayName() -> String {
@@ -397,7 +407,9 @@ public final class EditorStore: ObservableObject {
             rendererContrast: recipeDraft.rendererContrast,
             rendererSaturation: recipeDraft.rendererSaturation,
             outputColourSpace: recipeDraft.trimmedOutputColourSpace(),
-            outputBitDepth: Int(recipeDraft.outputBitDepth.rounded())
+            outputBitDepth: Int(recipeDraft.outputBitDepth.rounded()),
+            layerRGBToLayerMatrix: recipeDraft.layerRGBToLayerMatrix,
+            characteristicCurveGammas: recipeDraft.characteristicCurveGammas
         )
         return FilmRecipeValidator.issues(for: draftRecipe)
     }
@@ -887,7 +899,9 @@ public final class EditorStore: ObservableObject {
             rendererContrast: recipeDraft.rendererContrast,
             rendererSaturation: recipeDraft.rendererSaturation,
             outputColourSpace: recipeDraft.trimmedOutputColourSpace(),
-            outputBitDepth: Int(recipeDraft.outputBitDepth.rounded())
+            outputBitDepth: Int(recipeDraft.outputBitDepth.rounded()),
+            layerRGBToLayerMatrix: recipeDraft.layerRGBToLayerMatrix,
+            characteristicCurveGammas: recipeDraft.characteristicCurveGammas
         )
 
         let issues = FilmRecipeValidator.issues(for: updatedRecipe)

@@ -34,7 +34,7 @@ package struct FilmRecipe: Codable, Hashable, Identifiable {
         manufacturer newManufacturer: String? = nil,
         summary newSummary: String? = nil
     ) -> FilmRecipe {
-        FilmRecipe(
+        return FilmRecipe(
             schemaVersion: schemaVersion,
             profileId: newProfileId ?? profileId,
             displayName: newDisplayName ?? displayName,
@@ -81,9 +81,21 @@ package struct FilmRecipe: Codable, Hashable, Identifiable {
         rendererContrast: Double? = nil,
         rendererSaturation: Double? = nil,
         outputColourSpace: String? = nil,
-        outputBitDepth: Int? = nil
+        outputBitDepth: Int? = nil,
+        layerRGBToLayerMatrix: [[Double]]? = nil,
+        characteristicCurveGammas: [String: Double]? = nil
     ) -> FilmRecipe {
-        FilmRecipe(
+        let updatedLayerModel = FilmLayerModel(
+            type: layerModel.type,
+            layers: layerModel.layers,
+            rgbToLayerMatrix: layerRGBToLayerMatrix ?? layerModel.rgbToLayerMatrix
+        )
+        let updatedCharacteristicCurves = FilmCharacteristicCurves(
+            curveSpace: characteristicCurves.curveSpace,
+            channels: replacingCurveGammas(characteristicCurveGammas)
+        )
+
+        return FilmRecipe(
             schemaVersion: schemaVersion,
             profileId: profileId,
             displayName: displayName,
@@ -120,8 +132,8 @@ package struct FilmRecipe: Codable, Hashable, Identifiable {
                 ),
                 daylightMode: captureConditions.daylightMode
             ),
-            layerModel: layerModel,
-            characteristicCurves: characteristicCurves,
+            layerModel: updatedLayerModel,
+            characteristicCurves: updatedCharacteristicCurves,
             colourModel: FilmColourModel(
                 palette: colourModel.palette,
                 saturation: colourSaturation ?? colourModel.saturation,
@@ -189,6 +201,27 @@ package struct FilmRecipe: Codable, Hashable, Identifiable {
             ),
             calibration: calibration
         )
+    }
+
+    private func replacingCurveGammas(_ gammaOverrides: [String: Double]?) -> [String: FilmCharacteristicCurve] {
+        guard let gammaOverrides else {
+            return characteristicCurves.channels
+        }
+
+        var channels = characteristicCurves.channels
+        for (channel, gamma) in gammaOverrides {
+            guard let curve = channels[channel] else {
+                continue
+            }
+            channels[channel] = FilmCharacteristicCurve(
+                toe: curve.toe,
+                gamma: gamma,
+                shoulder: curve.shoulder,
+                dMin: curve.dMin,
+                dMax: curve.dMax
+            )
+        }
+        return channels
     }
 }
 
