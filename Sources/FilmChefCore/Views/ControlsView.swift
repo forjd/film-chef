@@ -847,9 +847,18 @@ struct ControlsView: View {
                 }
 
                 InspectorSection("Batch") {
+                    let diagnostics = editor.batchExportState.diagnostics
                     InfoRow("Status", value: editor.batchExportState.statusText)
+                    if let outputDirectoryPath = diagnostics.outputDirectoryPath {
+                        InfoRow("Output Folder", value: outputDirectoryPath)
+                    }
                     if !editor.batchExportState.exportedFileNames.isEmpty {
                         InfoRow("Exported", value: "\(editor.batchExportState.exportedFileNames.count)")
+                        ForEach(editor.batchExportState.exportedFileNames.suffix(5), id: \.self) { fileName in
+                            Label(fileName, systemImage: "checkmark.circle")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     if !editor.batchExportState.failures.isEmpty {
                         InfoRow("Failed", value: "\(editor.batchExportState.failures.count)")
@@ -868,6 +877,12 @@ struct ControlsView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                         }
+                        Label(
+                            "\(diagnostics.retryableFailureCount) failed item\(diagnostics.retryableFailureCount == 1 ? "" : "s") can be retried after relinking missing photos or choosing a writable folder.",
+                            systemImage: "arrow.clockwise.circle"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     }
                     ProgressView(value: editor.batchExportState.progress)
                     Button(action: editor.cancelBatchExport) {

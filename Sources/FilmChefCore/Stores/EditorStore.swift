@@ -1499,7 +1499,8 @@ public final class EditorStore: ObservableObject {
         batchExportState = BatchExportState(
             isExporting: true,
             completedCount: 0,
-            totalCount: request.items.count
+            totalCount: request.items.count,
+            outputDirectoryPath: request.directory.path
         )
 
         batchExportTask = Task.detached(priority: .userInitiated) { [imageProcessor] in
@@ -1520,7 +1521,8 @@ public final class EditorStore: ObservableObject {
                                 totalCount: request.items.count,
                                 wasCancelled: true,
                                 exportedFileNames: exportedNamesSnapshot,
-                                failures: failuresSnapshot
+                                failures: failuresSnapshot,
+                                outputDirectoryPath: request.directory.path
                             )
                         }
                         return
@@ -1535,7 +1537,8 @@ public final class EditorStore: ObservableObject {
                             totalCount: request.items.count,
                             currentItemName: item.displayName,
                             exportedFileNames: exportedNamesSnapshot,
-                            failures: failuresSnapshot
+                            failures: failuresSnapshot,
+                            outputDirectoryPath: request.directory.path
                         )
                     }
 
@@ -1559,7 +1562,8 @@ public final class EditorStore: ObservableObject {
                         completedCount: request.items.count,
                         totalCount: request.items.count,
                         exportedFileNames: exportedNamesSnapshot,
-                        failures: failuresSnapshot
+                        failures: failuresSnapshot,
+                        outputDirectoryPath: request.directory.path
                     )
                     if !failuresSnapshot.isEmpty {
                         self.errorMessage = "\(failuresSnapshot.count) batch export item\(failuresSnapshot.count == 1 ? "" : "s") failed."
@@ -1573,7 +1577,8 @@ public final class EditorStore: ObservableObject {
                         completedCount: self.batchExportState.completedCount,
                         totalCount: self.batchExportState.totalCount,
                         exportedFileNames: self.batchExportState.exportedFileNames,
-                        failures: self.batchExportState.failures
+                        failures: self.batchExportState.failures,
+                        outputDirectoryPath: self.batchExportState.outputDirectoryPath
                     )
                     self.errorMessage = error.localizedDescription
                     self.batchExportTask = nil
@@ -1588,7 +1593,8 @@ public final class EditorStore: ObservableObject {
         batchExportState = BatchExportState(
             isExporting: true,
             completedCount: 0,
-            totalCount: project.items.count
+            totalCount: project.items.count,
+            outputDirectoryPath: directory.path
         )
 
         do {
@@ -1604,7 +1610,8 @@ public final class EditorStore: ObservableObject {
                         totalCount: request.items.count,
                         wasCancelled: true,
                         exportedFileNames: exportedNames,
-                        failures: failures
+                        failures: failures,
+                        outputDirectoryPath: request.directory.path
                     )
                     return
                 }
@@ -1615,7 +1622,8 @@ public final class EditorStore: ObservableObject {
                     totalCount: request.items.count,
                     currentItemName: item.displayName,
                     exportedFileNames: exportedNames,
-                    failures: failures
+                    failures: failures,
+                    outputDirectoryPath: request.directory.path
                 )
                 do {
                     let exportedURL = try writeProjectExport(for: item, request: request)
@@ -1629,7 +1637,8 @@ public final class EditorStore: ObservableObject {
                 completedCount: request.items.count,
                 totalCount: request.items.count,
                 exportedFileNames: exportedNames,
-                failures: failures
+                failures: failures,
+                outputDirectoryPath: request.directory.path
             )
             if !failures.isEmpty {
                 errorMessage = "\(failures.count) batch export item\(failures.count == 1 ? "" : "s") failed."
@@ -1640,7 +1649,8 @@ public final class EditorStore: ObservableObject {
                 completedCount: batchExportState.completedCount,
                 totalCount: batchExportState.totalCount,
                 exportedFileNames: batchExportState.exportedFileNames,
-                failures: batchExportState.failures
+                failures: batchExportState.failures,
+                outputDirectoryPath: batchExportState.outputDirectoryPath
             )
             errorMessage = error.localizedDescription
         }

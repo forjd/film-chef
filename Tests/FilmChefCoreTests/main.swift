@@ -1181,6 +1181,8 @@ func testEditorExportSettingsAndBatchFlow() throws {
         try expect(editor.batchExportState.failures.count == 1)
         try expect(editor.batchExportState.failures.first?.itemName == "Missing Later.png")
         try expect(editor.batchExportState.statusText == "Exported 1 of 2; 1 failed.")
+        try expect(editor.batchExportState.diagnostics.outputDirectoryPath == batchDirectory.path)
+        try expect(editor.batchExportState.diagnostics.retryableFailureCount == 1)
         try expect(editor.errorMessage == "1 batch export item failed.")
     }
 }

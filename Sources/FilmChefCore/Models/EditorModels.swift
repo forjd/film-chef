@@ -497,6 +497,17 @@ package struct BatchExportFailure: Codable, Equatable, Hashable, Identifiable {
     }
 }
 
+package struct BatchExportDiagnostics: Equatable, Hashable {
+    package var outputDirectoryPath: String?
+    package var summary: String
+    package var exportedFileNames: [String]
+    package var failures: [BatchExportFailure]
+
+    package var retryableFailureCount: Int {
+        failures.count
+    }
+}
+
 package struct BatchExportState: Codable, Equatable, Hashable {
     package var isExporting: Bool
     package var completedCount: Int
@@ -505,6 +516,7 @@ package struct BatchExportState: Codable, Equatable, Hashable {
     package var wasCancelled: Bool
     package var exportedFileNames: [String]
     package var failures: [BatchExportFailure]
+    package var outputDirectoryPath: String?
 
     package init(
         isExporting: Bool = false,
@@ -513,7 +525,8 @@ package struct BatchExportState: Codable, Equatable, Hashable {
         currentItemName: String? = nil,
         wasCancelled: Bool = false,
         exportedFileNames: [String] = [],
-        failures: [BatchExportFailure] = []
+        failures: [BatchExportFailure] = [],
+        outputDirectoryPath: String? = nil
     ) {
         self.isExporting = isExporting
         self.completedCount = completedCount
@@ -522,6 +535,7 @@ package struct BatchExportState: Codable, Equatable, Hashable {
         self.wasCancelled = wasCancelled
         self.exportedFileNames = exportedFileNames
         self.failures = failures
+        self.outputDirectoryPath = outputDirectoryPath
     }
 
     package var progress: Double {
@@ -548,6 +562,15 @@ package struct BatchExportState: Codable, Equatable, Hashable {
             return "Exported \(completedCount) of \(totalCount)."
         }
         return "Idle"
+    }
+
+    package var diagnostics: BatchExportDiagnostics {
+        BatchExportDiagnostics(
+            outputDirectoryPath: outputDirectoryPath,
+            summary: statusText,
+            exportedFileNames: exportedFileNames,
+            failures: failures
+        )
     }
 }
 
