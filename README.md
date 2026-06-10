@@ -64,6 +64,12 @@ Verify the staged app bundle:
 ./script/build_and_run.sh --verify
 ```
 
+Run the app-flow smoke verification used for UI, packaging, and resource-bundle changes:
+
+```bash
+./script/verify_app_flow.sh
+```
+
 Package a release-style app archive:
 
 ```bash
