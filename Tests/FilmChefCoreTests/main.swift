@@ -1040,10 +1040,17 @@ func testEditorPreviewLocalMaskAndVariantControls() throws {
 
         editor.captureVariant(note: "Focused variant")
         let variant = try require(editor.editHistory.last)
+        let variantLayerID = try require(editor.localAdjustments.first?.id)
+        editor.localAdjustments.removeAll()
+        try expect(editor.localAdjustments.isEmpty)
+        editor.restoreVariant(id: variant.id)
+        try expect(editor.localAdjustments.first?.id == variantLayerID)
+        try expect(editor.localAdjustments.first?.centerX == 0.45)
         editor.renameVariant(id: variant.id, note: "Focused variant renamed")
-        try expect(editor.editHistory.last?.note == "Focused variant renamed")
+        try expect(editor.editHistory.first { $0.id == variant.id }?.note == "Focused variant renamed")
         editor.duplicateVariant(id: variant.id)
         try expect(editor.editHistory.count >= 3)
+        try expect(editor.editHistory[editor.editHistoryIndex ?? -1].localAdjustments.first?.id == variantLayerID)
     }
 }
 

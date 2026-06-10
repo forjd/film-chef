@@ -280,6 +280,7 @@ public final class EditorStore: ObservableObject {
             guard !suppressPreviewUpdates else {
                 return
             }
+            recordCurrentEditSnapshot(note: "Changed local adjustments")
             updateCurrentProjectItem()
             renderPreviewIfNeeded()
         }
@@ -760,6 +761,7 @@ public final class EditorStore: ObservableObject {
         let duplicate = EditSnapshot(
             recipeID: source.recipeID,
             adjustments: source.adjustments,
+            localAdjustments: source.localAdjustments,
             note: uniqueVariantNote(base: "\(source.note) Copy")
         )
         editHistory.insert(duplicate, at: index + 1)
@@ -1887,10 +1889,14 @@ public final class EditorStore: ObservableObject {
         let snapshot = EditSnapshot(
             recipeID: selectedRecipeID,
             adjustments: currentAdjustments,
+            localAdjustments: localAdjustments,
             note: note
         )
 
-        if !force, editHistory.last?.recipeID == snapshot.recipeID, editHistory.last?.adjustments == snapshot.adjustments {
+        if !force,
+           editHistory.last?.recipeID == snapshot.recipeID,
+           editHistory.last?.adjustments == snapshot.adjustments,
+           editHistory.last?.localAdjustments == snapshot.localAdjustments {
             return
         }
 
@@ -1917,6 +1923,8 @@ public final class EditorStore: ObservableObject {
         contrastTrim = snapshot.adjustments.contrastTrim
         saturationTrim = snapshot.adjustments.saturationTrim
         grainEnabled = snapshot.adjustments.grainEnabled
+        localAdjustments = snapshot.localAdjustments
+        selectedLocalAdjustmentID = localAdjustments.first?.id
         suppressPreviewUpdates = false
         isApplyingEditSnapshot = false
         editHistoryIndex = index
@@ -1936,6 +1944,7 @@ public final class EditorStore: ObservableObject {
                 EditSnapshot(
                     recipeID: selectedRecipeID,
                     adjustments: currentAdjustments,
+                    localAdjustments: localAdjustments,
                     note: "Imported photo"
                 )
             ]

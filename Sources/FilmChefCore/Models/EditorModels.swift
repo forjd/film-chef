@@ -104,6 +104,7 @@ package struct EditSnapshot: Codable, Equatable, Identifiable {
     package var id: UUID
     package var recipeID: String?
     package var adjustments: RenderAdjustments
+    package var localAdjustments: [LocalAdjustmentLayer]
     package var note: String
     package var createdAt: Date
 
@@ -111,14 +112,26 @@ package struct EditSnapshot: Codable, Equatable, Identifiable {
         id: UUID = UUID(),
         recipeID: String?,
         adjustments: RenderAdjustments,
+        localAdjustments: [LocalAdjustmentLayer] = [],
         note: String,
         createdAt: Date = Date()
     ) {
         self.id = id
         self.recipeID = recipeID
         self.adjustments = adjustments
+        self.localAdjustments = localAdjustments
         self.note = note
         self.createdAt = createdAt
+    }
+
+    package init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        recipeID = try container.decodeIfPresent(String.self, forKey: .recipeID)
+        adjustments = try container.decode(RenderAdjustments.self, forKey: .adjustments)
+        localAdjustments = try container.decodeIfPresent([LocalAdjustmentLayer].self, forKey: .localAdjustments) ?? []
+        note = try container.decode(String.self, forKey: .note)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
 }
 
