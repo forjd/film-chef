@@ -412,7 +412,28 @@ struct ControlsView: View {
                     TextField("Preset Name", text: $editor.exportPresetDraftName)
                         .textFieldStyle(.roundedBorder)
 
+                    if let selectedPreset = editor.exportPresets.first(where: { $0.id == editor.selectedExportPresetID }) {
+                        Label("Updating \(selectedPreset.name)", systemImage: "square.and.pencil")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Label("Saving creates a new preset", systemImage: "plus.square")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    ForEach(editor.exportPresetNameIssues, id: \.self) { issue in
+                        Label(issue, systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+
                     HStack(spacing: 8) {
+                        Button(action: editor.beginNewExportPreset) {
+                            Label("New", systemImage: "plus")
+                                .frame(maxWidth: .infinity)
+                        }
+
                         Button(action: editor.saveExportPreset) {
                             Label("Save Preset", systemImage: "tray.and.arrow.down")
                                 .frame(maxWidth: .infinity)

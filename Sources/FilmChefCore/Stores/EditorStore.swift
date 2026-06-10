@@ -440,11 +440,20 @@ public final class EditorStore: ObservableObject {
     }
 
     package var canSaveExportPreset: Bool {
-        exportNamingTemplateIssues.isEmpty
+        exportNamingTemplateIssues.isEmpty && exportPresetNameIssues.isEmpty
     }
 
     package var exportNamingTemplateIssues: [String] {
         Self.exportNamingTemplateIssues(for: exportSettings.namingTemplate)
+    }
+
+    package var exportPresetNameIssues: [String] {
+        let trimmedName = exportPresetDraftName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = trimmedName.isEmpty ? "Custom Preset" : trimmedName
+        let duplicate = exportPresets.contains { preset in
+            preset.id != selectedExportPresetID && preset.name.localizedCaseInsensitiveCompare(name) == .orderedSame
+        }
+        return duplicate ? ["A preset named \(name) already exists."] : []
     }
 
     package var exportFileNamePreview: String {
@@ -868,6 +877,11 @@ public final class EditorStore: ObservableObject {
         exportPresetDraftName = preset.name
         project.exportSettings = exportSettings
         project.updatedAt = Date()
+    }
+
+    public func beginNewExportPreset() {
+        selectedExportPresetID = nil
+        exportPresetDraftName = uniqueExportPresetName(base: "Custom Preset")
     }
 
     public func saveExportPreset() {
