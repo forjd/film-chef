@@ -43,10 +43,27 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundleIdentifier</key>
   <string>$BUNDLE_ID</string>
+  <key>CFBundleDisplayName</key>
+  <string>Film Chef</string>
   <key>CFBundleName</key>
   <string>$APP_NAME</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Film Chef Project</string>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>LSHandlerRank</key>
+      <string>Owner</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>com.filmchef.project</string>
+      </array>
+    </dict>
+  </array>
   <key>CFBundleShortVersionString</key>
   <string>$APP_VERSION</string>
   <key>CFBundleVersion</key>
@@ -57,8 +74,32 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$MIN_SYSTEM_VERSION</string>
   <key>NSHumanReadableCopyright</key>
   <string>Copyright (c) 2026 Forjd. Released under the MIT License.</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
+  <key>NSSupportsAutomaticGraphicsSwitching</key>
+  <true/>
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeConformsTo</key>
+      <array>
+        <string>public.json</string>
+      </array>
+      <key>UTTypeDescription</key>
+      <string>Film Chef Project</string>
+      <key>UTTypeIdentifier</key>
+      <string>com.filmchef.project</string>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array>
+          <string>filmchef</string>
+        </array>
+      </dict>
+    </dict>
+  </array>
 </dict>
 </plist>
 PLIST
@@ -83,6 +124,11 @@ verify_bundle() {
     exit 1
   }
 
+  [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$INFO_PLIST")" == "Film Chef" ]] || {
+    echo "Info.plist CFBundleDisplayName does not match Film Chef" >&2
+    exit 1
+  }
+
   [[ "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$INFO_PLIST")" == "$MIN_SYSTEM_VERSION" ]] || {
     echo "Info.plist LSMinimumSystemVersion does not match $MIN_SYSTEM_VERSION" >&2
     exit 1
@@ -95,6 +141,11 @@ verify_bundle() {
 
   [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO_PLIST")" == "$BUILD_NUMBER" ]] || {
     echo "Info.plist CFBundleVersion does not match $BUILD_NUMBER" >&2
+    exit 1
+  }
+
+  [[ "$(/usr/libexec/PlistBuddy -c 'Print :UTExportedTypeDeclarations:0:UTTypeIdentifier' "$INFO_PLIST")" == "com.filmchef.project" ]] || {
+    echo "Info.plist exported project type is missing" >&2
     exit 1
   }
 
