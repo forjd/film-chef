@@ -379,6 +379,43 @@ func testEveryBundledRecipeRendersSmallImageWithoutChangingExtent() throws {
     }
 }
 
+func testRendererAppliesCalibrationInsidePipeline() throws {
+    let recipes = try loadTestRecipes()
+    let recipe = try require(recipes.first { $0.stock.family != .blackAndWhiteNegative })
+    let source = makeTestImage()
+    let context = CIContext()
+    let renderer = FilmPipelineRenderer()
+
+    let uncalibrated = renderer.render(
+        source: source,
+        recipe: recipe,
+        adjustments: adjustments()
+    )
+    let calibrated = renderer.render(
+        source: source,
+        recipe: recipe,
+        adjustments: adjustments(),
+        calibration: CalibrationDataStatus(
+            supportsSpectralCurves: true,
+            supportsMeasuredDensityCurves: true,
+            supportsGrainSpectra: true,
+            supportsThreeDimensionalLUTs: true,
+            redScale: 1.18,
+            greenScale: 1.0,
+            blueScale: 0.82,
+            densityGamma: 1.12,
+            grainAmount: 0.05
+        )
+    )
+
+    try expect(calibrated.extent == source.extent)
+    try expect(
+        renderBytes(uncalibrated, context: context, extent: uncalibrated.extent)
+            != renderBytes(calibrated, context: context, extent: calibrated.extent),
+        "Renderer calibration should change pixels inside the film pipeline."
+    )
+}
+
 func testRendererCoversProfileDrivenBranches() throws {
     let recipes = try loadTestRecipes()
     let source = makeTestImage()
@@ -1558,6 +1595,7 @@ let tests: [TestCase] = [
     TestCase(name: "stock family maps to UI stock type", run: testStockFamilyMapsToUiStockType),
     TestCase(name: "recipe display metadata accessors", run: testRecipeDisplayMetadataAccessors),
     TestCase(name: "every bundled recipe renders a small image without changing extent", run: testEveryBundledRecipeRendersSmallImageWithoutChangingExtent),
+    TestCase(name: "renderer applies calibration inside pipeline", run: testRendererAppliesCalibrationInsidePipeline),
     TestCase(name: "renderer covers profile driven branches", run: testRendererCoversProfileDrivenBranches),
     TestCase(name: "renderer clamps intensity before applying recipe", run: testRendererClampsIntensityBeforeApplyingRecipe),
     TestCase(name: "preview scaling respects max dimension", run: testPreviewScalingRespectsMaxDimension),

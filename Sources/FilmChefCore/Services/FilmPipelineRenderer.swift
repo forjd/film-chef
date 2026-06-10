@@ -8,7 +8,8 @@ package struct FilmPipelineRenderer {
     package func render(
         source: CIImage,
         recipe: FilmRecipe,
-        adjustments: RenderAdjustments
+        adjustments: RenderAdjustments,
+        calibration: CalibrationDataStatus = .descriptiveOnly
     ) -> CIImage {
         let extent = source.extent
         let intensity = clamped(adjustments.intensity, lower: 0.0, upper: 1.0)
@@ -32,11 +33,16 @@ package struct FilmPipelineRenderer {
             stock: recipe.stock,
             intensity: intensity
         )
-        let curved = applyCharacteristicCurves(
+        let calibratedLayers = applyCalibrationChannelScales(
             to: layerMapped,
+            calibration: calibration
+        )
+        let curved = applyCharacteristicCurves(
+            to: calibratedLayers,
             curves: recipe.characteristicCurves,
             stock: recipe.stock,
             process: recipe.process,
+            calibration: calibration,
             intensity: intensity
         )
         let colourRendered = applyColourResponse(
@@ -65,8 +71,13 @@ package struct FilmPipelineRenderer {
             adjustments: adjustments,
             intensity: intensity
         )
-        let opticallyResolved = applySharpnessAndMTF(
+        let withCalibratedGrain = applyCalibrationGrain(
             to: withGrain,
+            extent: extent,
+            calibration: calibration
+        )
+        let opticallyResolved = applySharpnessAndMTF(
+            to: withCalibratedGrain,
             sharpness: recipe.sharpness,
             renderer: recipe.renderer,
             extent: extent,
@@ -287,6 +298,7 @@ package struct FilmPipelineRenderer {
         curves: FilmCharacteristicCurves,
         stock: FilmStock,
         process: FilmProcess,
+        calibration: CalibrationDataStatus,
         intensity: Double
     ) -> CIImage {
         guard intensity > 0.001,
@@ -336,7 +348,8 @@ package struct FilmPipelineRenderer {
             ]
         )
 
-        return applyDensityChannelResponse(to: output, curves: curves, intensity: intensity)
+        let densityRendered = applyDensityChannelResponse(to: output, curves: curves, intensity: intensity)
+        return applyCalibrationDensityResponse(to: densityRendered, calibration: calibration)
     }
 
     private func applyColourResponse(
@@ -598,6 +611,96 @@ package struct FilmPipelineRenderer {
         )
 
         return shapedNoise
+            .applyingFilter(
+                "CISoftLightBlendMode",
+                parameters: ["inputBackgroundImage": image]
+            )
+            .cropped(to: extent)
+    }
+
+    private func applyCalibrationChannelScales(
+        to image: CIImage,
+        calibration: CalibrationDataStatus
+    ) -> CIImage {
+        guard calibration.supportsThreeDimensionalLUTs || calibration.supportsSpectralCurves else {
+            return image
+        }
+
+        let redScale = clamped(calibration.redScale, lower: 0.5, upper: 1.5)
+        let greenScale = clamped(calibration.greenScale, lower: 0.5, upper: 1.5)
+        let blueScale = clamped(calibration.blueScale, lower: 0.5, upper: 1.5)
+
+        guard abs(redScale - 1.0) > 0.001 ||
+              abs(greenScale - 1.0) > 0.001 ||
+              abs(blueScale - 1.0) > 0.001
+        else {
+            return image
+        }
+
+        return image.applyingFilter(
+            "CIColorMatrix",
+            parameters: [
+                "inputRVector": CIVector(x: CGFloat(redScale), y: 0, z: 0, w: 0),
+                "inputGVector": CIVector(x: 0, y: CGFloat(greenScale), z: 0, w: 0),
+                "inputBVector": CIVector(x: 0, y: 0, z: CGFloat(blueScale), w: 0),
+                "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+                "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 0)
+            ]
+        )
+    }
+
+    private func applyCalibrationDensityResponse(
+        to image: CIImage,
+        calibration: CalibrationDataStatus
+    ) -> CIImage {
+        let densityGamma = clamped(calibration.densityGamma, lower: 0.75, upper: 1.35)
+        guard calibration.supportsMeasuredDensityCurves,
+              abs(densityGamma - 1.0) > 0.001
+        else {
+            return image
+        }
+
+        return image.applyingFilter(
+            "CIGammaAdjust",
+            parameters: ["inputPower": densityGamma]
+        )
+    }
+
+    private func applyCalibrationGrain(
+        to image: CIImage,
+        extent: CGRect,
+        calibration: CalibrationDataStatus
+    ) -> CIImage {
+        let grainAmount = clamped(calibration.grainAmount, lower: 0, upper: 0.25)
+        guard calibration.supportsGrainSpectra,
+              grainAmount > 0.001,
+              let random = CIFilter(name: "CIRandomGenerator")?.outputImage
+        else {
+            return image
+        }
+
+        let noise = random
+            .cropped(to: extent)
+            .applyingFilter(
+                "CIColorControls",
+                parameters: [
+                    "inputSaturation": 0.0,
+                    "inputBrightness": 0.0,
+                    "inputContrast": 1.0 + (grainAmount * 10.0)
+                ]
+            )
+            .applyingFilter(
+                "CIColorMatrix",
+                parameters: [
+                    "inputRVector": CIVector(x: CGFloat(grainAmount), y: 0, z: 0, w: 0),
+                    "inputGVector": CIVector(x: 0, y: CGFloat(grainAmount), z: 0, w: 0),
+                    "inputBVector": CIVector(x: 0, y: 0, z: CGFloat(grainAmount), w: 0),
+                    "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+                    "inputBiasVector": CIVector(x: 0.5 - CGFloat(grainAmount / 2), y: 0.5 - CGFloat(grainAmount / 2), z: 0.5 - CGFloat(grainAmount / 2), w: 0)
+                ]
+            )
+
+        return noise
             .applyingFilter(
                 "CISoftLightBlendMode",
                 parameters: ["inputBackgroundImage": image]
