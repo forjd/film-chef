@@ -4,6 +4,7 @@ set -euo pipefail
 APP_NAME="FilmChef"
 BUNDLE_ID="com.filmchef.app"
 MIN_SYSTEM_VERSION="14.0"
+APP_VERSION="${APP_VERSION:-0.1.0}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 RELEASE_DIR="$DIST_DIR/release"
@@ -22,6 +23,7 @@ create_archive() {
 }
 
 cd "$ROOT_DIR"
+BUILD_NUMBER="${BUILD_NUMBER:-$(git rev-parse --short HEAD 2>/dev/null || echo dev)}"
 
 swift build -c release
 BUILD_DIR="$(swift build -c release --show-bin-path)"
@@ -51,8 +53,16 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$APP_VERSION</string>
+  <key>CFBundleVersion</key>
+  <string>$BUILD_NUMBER</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.photography</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_SYSTEM_VERSION</string>
+  <key>NSHumanReadableCopyright</key>
+  <string>Copyright (c) 2026 Forjd. Released under the MIT License.</string>
   <key>NSHighResolutionCapable</key>
   <true/>
   <key>NSPrincipalClass</key>

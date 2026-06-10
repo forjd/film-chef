@@ -69,6 +69,12 @@ Package a release-style app archive:
 ./script/package_release.sh
 ```
 
+Both app bundle scripts write Finder-readable release metadata. Override the defaults with:
+
+```bash
+APP_VERSION=0.2.0 BUILD_NUMBER=42 ./script/package_release.sh
+```
+
 Optional signing and notarization:
 
 ```bash

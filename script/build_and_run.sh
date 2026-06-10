@@ -5,6 +5,7 @@ MODE="${1:-run}"
 APP_NAME="FilmChef"
 BUNDLE_ID="com.filmchef.app"
 MIN_SYSTEM_VERSION="14.0"
+APP_VERSION="${APP_VERSION:-0.1.0}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
@@ -15,6 +16,7 @@ APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 
 cd "$ROOT_DIR"
+BUILD_NUMBER="${BUILD_NUMBER:-$(git rev-parse --short HEAD 2>/dev/null || echo dev)}"
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
@@ -45,8 +47,16 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$APP_VERSION</string>
+  <key>CFBundleVersion</key>
+  <string>$BUILD_NUMBER</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.photography</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_SYSTEM_VERSION</string>
+  <key>NSHumanReadableCopyright</key>
+  <string>Copyright (c) 2026 Forjd. Released under the MIT License.</string>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
 </dict>
@@ -75,6 +85,16 @@ verify_bundle() {
 
   [[ "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$INFO_PLIST")" == "$MIN_SYSTEM_VERSION" ]] || {
     echo "Info.plist LSMinimumSystemVersion does not match $MIN_SYSTEM_VERSION" >&2
+    exit 1
+  }
+
+  [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST")" == "$APP_VERSION" ]] || {
+    echo "Info.plist CFBundleShortVersionString does not match $APP_VERSION" >&2
+    exit 1
+  }
+
+  [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO_PLIST")" == "$BUILD_NUMBER" ]] || {
+    echo "Info.plist CFBundleVersion does not match $BUILD_NUMBER" >&2
     exit 1
   }
 
