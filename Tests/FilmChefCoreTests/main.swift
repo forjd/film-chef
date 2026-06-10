@@ -904,6 +904,9 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     try expect(editor.calibrationDataStatus.redScale > editor.calibrationDataStatus.blueScale)
     try expect(editor.calibrationDataStatus.densityGamma > 1.0)
     try expect(editor.calibrationDataStatus.grainAmount > 0)
+    try expect(editor.calibrationDataStatus.importedAssetSummaries.contains("test-lut.cube: 3D LUT"))
+    try expect(editor.calibrationDataStatus.importedAssetSummaries.contains("spectral-density.json: density curves, spectral curves"))
+    try expect(editor.calibrationDataStatus.importedAssetSummaries.contains("grain-spectrum.csv: grain spectra, spectral curves"))
 
     let invalidLUTURL = directory.appendingPathComponent("invalid-lut.cube")
     try """
@@ -929,6 +932,7 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     try expect(typedCalibrationEditor.calibrationDataStatus.supportsGrainSpectra)
     try expect(typedCalibrationEditor.calibrationDataStatus.supportsThreeDimensionalLUTs)
     try expect(typedCalibrationEditor.calibrationDataStatus.redScale > typedCalibrationEditor.calibrationDataStatus.blueScale)
+    try expect(typedCalibrationEditor.calibrationDataStatus.importedAssetSummaries == ["measured-curves.json: density curves, grain spectra, RGB scale, spectral curves"])
 
     let suggestedName = editor.suggestedExportFileNameForTesting()
     try expect(suggestedName.hasPrefix("Sample Photo-"))
@@ -1277,6 +1281,7 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         try expect(loadedProject.exportPresets.contains { $0.name == "Project TIFF" })
         try expect(loadedProject.calibrationDataStatus.supportsThreeDimensionalLUTs)
         try expect(loadedProject.calibrationDataStatus.redScale > loadedProject.calibrationDataStatus.blueScale)
+        try expect(loadedProject.calibrationDataStatus.importedAssetSummaries == ["project-lut.cube: 3D LUT"])
 
         let reopened = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
         reopened.loadRecipesIfNeeded()
@@ -1293,6 +1298,7 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         try expect(reopened.exportSettings.namingTemplate == "{photo}_custom")
         try expect(reopened.exportPresets.contains { $0.name == "Project TIFF" })
         try expect(reopened.calibrationDataStatus.importedAssetNames == ["project-lut.cube"])
+        try expect(reopened.calibrationDataStatus.importedAssetSummaries == ["project-lut.cube: 3D LUT"])
         try expect(reopened.calibrationDataStatus.redScale > reopened.calibrationDataStatus.blueScale)
         try expect(reopened.histogramSummary != nil)
         let cacheHitsBeforeColorChange = reopened.previewCacheHitCount

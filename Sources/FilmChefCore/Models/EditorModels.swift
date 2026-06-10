@@ -644,6 +644,7 @@ package struct CalibrationDataStatus: Codable, Equatable, Hashable {
     package var supportsGrainSpectra: Bool
     package var supportsThreeDimensionalLUTs: Bool
     package var importedAssetNames: [String]
+    package var importedAssetSummaries: [String]
     package var redScale: Double
     package var greenScale: Double
     package var blueScale: Double
@@ -657,6 +658,7 @@ package struct CalibrationDataStatus: Codable, Equatable, Hashable {
         supportsGrainSpectra: Bool = false,
         supportsThreeDimensionalLUTs: Bool = false,
         importedAssetNames: [String] = [],
+        importedAssetSummaries: [String] = [],
         redScale: Double = 1.0,
         greenScale: Double = 1.0,
         blueScale: Double = 1.0,
@@ -669,6 +671,7 @@ package struct CalibrationDataStatus: Codable, Equatable, Hashable {
         self.supportsGrainSpectra = supportsGrainSpectra
         self.supportsThreeDimensionalLUTs = supportsThreeDimensionalLUTs
         self.importedAssetNames = importedAssetNames
+        self.importedAssetSummaries = importedAssetSummaries
         self.redScale = redScale
         self.greenScale = greenScale
         self.blueScale = blueScale
@@ -684,6 +687,7 @@ package struct CalibrationDataStatus: Codable, Equatable, Hashable {
         supportsGrainSpectra = try container.decodeIfPresent(Bool.self, forKey: .supportsGrainSpectra) ?? false
         supportsThreeDimensionalLUTs = try container.decode(Bool.self, forKey: .supportsThreeDimensionalLUTs)
         importedAssetNames = try container.decode([String].self, forKey: .importedAssetNames)
+        importedAssetSummaries = try container.decodeIfPresent([String].self, forKey: .importedAssetSummaries) ?? []
         redScale = try container.decode(Double.self, forKey: .redScale)
         greenScale = try container.decode(Double.self, forKey: .greenScale)
         blueScale = try container.decode(Double.self, forKey: .blueScale)
@@ -699,6 +703,7 @@ package struct CalibrationDataStatus: Codable, Equatable, Hashable {
         try container.encode(supportsGrainSpectra, forKey: .supportsGrainSpectra)
         try container.encode(supportsThreeDimensionalLUTs, forKey: .supportsThreeDimensionalLUTs)
         try container.encode(importedAssetNames, forKey: .importedAssetNames)
+        try container.encode(importedAssetSummaries, forKey: .importedAssetSummaries)
         try container.encode(redScale, forKey: .redScale)
         try container.encode(greenScale, forKey: .greenScale)
         try container.encode(blueScale, forKey: .blueScale)
@@ -715,6 +720,7 @@ package struct CalibrationDataStatus: Codable, Equatable, Hashable {
         case supportsGrainSpectra
         case supportsThreeDimensionalLUTs
         case importedAssetNames
+        case importedAssetSummaries
         case redScale
         case greenScale
         case blueScale

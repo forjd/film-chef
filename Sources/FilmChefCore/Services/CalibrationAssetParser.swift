@@ -38,6 +38,7 @@ package struct CalibrationAssetParser {
         var spectralValues: [Double] = []
         var densityValues: [Double] = []
         var grainValues: [Double] = []
+        var assetSummaries: [String] = []
 
         for url in urls {
             let name = url.lastPathComponent.lowercased()
@@ -45,20 +46,26 @@ package struct CalibrationAssetParser {
             case "cube":
                 lutScale = try parseCubeCalibration(url)
                 supportsLUT = true
+                assetSummaries.append(assetSummary(name: url.lastPathComponent, labels: ["3D LUT"]))
             case "json":
                 let asset = try parseJSONCalibration(url)
+                var labels = asset.kinds.map(kindLabel)
                 if let typedLUTScale = asset.lutScale {
                     lutScale = typedLUTScale
                     supportsLUT = true
+                    labels.append("RGB scale")
                 }
                 if asset.kinds.isEmpty {
                     append(asset.values, named: name, spectral: &supportsSpectral, density: &supportsDensity, grain: &supportsGrain, spectralValues: &spectralValues, densityValues: &densityValues, grainValues: &grainValues)
+                    labels.append(contentsOf: labelsForName(name))
                 } else {
                     append(asset.values, kinds: asset.kinds, spectral: &supportsSpectral, density: &supportsDensity, grain: &supportsGrain, spectralValues: &spectralValues, densityValues: &densityValues, grainValues: &grainValues)
                 }
+                assetSummaries.append(assetSummary(name: url.lastPathComponent, labels: labels))
             case "csv", "txt":
                 let values = try parseDelimitedCalibration(url)
                 append(values, named: name, spectral: &supportsSpectral, density: &supportsDensity, grain: &supportsGrain, spectralValues: &spectralValues, densityValues: &densityValues, grainValues: &grainValues)
+                assetSummaries.append(assetSummary(name: url.lastPathComponent, labels: labelsForName(name)))
             default:
                 throw CalibrationImportError.unsupportedAsset(url.lastPathComponent)
             }
@@ -78,6 +85,9 @@ package struct CalibrationAssetParser {
             supportsGrainSpectra: supportsGrain,
             supportsThreeDimensionalLUTs: supportsLUT,
             importedAssetNames: names,
+            importedAssetSummaries: assetSummaries.sorted {
+                $0.localizedStandardCompare($1) == .orderedAscending
+            },
             redScale: lutScale.red * (1.0 + spectralBias),
             greenScale: lutScale.green,
             blueScale: lutScale.blue * (1.0 - spectralBias),
@@ -85,6 +95,39 @@ package struct CalibrationAssetParser {
             grainAmount: supportsGrain ? 0.035 + (grainSignal * 0.045) : 0.0,
             note: "Imported \(names.count) validated calibration asset\(names.count == 1 ? "" : "s")."
         )
+    }
+
+    private func labelsForName(_ name: String) -> [String] {
+        var labels: [String] = []
+        if name.contains("spectral") || name.contains("spectrum") {
+            labels.append("spectral curves")
+        }
+        if name.contains("density") || name.contains("hd") || name.contains("h-d") {
+            labels.append("density curves")
+        }
+        if name.contains("grain") || name.contains("granularity") {
+            labels.append("grain spectra")
+        }
+        return labels
+    }
+
+    private func kindLabel(_ kind: CalibrationAssetKind) -> String {
+        switch kind {
+        case .spectral:
+            return "spectral curves"
+        case .density:
+            return "density curves"
+        case .grain:
+            return "grain spectra"
+        }
+    }
+
+    private func assetSummary(name: String, labels: [String]) -> String {
+        let uniqueLabels = Array(Set(labels)).sorted {
+            $0.localizedStandardCompare($1) == .orderedAscending
+        }
+        let detail = uniqueLabels.isEmpty ? "numeric calibration values" : uniqueLabels.joined(separator: ", ")
+        return "\(name): \(detail)"
     }
 
     private func append(

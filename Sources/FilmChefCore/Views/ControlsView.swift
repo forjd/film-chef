@@ -783,6 +783,11 @@ struct ControlsView: View {
                     InfoRow("Calibration", value: editor.calibrationDataStatus.note)
                     if !editor.calibrationDataStatus.importedAssetNames.isEmpty {
                         InfoRow("Assets", value: "\(editor.calibrationDataStatus.importedAssetNames.count)")
+                        ForEach(editor.calibrationDataStatus.importedAssetSummaries, id: \.self) { summary in
+                            Label(summary, systemImage: "checkmark.seal")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                         InfoRow(
                             "RGB Scale",
                             value: String(
