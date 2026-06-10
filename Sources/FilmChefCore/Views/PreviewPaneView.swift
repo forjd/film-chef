@@ -266,12 +266,12 @@ struct PreviewPaneView: View {
                 .position(x: markerX, y: markerY)
                 .allowsHitTesting(false)
 
-            if let sample = editor.pixelSample {
+            if let sample = currentPixelSample(matchingX: samplerX, y: samplerY) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(sampleRGBText(sample))
                         .font(.caption2.monospacedDigit())
                         .fontWeight(.semibold)
-                    Text(String(format: "X %.2f  Y %.2f  L %.2f", samplerX, samplerY, sample.luminance))
+                    Text(String(format: "X %.2f  Y %.2f  L %.2f", sample.x, sample.y, sample.luminance))
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -569,6 +569,16 @@ struct PreviewPaneView: View {
         let green = Int((sample.green * 255).rounded())
         let blue = Int((sample.blue * 255).rounded())
         return "RGB \(red) \(green) \(blue)"
+    }
+
+    private func currentPixelSample(matchingX x: Double, y: Double) -> PixelSample? {
+        guard let sample = editor.pixelSample,
+              abs(sample.x - x) < 0.001,
+              abs(sample.y - y) < 0.001
+        else {
+            return nil
+        }
+        return sample
     }
 
     private func clampedUnit(_ value: Double) -> Double {

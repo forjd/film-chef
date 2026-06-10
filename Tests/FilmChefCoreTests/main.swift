@@ -1201,6 +1201,49 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     }
 }
 
+func testEditorSplitSamplerUsesVisibleImageSide() throws {
+    try MainActor.assumeIsolated {
+    let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+    editor.loadRecipesIfNeeded()
+
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let baseRecipe = try require(editor.recipes.first)
+    let darkRecipeURL = directory.appendingPathComponent("split-sampler-black.json")
+    try writeRecipeJSON(from: baseRecipe, to: darkRecipeURL) { object in
+        setJSONValue("split-sampler-black", path: ["profile_id"], object: &object)
+        setJSONValue("Split Sampler Black", path: ["display_name"], object: &object)
+        setJSONValue(0.95, path: ["renderer", "black_point"], object: &object)
+        setJSONValue(1.0, path: ["renderer", "white_point"], object: &object)
+    }
+    editor.importRecipeForTesting(from: darkRecipeURL)
+
+    let imageURL = directory.appendingPathComponent("sample.png")
+    try writeTestPNG(to: imageURL)
+    editor.importPhotoForTesting(from: imageURL)
+    editor.comparisonMode = .split
+    editor.splitPosition = 0.5
+
+    editor.samplePreviewPixel(x: 0.25, y: 0.5)
+    let originalSideSample = try require(editor.pixelSample)
+    try expect(originalSideSample.red > 0.2)
+    try expect(originalSideSample.green > 0.4)
+    try expect(originalSideSample.blue > 0.6)
+
+    editor.samplePreviewPixel(x: 0.75, y: 0.5)
+    let processedSideSample = try require(editor.pixelSample)
+    try expect(
+        processedSideSample.red + processedSideSample.green + processedSideSample.blue < 0.05,
+        "Split sampler should read the processed side when the marker is right of the divider."
+    )
+    }
+}
+
 func testEditorRecipeDraftEditingFlow() throws {
     try MainActor.assumeIsolated {
         let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
@@ -1641,6 +1684,7 @@ let tests: [TestCase] = [
     TestCase(name: "camera profile ingestion honors orientation and RAW settings", run: testCameraProfileIngestionHonorsOrientationAndRawSettings),
     TestCase(name: "write rendered image encodes PNG and JPEG", run: testWriteRenderedImageEncodesPngAndJpeg),
     TestCase(name: "editor store end to end smoke flow", run: testEditorStoreStateImportExportAndViewConstruction),
+    TestCase(name: "editor split sampler uses visible image side", run: testEditorSplitSamplerUsesVisibleImageSide),
     TestCase(name: "editor recipe draft editing flow", run: testEditorRecipeDraftEditingFlow),
     TestCase(name: "editor preview local mask and variant controls", run: testEditorPreviewLocalMaskAndVariantControls),
     TestCase(name: "editor calibration import flow", run: testEditorCalibrationImportFlow),

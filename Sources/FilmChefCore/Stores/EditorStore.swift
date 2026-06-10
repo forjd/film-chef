@@ -271,14 +271,28 @@ public final class EditorStore: ObservableObject {
     @Published package private(set) var projectItemNeedingRelinkID: UUID?
     private var pendingRelinkProjectItemID: UUID?
 
-    @Published package var comparisonMode = PreviewComparisonMode.edited
+    @Published package var comparisonMode = PreviewComparisonMode.edited {
+        didSet {
+            guard oldValue != comparisonMode else {
+                return
+            }
+            clearPixelSample(cancelPendingTask: true)
+        }
+    }
     @Published package var previewZoom = 1.0
     @Published package var previewPanX = 0.0
     @Published package var previewPanY = 0.0
     @Published package var loupeEnabled = false
     @Published package var loupeZoom = 2.0
     @Published package var loupePlacement = LoupePlacement.nearSampler
-    @Published package var splitPosition = 0.5
+    @Published package var splitPosition = 0.5 {
+        didSet {
+            guard abs(oldValue - splitPosition) > 0.0001 else {
+                return
+            }
+            clearPixelSample(cancelPendingTask: true)
+        }
+    }
     @Published package private(set) var samplerX = 0.5
     @Published package private(set) var samplerY = 0.5
     @Published package var histogramChannelMode = HistogramChannelMode.all
@@ -495,6 +509,17 @@ public final class EditorStore: ObservableObject {
             for: histogramSummary,
             threshold: histogramClipWarningThreshold
         )
+    }
+
+    private var pixelSampleUsesOriginalImage: Bool {
+        switch comparisonMode {
+        case .original:
+            return true
+        case .split:
+            return samplerX <= splitPosition
+        case .edited, .sideBySide:
+            return false
+        }
     }
 
     nonisolated package static func histogramClipWarningText(
@@ -973,11 +998,12 @@ public final class EditorStore: ObservableObject {
     public func moveSampleMarker(x: Double, y: Double) {
         samplerX = clampedUnit(x)
         samplerY = clampedUnit(y)
+        clearPixelSample()
     }
 
     public func schedulePreviewPixelSample(x: Double, y: Double) {
+        clearPixelSample(cancelPendingTask: true)
         moveSampleMarker(x: x, y: y)
-        pixelSampleTask?.cancel()
         pixelSampleTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 80_000_000)
             guard !Task.isCancelled else {
@@ -998,15 +1024,20 @@ public final class EditorStore: ObservableObject {
         }
 
         do {
-            let rendered = imageProcessor.renderedPreviewSource(
-                from: sourceImage,
-                recipe: selectedRecipe,
-                adjustments: currentAdjustments,
-                localAdjustments: localAdjustments,
-                calibration: calibrationDataStatus
-            )
+            let sampleSource: CIImage
+            if pixelSampleUsesOriginalImage {
+                sampleSource = sourceImage
+            } else {
+                sampleSource = imageProcessor.renderedPreviewSource(
+                    from: sourceImage,
+                    recipe: selectedRecipe,
+                    adjustments: currentAdjustments,
+                    localAdjustments: localAdjustments,
+                    calibration: calibrationDataStatus
+                )
+            }
             pixelSample = try imageProcessor.samplePixel(
-                from: rendered,
+                from: sampleSource,
                 normalisedX: samplerX,
                 normalisedY: samplerY
             )
@@ -1399,6 +1430,14 @@ public final class EditorStore: ObservableObject {
         return localAdjustments.firstIndex { $0.id == selectedLocalAdjustmentID }
     }
 
+    private func clearPixelSample(cancelPendingTask: Bool = false) {
+        if cancelPendingTask {
+            pixelSampleTask?.cancel()
+            pixelSampleTask = nil
+        }
+        pixelSample = nil
+    }
+
     private func previewPanLimit() -> Double {
         max(0, (previewZoom - 1.0) * 220)
     }
@@ -1772,6 +1811,7 @@ public final class EditorStore: ObservableObject {
             return
         }
 
+        clearPixelSample(cancelPendingTask: true)
         previewRenderGeneration += 1
         let generation = previewRenderGeneration
         let adjustments = currentAdjustments
