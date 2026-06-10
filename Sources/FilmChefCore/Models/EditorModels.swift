@@ -50,16 +50,16 @@ package struct FilmProject: Codable, Equatable {
         schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
         id = try container.decode(UUID.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
-        items = try container.decode([FilmProjectItem].self, forKey: .items)
+        items = try container.decodeIfPresent([FilmProjectItem].self, forKey: .items) ?? []
         selectedItemID = try container.decodeIfPresent(UUID.self, forKey: .selectedItemID)
-        editHistory = try container.decode([EditSnapshot].self, forKey: .editHistory)
+        editHistory = try container.decodeIfPresent([EditSnapshot].self, forKey: .editHistory) ?? []
         editHistoryIndex = try container.decodeIfPresent(Int.self, forKey: .editHistoryIndex)
-        exportSettings = try container.decode(ExportSettings.self, forKey: .exportSettings)
+        exportSettings = try container.decodeIfPresent(ExportSettings.self, forKey: .exportSettings) ?? .defaults
         exportPresets = try container.decodeIfPresent([ExportPreset].self, forKey: .exportPresets) ?? ExportPreset.defaults
-        colorManagementSettings = try container.decode(ColorManagementSettings.self, forKey: .colorManagementSettings)
-        calibrationDataStatus = try container.decode(CalibrationDataStatus.self, forKey: .calibrationDataStatus)
-        createdAt = try container.decode(Date.self, forKey: .createdAt)
-        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        colorManagementSettings = try container.decodeIfPresent(ColorManagementSettings.self, forKey: .colorManagementSettings) ?? .defaults
+        calibrationDataStatus = try container.decodeIfPresent(CalibrationDataStatus.self, forKey: .calibrationDataStatus) ?? .descriptiveOnly
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
     }
 }
 

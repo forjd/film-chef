@@ -1129,6 +1129,38 @@ func testErrorDescriptionsAreStable() throws {
     try expect(ProjectStore.ProjectStoreError.unsupportedSchema(99).errorDescription != nil)
 }
 
+func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let projectID = UUID()
+    let projectURL = directory.appendingPathComponent("Legacy.filmchef")
+    try """
+    {
+      "schemaVersion": 1,
+      "id": "\(projectID.uuidString)",
+      "name": "Legacy Project"
+    }
+    """.data(using: .utf8)?.write(to: projectURL)
+
+    let project = try ProjectStore().loadProject(from: projectURL)
+    try expect(project.schemaVersion == 1)
+    try expect(project.id == projectID)
+    try expect(project.name == "Legacy Project")
+    try expect(project.items.isEmpty)
+    try expect(project.editHistory.isEmpty)
+    try expect(project.exportSettings == .defaults)
+    try expect(project.exportPresets == ExportPreset.defaults)
+    try expect(project.colorManagementSettings == .defaults)
+    try expect(project.calibrationDataStatus == .descriptiveOnly)
+    try expect(project.updatedAt == project.createdAt)
+}
+
 func testProjectStoreAndEditorPersistRestorableProject() throws {
     let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -1371,6 +1403,7 @@ let tests: [TestCase] = [
     TestCase(name: "editor preview local mask and variant controls", run: testEditorPreviewLocalMaskAndVariantControls),
     TestCase(name: "editor calibration import flow", run: testEditorCalibrationImportFlow),
     TestCase(name: "editor export settings and batch flow", run: testEditorExportSettingsAndBatchFlow),
+    TestCase(name: "project store loads sparse schema one projects with defaults", run: testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults),
     TestCase(name: "project store and editor persist restorable project", run: testProjectStoreAndEditorPersistRestorableProject),
     TestCase(name: "error descriptions are stable", run: testErrorDescriptionsAreStable)
 ]
