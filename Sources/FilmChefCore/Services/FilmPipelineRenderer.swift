@@ -566,7 +566,7 @@ package struct FilmPipelineRenderer {
         )
 
         var noise = random
-            .transformed(by: CGAffineTransform(scaleX: 1.0 / size, y: 1.0 / size))
+            .transformed(by: CGAffineTransform(scaleX: size, y: size))
             .cropped(to: extent)
 
         let softnessRadius = grain.softness * size * 1.6

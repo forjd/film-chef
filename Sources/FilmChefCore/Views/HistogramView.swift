@@ -99,10 +99,3 @@ private struct HistogramPath: Shape {
         return path
     }
 }
-
-package enum HistogramViewCoverageProbe {
-    package static func touch(summary: HistogramSummary?) {
-        _ = HistogramView(summary: summary, channelMode: .all).body
-        _ = HistogramPath(values: [0.0, 0.5, 1.0]).path(in: CGRect(x: 0, y: 0, width: 10, height: 10))
-    }
-}

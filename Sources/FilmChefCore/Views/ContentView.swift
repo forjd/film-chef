@@ -86,24 +86,13 @@ public struct ContentView: View {
         }
     }
 
-    fileprivate func setAlertPresented(_ isPresented: Bool) {
+    private func setAlertPresented(_ isPresented: Bool) {
         if !isPresented {
             editor.errorMessage = nil
         }
     }
 
-    fileprivate func clearError() {
+    private func clearError() {
         editor.errorMessage = nil
-    }
-}
-
-package enum ContentViewCoverageProbe {
-    @MainActor
-    package static func touch(editor: EditorStore) {
-        let contentView = ContentView(editor: editor)
-        _ = contentView.body
-        contentView.setAlertPresented(true)
-        contentView.setAlertPresented(false)
-        contentView.clearError()
     }
 }

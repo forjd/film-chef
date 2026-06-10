@@ -53,7 +53,7 @@ package final class ImageProcessor {
               let rendered = context.createCGImage(
                   applyRawDevelopment(to: image, settings: colorSettings),
                   from: image.extent,
-                  format: .RGBA8,
+                  format: .RGBAh,
                   colorSpace: workingColorSpace(for: colorSettings.workingColorSpace)
               )
         else {
@@ -61,6 +61,15 @@ package final class ImageProcessor {
         }
 
         return CIImage(cgImage: rendered)
+    }
+
+    package func validateReadableImage(at url: URL) throws {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              CGImageSourceGetCount(source) > 0,
+              CGImageSourceCreateImageAtIndex(source, 0, nil) != nil
+        else {
+            throw ImageProcessorError.cannotLoadImage
+        }
     }
 
     package func makePreviewImage(
@@ -243,10 +252,10 @@ package final class ImageProcessor {
             greenParade[paradeBin] += g / 255.0
             blueParade[paradeBin] += b / 255.0
 
-            if r <= 1 || g <= 1 || b <= 1 {
+            if r <= 1, g <= 1, b <= 1 {
                 shadowClipped += 1
             }
-            if r >= 254 || g >= 254 || b >= 254 {
+            if r >= 254, g >= 254, b >= 254 {
                 highlightClipped += 1
             }
         }
@@ -650,6 +659,10 @@ package final class ImageProcessor {
             return CGColorSpace(name: CGColorSpace.displayP3) ?? CGColorSpaceCreateDeviceRGB()
         }
 
+        if normalized.contains("extended"), normalized.contains("linear") {
+            return CGColorSpace(name: CGColorSpace.extendedLinearSRGB) ?? CGColorSpaceCreateDeviceRGB()
+        }
+
         if normalized.contains("extended") {
             return CGColorSpace(name: CGColorSpace.extendedSRGB) ?? CGColorSpaceCreateDeviceRGB()
         }
@@ -669,6 +682,10 @@ package final class ImageProcessor {
 
         if normalized.contains("display_p3") || normalized == "p3" {
             return "Display P3"
+        }
+
+        if normalized.contains("extended"), normalized.contains("linear") {
+            return "Extended Linear sRGB"
         }
 
         if normalized.contains("extended") {

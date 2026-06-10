@@ -40,13 +40,20 @@ extension EditorStore {
         return Array(Set(issues)).sorted()
     }
 
-    nonisolated package static func uniqueExportURL(
-        in directory: URL,
+    nonisolated package static func exportFileName(
         item: FilmProjectItem,
         recipe: FilmRecipe,
         settings: ExportSettings
-    ) -> URL {
-        let baseName = sanitizedFileComponent(
+    ) -> String {
+        "\(exportBaseName(item: item, recipe: recipe, settings: settings)).\(settings.fileFormat.preferredPathExtension)"
+    }
+
+    nonisolated private static func exportBaseName(
+        item: FilmProjectItem,
+        recipe: FilmRecipe,
+        settings: ExportSettings
+    ) -> String {
+        sanitizedFileComponent(
             settings.namingTemplate
                 .replacingOccurrences(
                     of: "{photo}",
@@ -55,6 +62,15 @@ extension EditorStore {
                 .replacingOccurrences(of: "{recipe}", with: recipe.name)
                 .replacingOccurrences(of: "{format}", with: settings.fileFormat.label)
         )
+    }
+
+    nonisolated package static func uniqueExportURL(
+        in directory: URL,
+        item: FilmProjectItem,
+        recipe: FilmRecipe,
+        settings: ExportSettings
+    ) -> URL {
+        let baseName = exportBaseName(item: item, recipe: recipe, settings: settings)
         let fileExtension = settings.fileFormat.preferredPathExtension
         var candidate = directory.appendingPathComponent("\(baseName).\(fileExtension)")
         var suffix = 2

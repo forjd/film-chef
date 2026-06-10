@@ -1192,12 +1192,6 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     failingExportEditor.importPhotoForTesting(from: sourceURL)
     failingExportEditor.exportEditedPhotoForTesting(to: directory.appendingPathComponent("bad-export.jpg"))
     try expect(failingExportEditor.errorMessage == ImageProcessor.ImageProcessorError.cannotEncodeImage.errorDescription)
-
-    ContentViewCoverageProbe.touch(editor: editor)
-    SidebarViewCoverageProbe.touch(editor: editor, recipe: recipe)
-    PreviewPaneViewCoverageProbe.touch(editor: editor)
-    ControlsViewCoverageProbe.touch(editor: editor)
-    HistogramViewCoverageProbe.touch(summary: editor.histogramSummary)
     }
 }
 
