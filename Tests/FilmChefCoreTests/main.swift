@@ -1087,11 +1087,15 @@ func testEditorExportSettingsAndBatchFlow() throws {
 
     let sourceURL = directory.appendingPathComponent("Export Flow.png")
     try writeTestPNG(to: sourceURL, width: 10, height: 8)
+    let missingAfterImportURL = directory.appendingPathComponent("Missing Later.png")
+    try writeTestPNG(to: missingAfterImportURL, width: 10, height: 8)
 
     try MainActor.assumeIsolated {
         let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
         editor.loadRecipesIfNeeded()
         editor.importPhotoForTesting(from: sourceURL)
+        editor.importPhotoForTesting(from: missingAfterImportURL)
+        try? FileManager.default.removeItem(at: missingAfterImportURL)
 
         editor.exportSettings.namingTemplate = "{photo}-{bad}"
         try expect(!editor.canExportCurrentSettings)
@@ -1104,7 +1108,12 @@ func testEditorExportSettingsAndBatchFlow() throws {
         editor.exportProjectPhotosForTesting(to: batchDirectory)
         let batchFiles = try FileManager.default.contentsOfDirectory(atPath: batchDirectory.path)
         try expect(batchFiles.count == 1)
-        try expect(editor.batchExportState.completedCount == 1)
+        try expect(editor.batchExportState.completedCount == 2)
+        try expect(editor.batchExportState.exportedFileNames.count == 1)
+        try expect(editor.batchExportState.failures.count == 1)
+        try expect(editor.batchExportState.failures.first?.itemName == "Missing Later.png")
+        try expect(editor.batchExportState.statusText == "Exported 1 of 2; 1 failed.")
+        try expect(editor.errorMessage == "1 batch export item failed.")
     }
 }
 

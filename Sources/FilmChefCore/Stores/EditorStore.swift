@@ -1479,6 +1479,7 @@ public final class EditorStore: ObservableObject {
 
         batchExportTask = Task.detached(priority: .userInitiated) { [imageProcessor] in
             var exportedNames: [String] = []
+            var failures: [BatchExportFailure] = []
 
             do {
                 try FileManager.default.createDirectory(at: request.directory, withIntermediateDirectories: true)
@@ -1486,45 +1487,58 @@ public final class EditorStore: ObservableObject {
                 for (index, item) in request.items.enumerated() {
                     if Task.isCancelled {
                         let exportedNamesSnapshot = exportedNames
+                        let failuresSnapshot = failures
                         await MainActor.run {
                             self.batchExportState = BatchExportState(
                                 isExporting: false,
                                 completedCount: index,
                                 totalCount: request.items.count,
                                 wasCancelled: true,
-                                exportedFileNames: exportedNamesSnapshot
+                                exportedFileNames: exportedNamesSnapshot,
+                                failures: failuresSnapshot
                             )
                         }
                         return
                     }
 
                     let exportedNamesSnapshot = exportedNames
+                    let failuresSnapshot = failures
                     await MainActor.run {
                         self.batchExportState = BatchExportState(
                             isExporting: true,
                             completedCount: index,
                             totalCount: request.items.count,
                             currentItemName: item.displayName,
-                            exportedFileNames: exportedNamesSnapshot
+                            exportedFileNames: exportedNamesSnapshot,
+                            failures: failuresSnapshot
                         )
                     }
 
-                    let exportedURL = try Self.writeProjectExport(
-                        for: item,
-                        request: request,
-                        imageProcessor: imageProcessor
-                    )
-                    exportedNames.append(exportedURL.lastPathComponent)
+                    do {
+                        let exportedURL = try Self.writeProjectExport(
+                            for: item,
+                            request: request,
+                            imageProcessor: imageProcessor
+                        )
+                        exportedNames.append(exportedURL.lastPathComponent)
+                    } catch {
+                        failures.append(BatchExportFailure(itemName: item.displayName, message: error.localizedDescription))
+                    }
                 }
 
                 let exportedNamesSnapshot = exportedNames
+                let failuresSnapshot = failures
                 await MainActor.run {
                     self.batchExportState = BatchExportState(
                         isExporting: false,
                         completedCount: request.items.count,
                         totalCount: request.items.count,
-                        exportedFileNames: exportedNamesSnapshot
+                        exportedFileNames: exportedNamesSnapshot,
+                        failures: failuresSnapshot
                     )
+                    if !failuresSnapshot.isEmpty {
+                        self.errorMessage = "\(failuresSnapshot.count) batch export item\(failuresSnapshot.count == 1 ? "" : "s") failed."
+                    }
                     self.batchExportTask = nil
                 }
             } catch {
@@ -1533,7 +1547,8 @@ public final class EditorStore: ObservableObject {
                         isExporting: false,
                         completedCount: self.batchExportState.completedCount,
                         totalCount: self.batchExportState.totalCount,
-                        exportedFileNames: self.batchExportState.exportedFileNames
+                        exportedFileNames: self.batchExportState.exportedFileNames,
+                        failures: self.batchExportState.failures
                     )
                     self.errorMessage = error.localizedDescription
                     self.batchExportTask = nil
@@ -1554,6 +1569,7 @@ public final class EditorStore: ObservableObject {
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             var exportedNames: [String] = []
+            var failures: [BatchExportFailure] = []
             let request = makeBatchExportRequest(directory: directory)
             for (index, item) in request.items.enumerated() {
                 if cancelBatchExportRequested {
@@ -1562,7 +1578,8 @@ public final class EditorStore: ObservableObject {
                         completedCount: index,
                         totalCount: request.items.count,
                         wasCancelled: true,
-                        exportedFileNames: exportedNames
+                        exportedFileNames: exportedNames,
+                        failures: failures
                     )
                     return
                 }
@@ -1572,23 +1589,33 @@ public final class EditorStore: ObservableObject {
                     completedCount: index,
                     totalCount: request.items.count,
                     currentItemName: item.displayName,
-                    exportedFileNames: exportedNames
+                    exportedFileNames: exportedNames,
+                    failures: failures
                 )
-                let exportedURL = try writeProjectExport(for: item, request: request)
-                exportedNames.append(exportedURL.lastPathComponent)
+                do {
+                    let exportedURL = try writeProjectExport(for: item, request: request)
+                    exportedNames.append(exportedURL.lastPathComponent)
+                } catch {
+                    failures.append(BatchExportFailure(itemName: item.displayName, message: error.localizedDescription))
+                }
             }
             batchExportState = BatchExportState(
                 isExporting: false,
                 completedCount: request.items.count,
                 totalCount: request.items.count,
-                exportedFileNames: exportedNames
+                exportedFileNames: exportedNames,
+                failures: failures
             )
+            if !failures.isEmpty {
+                errorMessage = "\(failures.count) batch export item\(failures.count == 1 ? "" : "s") failed."
+            }
         } catch {
             batchExportState = BatchExportState(
                 isExporting: false,
                 completedCount: batchExportState.completedCount,
                 totalCount: batchExportState.totalCount,
-                exportedFileNames: batchExportState.exportedFileNames
+                exportedFileNames: batchExportState.exportedFileNames,
+                failures: batchExportState.failures
             )
             errorMessage = error.localizedDescription
         }

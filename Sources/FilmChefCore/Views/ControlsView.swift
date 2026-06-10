@@ -764,6 +764,27 @@ struct ControlsView: View {
 
                 InspectorSection("Batch") {
                     InfoRow("Status", value: editor.batchExportState.statusText)
+                    if !editor.batchExportState.exportedFileNames.isEmpty {
+                        InfoRow("Exported", value: "\(editor.batchExportState.exportedFileNames.count)")
+                    }
+                    if !editor.batchExportState.failures.isEmpty {
+                        InfoRow("Failed", value: "\(editor.batchExportState.failures.count)")
+                        ForEach(editor.batchExportState.failures) { failure in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(failure.itemName)
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .lineLimit(1)
+                                Text(failure.message)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        }
+                    }
                     ProgressView(value: editor.batchExportState.progress)
                     Button(action: editor.cancelBatchExport) {
                         Label("Cancel Batch", systemImage: "xmark.circle")

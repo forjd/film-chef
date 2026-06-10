@@ -486,6 +486,17 @@ package struct PixelSample: Codable, Equatable, Hashable {
     }
 }
 
+package struct BatchExportFailure: Codable, Equatable, Hashable, Identifiable {
+    package var id: String { "\(itemName)|\(message)" }
+    package var itemName: String
+    package var message: String
+
+    package init(itemName: String, message: String) {
+        self.itemName = itemName
+        self.message = message
+    }
+}
+
 package struct BatchExportState: Codable, Equatable, Hashable {
     package var isExporting: Bool
     package var completedCount: Int
@@ -493,6 +504,7 @@ package struct BatchExportState: Codable, Equatable, Hashable {
     package var currentItemName: String?
     package var wasCancelled: Bool
     package var exportedFileNames: [String]
+    package var failures: [BatchExportFailure]
 
     package init(
         isExporting: Bool = false,
@@ -500,7 +512,8 @@ package struct BatchExportState: Codable, Equatable, Hashable {
         totalCount: Int = 0,
         currentItemName: String? = nil,
         wasCancelled: Bool = false,
-        exportedFileNames: [String] = []
+        exportedFileNames: [String] = [],
+        failures: [BatchExportFailure] = []
     ) {
         self.isExporting = isExporting
         self.completedCount = completedCount
@@ -508,6 +521,7 @@ package struct BatchExportState: Codable, Equatable, Hashable {
         self.currentItemName = currentItemName
         self.wasCancelled = wasCancelled
         self.exportedFileNames = exportedFileNames
+        self.failures = failures
     }
 
     package var progress: Double {
@@ -528,6 +542,9 @@ package struct BatchExportState: Codable, Equatable, Hashable {
             return "Preparing batch export"
         }
         if totalCount > 0 {
+            if !failures.isEmpty {
+                return "Exported \(exportedFileNames.count) of \(totalCount); \(failures.count) failed."
+            }
             return "Exported \(completedCount) of \(totalCount)."
         }
         return "Idle"
