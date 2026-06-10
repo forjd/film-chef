@@ -930,6 +930,28 @@ public final class EditorStore: ObservableObject {
         syncExportPresetsToProject()
     }
 
+    public func duplicateSelectedExportPreset() {
+        let sourcePreset = selectedExportPresetID
+            .flatMap { selectedID in exportPresets.first { $0.id == selectedID } } ??
+            ExportPreset(name: "Current Settings", settings: exportSettings)
+        let preset = ExportPreset(
+            name: uniqueExportPresetName(base: "\(sourcePreset.name) Copy"),
+            settings: sourcePreset.settings
+        )
+        exportPresets.append(preset)
+        selectedExportPresetID = preset.id
+        exportPresetDraftName = preset.name
+        exportSettings = preset.settings
+        syncExportPresetsToProject()
+    }
+
+    public func restoreDefaultExportPresets() {
+        exportPresets = ExportPreset.defaults
+        selectedExportPresetID = nil
+        exportPresetDraftName = uniqueExportPresetName(base: "Custom Preset")
+        syncExportPresetsToProject()
+    }
+
     public func deleteSelectedExportPreset() {
         guard let selectedExportPresetID,
               exportPresets.count > 1

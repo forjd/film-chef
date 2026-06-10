@@ -12,6 +12,7 @@ The project is early, useful, and intentionally open-ended: the renderer is prof
 - Original, edited, split, and side-by-side preview modes with bounded pan, loupe placement, zoom, and draggable comparison
 - RGB, luminance, and RGB parade scopes with clipping readouts and pixel sampling
 - ImageIO export to JPEG, PNG, or TIFF with quality, scale, metadata, ICC profile, and validated naming templates
+- Export preset management with duplicate, update, delete, restore defaults, and project persistence
 - Background batch export for every photo in the current project with progress and cancellation
 - Cancelable async preview rendering in-app, plus synchronous rendering for tests
 - JSON-backed recipes that are easy to inspect, edit, and share

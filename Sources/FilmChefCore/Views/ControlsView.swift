@@ -490,6 +490,11 @@ struct ControlsView: View {
                                 .frame(maxWidth: .infinity)
                         }
 
+                        Button(action: editor.duplicateSelectedExportPreset) {
+                            Label("Duplicate", systemImage: "doc.on.doc")
+                                .frame(maxWidth: .infinity)
+                        }
+
                         Button(action: editor.saveExportPreset) {
                             Label("Save Preset", systemImage: "tray.and.arrow.down")
                                 .frame(maxWidth: .infinity)
@@ -501,6 +506,11 @@ struct ControlsView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .disabled(editor.selectedExportPresetID == nil || editor.exportPresets.count <= 1)
+                    }
+
+                    Button(action: editor.restoreDefaultExportPresets) {
+                        Label("Restore Defaults", systemImage: "arrow.counterclockwise")
+                            .frame(maxWidth: .infinity)
                     }
 
                     Picker("Format", selection: $editor.exportSettings.fileFormat) {

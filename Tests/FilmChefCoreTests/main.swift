@@ -1083,6 +1083,11 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     editor.applySelectedExportPreset()
     try expect(editor.exportSettings.fileFormat == .png)
     try expect(editor.exportSettings.scale == 0.5)
+    editor.duplicateSelectedExportPreset()
+    let copiedPreset = try require(editor.exportPresets.first { $0.name == "Small Review Copy" })
+    try expect(editor.selectedExportPresetID == copiedPreset.id)
+    try expect(editor.exportPresetDraftName == "Small Review Copy")
+    try expect(copiedPreset.settings == smallReviewPreset.settings)
     editor.beginNewExportPreset()
     try expect(editor.selectedExportPresetID == nil)
     editor.exportPresetDraftName = "Small Review"
@@ -1097,6 +1102,9 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     try expect(editor.exportPresets.first { $0.id == mobilePreset.id }?.name == "Small Review Mobile Updated")
     editor.deleteSelectedExportPreset()
     try expect(!editor.exportPresets.contains { $0.id == mobilePreset.id })
+    editor.restoreDefaultExportPresets()
+    try expect(editor.exportPresets == ExportPreset.defaults)
+    try expect(editor.selectedExportPresetID == nil)
 
     let exportURL = directory.appendingPathComponent("export.jpeg")
     editor.exportEditedPhotoForTesting(to: exportURL)
