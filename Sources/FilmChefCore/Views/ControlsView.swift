@@ -944,7 +944,7 @@ struct ControlsView: View {
     fileprivate func compactComparisonLabel(for mode: PreviewComparisonMode) -> String {
         switch mode {
         case .edited:
-            return "Edit"
+            return "Proc"
         case .original:
             return "Orig"
         case .split:

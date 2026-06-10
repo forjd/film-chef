@@ -282,12 +282,16 @@ package enum PreviewComparisonMode: String, CaseIterable, Codable, Equatable, Id
     case split
     case sideBySide
 
+    package static var allCases: [PreviewComparisonMode] {
+        [.edited, .original, .split]
+    }
+
     package var id: String { rawValue }
 
     package var label: String {
         switch self {
         case .edited:
-            return "Edited"
+            return "Processed"
         case .original:
             return "Original"
         case .split:

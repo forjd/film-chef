@@ -71,11 +71,7 @@ struct PreviewPaneView: View {
             }
         case .sideBySide:
             if let original = editor.originalPreviewImage, let edited = editor.editedPreviewImage {
-                HStack(spacing: 0) {
-                    labelledPreview(title: "Original", image: original)
-                    Divider()
-                    labelledPreview(title: "Edited", image: edited)
-                }
+                splitPreview(original: original, edited: edited)
             }
         }
     }
@@ -142,33 +138,24 @@ struct PreviewPaneView: View {
             .padding(32)
     }
 
-    private func labelledPreview(title: String, image: NSImage) -> some View {
-        VStack(spacing: 8) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            previewImage(image)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
     private func splitPreview(original: NSImage, edited: NSImage) -> some View {
         GeometryReader { proxy in
+            let dividerX = proxy.size.width * editor.splitPosition
+
             ZStack {
                 previewImage(edited)
 
-                HStack(spacing: 0) {
-                    previewImage(original)
-                        .frame(width: proxy.size.width * editor.splitPosition)
-                        .clipped()
-                    Spacer(minLength: 0)
-                }
+                previewImage(original)
+                    .mask(alignment: .leading) {
+                        Rectangle()
+                            .frame(width: dividerX)
+                    }
 
                 Rectangle()
                     .fill(.white.opacity(0.75))
                     .frame(width: 3)
                     .shadow(radius: 2)
-                    .position(x: proxy.size.width * editor.splitPosition, y: proxy.size.height / 2)
+                    .position(x: dividerX, y: proxy.size.height / 2)
                     .gesture(
                         DragGesture(minimumDistance: 0, coordinateSpace: .named("splitPreview"))
                             .onChanged { value in
@@ -182,16 +169,37 @@ struct PreviewPaneView: View {
                     .padding(7)
                     .background(.white.opacity(0.82), in: Circle())
                     .shadow(radius: 2)
-                    .position(x: proxy.size.width * editor.splitPosition, y: proxy.size.height / 2)
+                    .position(x: dividerX, y: proxy.size.height / 2)
                     .gesture(
                         DragGesture(minimumDistance: 0, coordinateSpace: .named("splitPreview"))
                             .onChanged { value in
                                 editor.splitPosition = clampedUnit(Double(value.location.x / proxy.size.width))
                             }
                     )
+
+                HStack {
+                    comparisonBadge("Original")
+                    Spacer()
+                    comparisonBadge("Processed")
+                }
+                .padding(22)
+                .allowsHitTesting(false)
             }
             .coordinateSpace(name: "splitPreview")
         }
+    }
+
+    private func comparisonBadge(_ title: String) -> some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(.white.opacity(0.18), lineWidth: 1)
+            }
     }
 
     private func samplerOverlay(in size: CGSize) -> some View {
