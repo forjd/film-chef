@@ -262,6 +262,7 @@ public final class EditorStore: ObservableObject {
     @Published package private(set) var samplerX = 0.5
     @Published package private(set) var samplerY = 0.5
     @Published package var histogramChannelMode = HistogramChannelMode.all
+    @Published package var histogramClipWarningThreshold = 0.02
     @Published package var exportSettings = ExportSettings.defaults {
         didSet { handleExportSettingsChanged() }
     }
@@ -458,6 +459,37 @@ public final class EditorStore: ObservableObject {
 
     package var selectedOutputProfile: ColorOutputProfile {
         ColorOutputProfile(rawProfileName: colorManagementSettings.outputColorSpace)
+    }
+
+    package var histogramClipWarningText: String? {
+        guard let histogramSummary else {
+            return nil
+        }
+
+        return Self.histogramClipWarningText(
+            for: histogramSummary,
+            threshold: histogramClipWarningThreshold
+        )
+    }
+
+    nonisolated package static func histogramClipWarningText(
+        for summary: HistogramSummary,
+        threshold: Double
+    ) -> String? {
+        let safeThreshold = min(max(threshold, 0), 1)
+        let shadowPercent = Int((summary.shadowClippingRatio * 100).rounded())
+        let highlightPercent = Int((summary.highlightClippingRatio * 100).rounded())
+        if summary.shadowClippingRatio >= safeThreshold,
+           summary.highlightClippingRatio >= safeThreshold {
+            return "Shadow \(shadowPercent)% and highlight \(highlightPercent)% clipping exceed threshold."
+        }
+        if summary.shadowClippingRatio >= safeThreshold {
+            return "Shadow \(shadowPercent)% clipping exceeds threshold."
+        }
+        if summary.highlightClippingRatio >= safeThreshold {
+            return "Highlight \(highlightPercent)% clipping exceeds threshold."
+        }
+        return nil
     }
 
     package var exportFileNamePreview: String {

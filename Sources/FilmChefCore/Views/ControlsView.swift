@@ -696,6 +696,20 @@ struct ControlsView: View {
                         InfoRow("Highlight Clip", value: "\(Int(summary.highlightClippingRatio * 100))%")
                     }
 
+                    SliderControl(
+                        title: "Clip Alert",
+                        value: $editor.histogramClipWarningThreshold,
+                        range: 0.005...0.25,
+                        step: 0.005,
+                        valueText: "\(Int(editor.histogramClipWarningThreshold * 100))%"
+                    )
+
+                    if let warning = editor.histogramClipWarningText {
+                        Label(warning, systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+
                     if editor.isRenderingPreview {
                         Label(editor.previewRenderStatus, systemImage: "hourglass")
                             .foregroundStyle(.secondary)

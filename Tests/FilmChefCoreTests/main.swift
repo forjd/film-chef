@@ -468,6 +468,42 @@ func testPreviewScalingRespectsMaxDimension() throws {
     try expect(abs(preview.size.height - 10) <= 0.5, "Preview height should preserve aspect ratio.")
 }
 
+func testHistogramClipWarningTextUsesConfiguredThreshold() throws {
+    let summary = HistogramSummary(
+        red: [0.0, 1.0],
+        green: [0.0, 1.0],
+        blue: [0.0, 1.0],
+        luminance: [0.0, 1.0],
+        sampleCount: 100,
+        shadowClippingRatio: 0.08,
+        highlightClippingRatio: 0.03
+    )
+
+    try expect(
+        EditorStore.histogramClipWarningText(for: summary, threshold: 0.02) ==
+            "Shadow 8% and highlight 3% clipping exceed threshold."
+    )
+    try expect(
+        EditorStore.histogramClipWarningText(for: summary, threshold: 0.05) ==
+            "Shadow 8% clipping exceeds threshold."
+    )
+    try expect(EditorStore.histogramClipWarningText(for: summary, threshold: 0.1) == nil)
+
+    let highlightSummary = HistogramSummary(
+        red: [0.0, 1.0],
+        green: [0.0, 1.0],
+        blue: [0.0, 1.0],
+        luminance: [0.0, 1.0],
+        sampleCount: 100,
+        shadowClippingRatio: 0.0,
+        highlightClippingRatio: 0.12
+    )
+    try expect(
+        EditorStore.histogramClipWarningText(for: highlightSummary, threshold: 0.05) ==
+            "Highlight 12% clipping exceeds threshold."
+    )
+}
+
 func testImageProcessorLoadsRendersAndReportsErrors() throws {
     let processor = ImageProcessor()
     let recipes = try loadTestRecipes()
@@ -1418,6 +1454,7 @@ let tests: [TestCase] = [
     TestCase(name: "renderer covers profile driven branches", run: testRendererCoversProfileDrivenBranches),
     TestCase(name: "renderer clamps intensity before applying recipe", run: testRendererClampsIntensityBeforeApplyingRecipe),
     TestCase(name: "preview scaling respects max dimension", run: testPreviewScalingRespectsMaxDimension),
+    TestCase(name: "histogram clip warning text uses configured threshold", run: testHistogramClipWarningTextUsesConfiguredThreshold),
     TestCase(name: "image processor loads renders and reports errors", run: testImageProcessorLoadsRendersAndReportsErrors),
     TestCase(name: "write rendered image encodes PNG and JPEG", run: testWriteRenderedImageEncodesPngAndJpeg),
     TestCase(name: "editor store end to end smoke flow", run: testEditorStoreStateImportExportAndViewConstruction),
