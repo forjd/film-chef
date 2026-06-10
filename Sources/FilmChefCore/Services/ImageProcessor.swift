@@ -49,8 +49,13 @@ package final class ImageProcessor {
         from url: URL,
         colorSettings: ColorManagementSettings = .defaults
     ) throws -> CIImage {
-        guard let image = CIImage(contentsOf: url, options: [.applyOrientationProperty: true]),
-              let rendered = context.createCGImage(applyRawDevelopment(to: image, settings: colorSettings), from: image.extent)
+        guard let image = CIImage(contentsOf: url, options: sourceImageOptions(for: colorSettings)),
+              let rendered = context.createCGImage(
+                  applyRawDevelopment(to: image, settings: colorSettings),
+                  from: image.extent,
+                  format: .RGBA8,
+                  colorSpace: workingColorSpace(for: colorSettings.workingColorSpace)
+              )
         else {
             throw ImageProcessorError.cannotLoadImage
         }
@@ -375,6 +380,23 @@ package final class ImageProcessor {
         return output
     }
 
+    private func sourceImageOptions(for settings: ColorManagementSettings) -> [CIImageOption: Any] {
+        var options: [CIImageOption: Any] = [.applyOrientationProperty: true]
+
+        let normalizedIntent = settings.inputIntent
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+
+        if normalizedIntent.contains("device_rgb") || normalizedIntent == "device" {
+            options[.colorSpace] = CGColorSpaceCreateDeviceRGB()
+        } else if normalizedIntent.contains("srgb") {
+            options[.colorSpace] = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+        }
+
+        return options
+    }
+
     private func applyLocalAdjustments(_ layers: [LocalAdjustmentLayer], to image: CIImage) -> CIImage {
         layers.reduce(image) { currentImage, layer in
             guard layer.isEnabled else {
@@ -685,6 +707,10 @@ package final class ImageProcessor {
     }
 
     private func outputColorSpace(for name: String) -> CGColorSpace {
+        workingColorSpace(for: name)
+    }
+
+    private func workingColorSpace(for name: String) -> CGColorSpace {
         let normalized = name
             .lowercased()
             .replacingOccurrences(of: "-", with: "_")

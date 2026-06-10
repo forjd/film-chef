@@ -616,6 +616,17 @@ func testImageProcessorLoadsRendersAndReportsErrors() throws {
     )
     try expect(rawAdjusted.extent == loaded.extent)
 
+    let colorManaged = try processor.loadSourceImage(
+        from: sourceURL,
+        colorSettings: ColorManagementSettings(
+            inputIntent: "device_rgb",
+            workingColorSpace: "display_p3",
+            outputColorSpace: "display_p3",
+            rawDevelopmentEnabled: false
+        )
+    )
+    try expect(colorManaged.extent == loaded.extent)
+
     do {
         _ = try processor.loadSourceImage(from: directory.appendingPathComponent("missing.png"))
         try expect(false, "Expected missing image load to fail.")
