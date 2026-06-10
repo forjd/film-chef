@@ -113,6 +113,35 @@ func writeTestPNG(to url: URL, width: Int = 16, height: Int = 12) throws {
     try data.write(to: url)
 }
 
+func writeTestJPEG(
+    to url: URL,
+    width: Int = 16,
+    height: Int = 12,
+    orientation: Int? = nil
+) throws {
+    let image = makeTestImage(width: width, height: height)
+    let context = CIContext()
+    let cgImage = try require(context.createCGImage(image, from: image.extent))
+    let data = NSMutableData()
+    let destination = try require(CGImageDestinationCreateWithData(
+        data,
+        "public.jpeg" as CFString,
+        1,
+        nil
+    ))
+
+    var properties: [CFString: Any] = [
+        kCGImageDestinationLossyCompressionQuality: 0.95
+    ]
+    if let orientation {
+        properties[kCGImagePropertyOrientation] = orientation
+    }
+
+    CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
+    try expect(CGImageDestinationFinalize(destination), "Expected JPEG fixture to encode.")
+    try (data as Data).write(to: url)
+}
+
 func renderBytes(
     _ image: CIImage,
     context: CIContext,
@@ -666,6 +695,56 @@ func testImageProcessorLoadsRendersAndReportsErrors() throws {
     try expect(ImageProcessor.ImageProcessorError.cannotRenderImage.errorDescription != nil)
     try expect(ImageProcessor.ImageProcessorError.cannotEncodeImage.errorDescription != nil)
     try expect(ImageProcessor.ImageProcessorError.cannotSampleImage.errorDescription != nil)
+}
+
+func testCameraProfileIngestionHonorsOrientationAndRawSettings() throws {
+    let processor = ImageProcessor()
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let orientedURL = directory.appendingPathComponent("camera-oriented.jpg")
+    try writeTestJPEG(to: orientedURL, width: 8, height: 12, orientation: 6)
+
+    let loaded = try processor.loadSourceImage(
+        from: orientedURL,
+        colorSettings: ColorManagementSettings(rawDevelopmentEnabled: false)
+    )
+    try expect(loaded.extent.width == 12)
+    try expect(loaded.extent.height == 8)
+
+    let colorManaged = try processor.loadSourceImage(
+        from: orientedURL,
+        colorSettings: ColorManagementSettings(
+            inputIntent: "srgb",
+            workingColorSpace: "linear_srgb",
+            outputColorSpace: "srgb",
+            rawDevelopmentEnabled: false
+        )
+    )
+    try expect(colorManaged.extent == loaded.extent)
+
+    let rawAdjusted = try processor.loadSourceImage(
+        from: orientedURL,
+        colorSettings: ColorManagementSettings(
+            rawDevelopment: RawDevelopmentSettings(
+                exposureEV: 1.0,
+                temperatureK: 5400,
+                tint: 0,
+                highlightRecovery: 0
+            )
+        )
+    )
+    try expect(rawAdjusted.extent == loaded.extent)
+    try expect(
+        renderBytes(loaded, context: CIContext(), extent: loaded.extent)
+            != renderBytes(rawAdjusted, context: CIContext(), extent: rawAdjusted.extent),
+        "RAW exposure development should affect ingested pixels."
+    )
 }
 
 func testEditorStoreStateImportExportAndViewConstruction() throws {
@@ -1484,6 +1563,7 @@ let tests: [TestCase] = [
     TestCase(name: "preview scaling respects max dimension", run: testPreviewScalingRespectsMaxDimension),
     TestCase(name: "histogram clip warning text uses configured threshold", run: testHistogramClipWarningTextUsesConfiguredThreshold),
     TestCase(name: "image processor loads renders and reports errors", run: testImageProcessorLoadsRendersAndReportsErrors),
+    TestCase(name: "camera profile ingestion honors orientation and RAW settings", run: testCameraProfileIngestionHonorsOrientationAndRawSettings),
     TestCase(name: "write rendered image encodes PNG and JPEG", run: testWriteRenderedImageEncodesPngAndJpeg),
     TestCase(name: "editor store end to end smoke flow", run: testEditorStoreStateImportExportAndViewConstruction),
     TestCase(name: "editor recipe draft editing flow", run: testEditorRecipeDraftEditingFlow),
