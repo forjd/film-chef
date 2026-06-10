@@ -4,6 +4,8 @@ struct PreviewPaneView: View {
     @ObservedObject var editor: EditorStore
     @State private var panDragStart = CGSize.zero
     @State private var isEditingLocalMaskDrag = false
+    @State private var isDraggingSplitDivider = false
+    @State private var liveSplitPosition = 0.5
 
     var body: some View {
         VStack(spacing: 0) {
@@ -88,6 +90,9 @@ struct PreviewPaneView: View {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
+                        guard !shouldReserveDragForSplitDivider(value, in: proxy.size) else {
+                            return
+                        }
                         if editor.localMaskEditingEnabled, editor.canEditLocalMaskOnPreview {
                             editLocalMask(at: value.location, in: proxy.size)
                         } else if editor.previewZoom > 1.0 {
@@ -105,6 +110,7 @@ struct PreviewPaneView: View {
                             editor.endLocalMaskEditAtPreviewPoint()
                             isEditingLocalMaskDrag = false
                         }
+                        isDraggingSplitDivider = false
                         panDragStart = CGSize(width: editor.previewPanX, height: editor.previewPanY)
                     }
             )
@@ -140,7 +146,8 @@ struct PreviewPaneView: View {
 
     private func splitPreview(original: NSImage, edited: NSImage) -> some View {
         GeometryReader { proxy in
-            let dividerX = proxy.size.width * editor.splitPosition
+            let splitPosition = currentSplitPosition
+            let dividerX = proxy.size.width * splitPosition
 
             ZStack {
                 previewImage(edited)
@@ -156,12 +163,7 @@ struct PreviewPaneView: View {
                     .frame(width: 3)
                     .shadow(radius: 2)
                     .position(x: dividerX, y: proxy.size.height / 2)
-                    .gesture(
-                        DragGesture(minimumDistance: 0, coordinateSpace: .named("splitPreview"))
-                            .onChanged { value in
-                                editor.splitPosition = clampedUnit(Double(value.location.x / proxy.size.width))
-                            }
-                    )
+                    .allowsHitTesting(false)
 
                 Image(systemName: "arrow.left.and.right")
                     .font(.system(size: 13, weight: .semibold))
@@ -170,12 +172,26 @@ struct PreviewPaneView: View {
                     .background(.white.opacity(0.82), in: Circle())
                     .shadow(radius: 2)
                     .position(x: dividerX, y: proxy.size.height / 2)
+                    .allowsHitTesting(false)
+
+                Rectangle()
+                    .fill(.clear)
+                    .contentShape(Rectangle())
+                    .frame(width: 48)
+                    .position(x: dividerX, y: proxy.size.height / 2)
                     .gesture(
                         DragGesture(minimumDistance: 0, coordinateSpace: .named("splitPreview"))
                             .onChanged { value in
-                                editor.splitPosition = clampedUnit(Double(value.location.x / proxy.size.width))
+                                updateSplitDivider(with: value.location.x, width: proxy.size.width)
+                            }
+                            .onEnded { value in
+                                updateSplitDivider(with: value.location.x, width: proxy.size.width)
+                                editor.splitPosition = liveSplitPosition
+                                isDraggingSplitDivider = false
                             }
                     )
+                    .accessibilityLabel("Split preview divider")
+                    .accessibilityValue("\(Int(splitPosition * 100)) percent")
 
                 HStack {
                     comparisonBadge("Original")
@@ -186,6 +202,18 @@ struct PreviewPaneView: View {
                 .allowsHitTesting(false)
             }
             .coordinateSpace(name: "splitPreview")
+            .transaction { transaction in
+                transaction.animation = nil
+            }
+            .onAppear {
+                liveSplitPosition = editor.splitPosition
+            }
+            .onChange(of: editor.splitPosition) { _, newValue in
+                guard !isDraggingSplitDivider else {
+                    return
+                }
+                liveSplitPosition = newValue
+            }
         }
     }
 
@@ -411,6 +439,32 @@ struct PreviewPaneView: View {
             x: Double((location.x - imageFrame.minX) / imageFrame.width),
             y: Double(1 - ((location.y - imageFrame.minY) / imageFrame.height))
         )
+    }
+
+    private var currentSplitPosition: Double {
+        isDraggingSplitDivider ? liveSplitPosition : editor.splitPosition
+    }
+
+    private func updateSplitDivider(with xPosition: CGFloat, width: CGFloat) {
+        guard width > 0 else {
+            return
+        }
+
+        isDraggingSplitDivider = true
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            liveSplitPosition = clampedUnit(Double(xPosition / width))
+        }
+    }
+
+    private func shouldReserveDragForSplitDivider(_ value: DragGesture.Value, in size: CGSize) -> Bool {
+        guard editor.comparisonMode == .split, size.width > 0 else {
+            return false
+        }
+
+        let dividerX = size.width * CGFloat(currentSplitPosition)
+        return isDraggingSplitDivider || abs(value.startLocation.x - dividerX) <= 32
     }
 
     private func previewImageFrame(in size: CGSize) -> CGRect {
