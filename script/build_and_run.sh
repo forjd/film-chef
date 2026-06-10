@@ -57,6 +57,35 @@ open_app() {
   /usr/bin/open -n "$APP_BUNDLE"
 }
 
+verify_bundle() {
+  [[ -x "$APP_BINARY" ]] || {
+    echo "missing executable: $APP_BINARY" >&2
+    exit 1
+  }
+
+  [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$INFO_PLIST")" == "$APP_NAME" ]] || {
+    echo "Info.plist CFBundleExecutable does not match $APP_NAME" >&2
+    exit 1
+  }
+
+  [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO_PLIST")" == "$BUNDLE_ID" ]] || {
+    echo "Info.plist CFBundleIdentifier does not match $BUNDLE_ID" >&2
+    exit 1
+  }
+
+  [[ "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$INFO_PLIST")" == "$MIN_SYSTEM_VERSION" ]] || {
+    echo "Info.plist LSMinimumSystemVersion does not match $MIN_SYSTEM_VERSION" >&2
+    exit 1
+  }
+
+  local recipe_count
+  recipe_count="$(find "$APP_BUNDLE" -name '*.json' -type f | wc -l | tr -d ' ')"
+  [[ "$recipe_count" -gt 0 ]] || {
+    echo "no recipe JSON files found in staged app bundle" >&2
+    exit 1
+  }
+}
+
 case "$MODE" in
   run)
     open_app
@@ -73,6 +102,7 @@ case "$MODE" in
     /usr/bin/log stream --info --style compact --predicate "subsystem == \"$BUNDLE_ID\""
     ;;
   --verify|verify)
+    verify_bundle
     open_app
     sleep 1
     pgrep -x "$APP_NAME" >/dev/null
