@@ -15,7 +15,7 @@ The project is early, useful, and intentionally open-ended: the renderer is prof
 - Background batch export for every photo in the current project with progress and cancellation
 - Cancelable async preview rendering in-app, plus synchronous rendering for tests
 - JSON-backed recipes that are easy to inspect, edit, and share
-- In-app recipe editor for metadata, exposure, capture filter, process, grain, halation, sharpness, renderer, and output fields
+- In-app recipe editor for metadata, exposure, capture filter, process, grain, halation, sharpness, renderer, output, layer matrix, and curve toe/gamma/shoulder fields
 
 ## Included Recipes
 

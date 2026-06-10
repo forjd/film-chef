@@ -83,7 +83,9 @@ package struct FilmRecipe: Codable, Hashable, Identifiable {
         outputColourSpace: String? = nil,
         outputBitDepth: Int? = nil,
         layerRGBToLayerMatrix: [[Double]]? = nil,
-        characteristicCurveGammas: [String: Double]? = nil
+        characteristicCurveToes: [String: Double]? = nil,
+        characteristicCurveGammas: [String: Double]? = nil,
+        characteristicCurveShoulders: [String: Double]? = nil
     ) -> FilmRecipe {
         let updatedLayerModel = FilmLayerModel(
             type: layerModel.type,
@@ -92,7 +94,11 @@ package struct FilmRecipe: Codable, Hashable, Identifiable {
         )
         let updatedCharacteristicCurves = FilmCharacteristicCurves(
             curveSpace: characteristicCurves.curveSpace,
-            channels: replacingCurveGammas(characteristicCurveGammas)
+            channels: replacingCurveValues(
+                toes: characteristicCurveToes,
+                gammas: characteristicCurveGammas,
+                shoulders: characteristicCurveShoulders
+            )
         )
 
         return FilmRecipe(
@@ -203,20 +209,29 @@ package struct FilmRecipe: Codable, Hashable, Identifiable {
         )
     }
 
-    private func replacingCurveGammas(_ gammaOverrides: [String: Double]?) -> [String: FilmCharacteristicCurve] {
-        guard let gammaOverrides else {
+    private func replacingCurveValues(
+        toes: [String: Double]?,
+        gammas: [String: Double]?,
+        shoulders: [String: Double]?
+    ) -> [String: FilmCharacteristicCurve] {
+        guard toes != nil || gammas != nil || shoulders != nil else {
             return characteristicCurves.channels
         }
 
         var channels = characteristicCurves.channels
-        for (channel, gamma) in gammaOverrides {
+        var updatedChannelNames = Set<String>()
+        toes?.keys.forEach { updatedChannelNames.insert($0) }
+        gammas?.keys.forEach { updatedChannelNames.insert($0) }
+        shoulders?.keys.forEach { updatedChannelNames.insert($0) }
+
+        for channel in updatedChannelNames {
             guard let curve = channels[channel] else {
                 continue
             }
             channels[channel] = FilmCharacteristicCurve(
-                toe: curve.toe,
-                gamma: gamma,
-                shoulder: curve.shoulder,
+                toe: toes?[channel] ?? curve.toe,
+                gamma: gammas?[channel] ?? curve.gamma,
+                shoulder: shoulders?[channel] ?? curve.shoulder,
                 dMin: curve.dMin,
                 dMax: curve.dMax
             )

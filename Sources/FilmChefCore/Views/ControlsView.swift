@@ -269,18 +269,36 @@ struct ControlsView: View {
                         }
 
                         if !editor.recipeDraft.characteristicCurveGammas.isEmpty {
-                            Text("Curve Gamma")
+                            Text("Curve Shape")
                                 .font(.caption)
                                 .fontWeight(.semibold)
                                 .foregroundStyle(.secondary)
 
                             ForEach(editor.recipeDraft.characteristicCurveGammas.keys.sorted(), id: \.self) { channel in
                                 SliderControl(
-                                    title: displayName(for: channel),
-                                    value: recipeCurveGammaBinding(channel: channel),
+                                    title: "\(displayName(for: channel)) Toe",
+                                    value: recipeCurveBinding(channel: channel, keyPath: \.characteristicCurveToes),
+                                    range: 0...1,
+                                    step: 0.01,
+                                    valueText: String(format: "%.2f", editor.recipeDraft.characteristicCurveToes[channel] ?? 0)
+                                )
+                                .disabled(!editor.selectedRecipeIsEditable)
+
+                                SliderControl(
+                                    title: "\(displayName(for: channel)) Gamma",
+                                    value: recipeCurveBinding(channel: channel, keyPath: \.characteristicCurveGammas),
                                     range: 0.1...5,
                                     step: 0.01,
                                     valueText: String(format: "%.2f", editor.recipeDraft.characteristicCurveGammas[channel] ?? 1)
+                                )
+                                .disabled(!editor.selectedRecipeIsEditable)
+
+                                SliderControl(
+                                    title: "\(displayName(for: channel)) Shoulder",
+                                    value: recipeCurveBinding(channel: channel, keyPath: \.characteristicCurveShoulders),
+                                    range: 0...1,
+                                    step: 0.01,
+                                    valueText: String(format: "%.2f", editor.recipeDraft.characteristicCurveShoulders[channel] ?? 0)
                                 )
                                 .disabled(!editor.selectedRecipeIsEditable)
                             }
@@ -959,10 +977,13 @@ struct ControlsView: View {
         )
     }
 
-    fileprivate func recipeCurveGammaBinding(channel: String) -> Binding<Double> {
+    fileprivate func recipeCurveBinding(
+        channel: String,
+        keyPath: WritableKeyPath<EditorStore.RecipeDraft, [String: Double]>
+    ) -> Binding<Double> {
         Binding(
-            get: { editor.recipeDraft.characteristicCurveGammas[channel] ?? 1 },
-            set: { editor.recipeDraft.characteristicCurveGammas[channel] = $0 }
+            get: { editor.recipeDraft[keyPath: keyPath][channel] ?? 1 },
+            set: { editor.recipeDraft[keyPath: keyPath][channel] = $0 }
         )
     }
 

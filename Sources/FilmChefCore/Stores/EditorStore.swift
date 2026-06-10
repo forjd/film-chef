@@ -58,7 +58,9 @@ public final class EditorStore: ObservableObject {
         package var outputColourSpace: String
         package var outputBitDepth: Double
         package var layerRGBToLayerMatrix: [[Double]]
+        package var characteristicCurveToes: [String: Double]
         package var characteristicCurveGammas: [String: Double]
+        package var characteristicCurveShoulders: [String: Double]
 
         package init(
             displayName: String = "",
@@ -88,7 +90,9 @@ public final class EditorStore: ObservableObject {
             outputColourSpace: String = "srgb",
             outputBitDepth: Double = 8,
             layerRGBToLayerMatrix: [[Double]] = [],
-            characteristicCurveGammas: [String: Double] = [:]
+            characteristicCurveToes: [String: Double] = [:],
+            characteristicCurveGammas: [String: Double] = [:],
+            characteristicCurveShoulders: [String: Double] = [:]
         ) {
             self.displayName = displayName
             self.manufacturer = manufacturer
@@ -117,7 +121,9 @@ public final class EditorStore: ObservableObject {
             self.outputColourSpace = outputColourSpace
             self.outputBitDepth = outputBitDepth
             self.layerRGBToLayerMatrix = layerRGBToLayerMatrix
+            self.characteristicCurveToes = characteristicCurveToes
             self.characteristicCurveGammas = characteristicCurveGammas
+            self.characteristicCurveShoulders = characteristicCurveShoulders
         }
 
         package init(recipe: FilmRecipe) {
@@ -148,7 +154,9 @@ public final class EditorStore: ObservableObject {
             outputColourSpace = recipe.output.colourSpace
             outputBitDepth = Double(recipe.output.bitDepth)
             layerRGBToLayerMatrix = recipe.layerModel.rgbToLayerMatrix
+            characteristicCurveToes = recipe.characteristicCurves.channels.mapValues(\.toe)
             characteristicCurveGammas = recipe.characteristicCurves.channels.mapValues(\.gamma)
+            characteristicCurveShoulders = recipe.characteristicCurves.channels.mapValues(\.shoulder)
         }
 
         package func hasChanges(comparedTo recipe: FilmRecipe) -> Bool {
@@ -179,7 +187,9 @@ public final class EditorStore: ObservableObject {
                 trimmedOutputColourSpace() != recipe.output.colourSpace ||
                 Int(outputBitDepth.rounded()) != recipe.output.bitDepth ||
                 layerRGBToLayerMatrix != recipe.layerModel.rgbToLayerMatrix ||
-                characteristicCurveGammas != recipe.characteristicCurves.channels.mapValues(\.gamma)
+                characteristicCurveToes != recipe.characteristicCurves.channels.mapValues(\.toe) ||
+                characteristicCurveGammas != recipe.characteristicCurves.channels.mapValues(\.gamma) ||
+                characteristicCurveShoulders != recipe.characteristicCurves.channels.mapValues(\.shoulder)
         }
 
         fileprivate func trimmedDisplayName() -> String {
@@ -409,7 +419,9 @@ public final class EditorStore: ObservableObject {
             outputColourSpace: recipeDraft.trimmedOutputColourSpace(),
             outputBitDepth: Int(recipeDraft.outputBitDepth.rounded()),
             layerRGBToLayerMatrix: recipeDraft.layerRGBToLayerMatrix,
-            characteristicCurveGammas: recipeDraft.characteristicCurveGammas
+            characteristicCurveToes: recipeDraft.characteristicCurveToes,
+            characteristicCurveGammas: recipeDraft.characteristicCurveGammas,
+            characteristicCurveShoulders: recipeDraft.characteristicCurveShoulders
         )
         return FilmRecipeValidator.issues(for: draftRecipe)
     }
@@ -862,7 +874,9 @@ public final class EditorStore: ObservableObject {
             outputColourSpace: recipeDraft.trimmedOutputColourSpace(),
             outputBitDepth: Int(recipeDraft.outputBitDepth.rounded()),
             layerRGBToLayerMatrix: recipeDraft.layerRGBToLayerMatrix,
-            characteristicCurveGammas: recipeDraft.characteristicCurveGammas
+            characteristicCurveToes: recipeDraft.characteristicCurveToes,
+            characteristicCurveGammas: recipeDraft.characteristicCurveGammas,
+            characteristicCurveShoulders: recipeDraft.characteristicCurveShoulders
         )
 
         let issues = FilmRecipeValidator.issues(for: updatedRecipe)
