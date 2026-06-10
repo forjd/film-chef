@@ -95,9 +95,9 @@ struct PreviewPaneView: View {
                                 x: panDragStart.width + value.translation.width,
                                 y: panDragStart.height + value.translation.height
                             )
-                            samplePreview(at: value.location, in: proxy.size)
+                            updateSampleMarker(at: value.location, in: proxy.size)
                         } else {
-                            samplePreview(at: value.location, in: proxy.size)
+                            updateSampleMarker(at: value.location, in: proxy.size)
                         }
                     }
                     .onEnded { _ in
@@ -203,8 +203,9 @@ struct PreviewPaneView: View {
     }
 
     private func samplerOverlay(in size: CGSize) -> some View {
-        let markerX = size.width * editor.samplerX
-        let markerY = size.height * (1 - editor.samplerY)
+        let imageFrame = previewImageFrame(in: size)
+        let markerX = imageFrame.minX + (imageFrame.width * editor.samplerX)
+        let markerY = imageFrame.minY + (imageFrame.height * (1 - editor.samplerY))
 
         return ZStack(alignment: .topLeading) {
             Circle()
@@ -331,8 +332,9 @@ struct PreviewPaneView: View {
     private func loupeOverlay(in size: CGSize) -> some View {
         if editor.loupeEnabled,
            let image = editor.displayedPreviewImage ?? editor.editedPreviewImage {
-            let markerX = size.width * editor.samplerX
-            let markerY = size.height * (1 - editor.samplerY)
+            let imageFrame = previewImageFrame(in: size)
+            let markerX = imageFrame.minX + (imageFrame.width * editor.samplerX)
+            let markerY = imageFrame.minY + (imageFrame.height * (1 - editor.samplerY))
             let diameter: CGFloat = 154
             let resolvedLoupePosition = loupePosition(
                 placement: editor.loupePlacement,
@@ -399,14 +401,44 @@ struct PreviewPaneView: View {
         }
     }
 
-    private func samplePreview(at location: CGPoint, in size: CGSize) {
-        guard size.width > 0, size.height > 0 else {
+    private func updateSampleMarker(at location: CGPoint, in size: CGSize) {
+        let imageFrame = previewImageFrame(in: size)
+        guard imageFrame.width > 0, imageFrame.height > 0 else {
             return
         }
 
-        editor.samplePreviewPixel(
-            x: Double(location.x / size.width),
-            y: Double(1 - (location.y / size.height))
+        editor.schedulePreviewPixelSample(
+            x: Double((location.x - imageFrame.minX) / imageFrame.width),
+            y: Double(1 - ((location.y - imageFrame.minY) / imageFrame.height))
+        )
+    }
+
+    private func previewImageFrame(in size: CGSize) -> CGRect {
+        let padding: CGFloat = 32
+        let availableSize = CGSize(
+            width: max(size.width - (padding * 2), 1),
+            height: max(size.height - (padding * 2), 1)
+        )
+        let imageSize = (editor.displayedPreviewImage ?? editor.editedPreviewImage)?.size ?? availableSize
+        let imageAspect = max(imageSize.width, 1) / max(imageSize.height, 1)
+        let availableAspect = availableSize.width / availableSize.height
+
+        let fittedSize: CGSize
+        if imageAspect > availableAspect {
+            fittedSize = CGSize(width: availableSize.width, height: availableSize.width / imageAspect)
+        } else {
+            fittedSize = CGSize(width: availableSize.height * imageAspect, height: availableSize.height)
+        }
+
+        let scaledSize = CGSize(
+            width: fittedSize.width * editor.previewZoom,
+            height: fittedSize.height * editor.previewZoom
+        )
+        return CGRect(
+            x: ((size.width - scaledSize.width) / 2) + editor.previewPanX,
+            y: ((size.height - scaledSize.height) / 2) + editor.previewPanY,
+            width: scaledSize.width,
+            height: scaledSize.height
         )
     }
 

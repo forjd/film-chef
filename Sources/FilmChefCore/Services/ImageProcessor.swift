@@ -270,39 +270,41 @@ package final class ImageProcessor {
         normalisedX: Double,
         normalisedY: Double
     ) throws -> PixelSample {
-        guard let cgImage = context.createCGImage(image, from: image.extent) else {
+        let extent = image.extent.integral
+        guard extent.width >= 1, extent.height >= 1 else {
             throw ImageProcessorError.cannotSampleImage
         }
 
-        let width = cgImage.width
-        let height = cgImage.height
-        let x = min(max(Int(normalisedX * Double(width - 1)), 0), width - 1)
-        let y = min(max(Int(normalisedY * Double(height - 1)), 0), height - 1)
+        let clampedX = min(max(normalisedX, 0), 1)
+        let clampedY = min(max(normalisedY, 0), 1)
+        let sampleX = extent.minX + CGFloat(clampedX * Double(extent.width - 1))
+        let sampleY = extent.minY + CGFloat(clampedY * Double(extent.height - 1))
+        let sampleBounds = CGRect(
+            x: sampleX.rounded(.down),
+            y: sampleY.rounded(.down),
+            width: 1,
+            height: 1
+        )
         var bytes = [UInt8](repeating: 0, count: 4)
 
-        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-              let bitmapContext = CGContext(
-                  data: &bytes,
-                  width: 1,
-                  height: 1,
-                  bitsPerComponent: 8,
-                  bytesPerRow: 4,
-                  space: colorSpace,
-                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-              )
-        else {
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else {
             throw ImageProcessorError.cannotSampleImage
         }
-
-        bitmapContext.translateBy(x: -CGFloat(x), y: CGFloat(y - height + 1))
-        bitmapContext.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        context.render(
+            image,
+            toBitmap: &bytes,
+            rowBytes: 4,
+            bounds: sampleBounds,
+            format: .RGBA8,
+            colorSpace: colorSpace
+        )
 
         let r = Double(bytes[0]) / 255.0
         let g = Double(bytes[1]) / 255.0
         let b = Double(bytes[2]) / 255.0
         return PixelSample(
-            x: normalisedX,
-            y: normalisedY,
+            x: clampedX,
+            y: clampedY,
             red: r,
             green: g,
             blue: b,

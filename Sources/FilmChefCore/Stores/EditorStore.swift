@@ -342,6 +342,7 @@ public final class EditorStore: ObservableObject {
     private var isApplyingEditSnapshot = false
     private var previewRenderTask: Task<Void, Never>?
     private var previewRenderGeneration = 0
+    private var pixelSampleTask: Task<Void, Never>?
     private var previewRenderCache: [PreviewRenderCacheKey: PreviewRenderResult] = [:]
     private var previewRenderCacheAccessOrder: [PreviewRenderCacheKey] = []
     private let previewRenderCacheLimit = 8
@@ -969,9 +970,28 @@ public final class EditorStore: ObservableObject {
         syncRecipeDraftWithSelection()
     }
 
-    public func samplePreviewPixel(x: Double = 0.5, y: Double = 0.5) {
+    public func moveSampleMarker(x: Double, y: Double) {
         samplerX = clampedUnit(x)
         samplerY = clampedUnit(y)
+    }
+
+    public func schedulePreviewPixelSample(x: Double, y: Double) {
+        moveSampleMarker(x: x, y: y)
+        pixelSampleTask?.cancel()
+        pixelSampleTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard !Task.isCancelled else {
+                return
+            }
+            guard let self else {
+                return
+            }
+            self.samplePreviewPixel(x: self.samplerX, y: self.samplerY)
+        }
+    }
+
+    public func samplePreviewPixel(x: Double = 0.5, y: Double = 0.5) {
+        moveSampleMarker(x: x, y: y)
 
         guard let sourceImage, let selectedRecipe else {
             return

@@ -570,6 +570,28 @@ func testHistogramClipWarningTextUsesConfiguredThreshold() throws {
     )
 }
 
+func testImageProcessorSamplesActualPixelColor() throws {
+    let processor = ImageProcessor()
+    let sample = try processor.samplePixel(
+        from: makeTestImage(width: 12, height: 10),
+        normalisedX: 0.5,
+        normalisedY: 0.5
+    )
+
+    try expect(sample.red > 0.2 && sample.red < 0.35)
+    try expect(sample.green > 0.4 && sample.green < 0.55)
+    try expect(sample.blue > 0.65 && sample.blue < 0.8)
+
+    let clamped = try processor.samplePixel(
+        from: makeTestImage(width: 12, height: 10),
+        normalisedX: -1,
+        normalisedY: 2
+    )
+    try expect(clamped.x == 0)
+    try expect(clamped.y == 1)
+    try expect(clamped.luminance > 0)
+}
+
 func testImageProcessorLoadsRendersAndReportsErrors() throws {
     let processor = ImageProcessor()
     let recipes = try loadTestRecipes()
@@ -998,6 +1020,8 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     try expect(editor.pixelSample != nil)
     try expect(editor.pixelSample?.x == 0.25)
     try expect(editor.pixelSample?.y == 0.75)
+    let sampledRGB = (editor.pixelSample?.red ?? 0) + (editor.pixelSample?.green ?? 0) + (editor.pixelSample?.blue ?? 0)
+    try expect(sampledRGB > 0, "Preview sampler should read non-black color from the test image.")
     editor.samplePreviewPixel(x: -1, y: 2)
     try expect(editor.samplerX == 0)
     try expect(editor.samplerY == 1)
@@ -1612,6 +1636,7 @@ let tests: [TestCase] = [
     TestCase(name: "renderer clamps intensity before applying recipe", run: testRendererClampsIntensityBeforeApplyingRecipe),
     TestCase(name: "preview scaling respects max dimension", run: testPreviewScalingRespectsMaxDimension),
     TestCase(name: "histogram clip warning text uses configured threshold", run: testHistogramClipWarningTextUsesConfiguredThreshold),
+    TestCase(name: "image processor samples actual pixel color", run: testImageProcessorSamplesActualPixelColor),
     TestCase(name: "image processor loads renders and reports errors", run: testImageProcessorLoadsRendersAndReportsErrors),
     TestCase(name: "camera profile ingestion honors orientation and RAW settings", run: testCameraProfileIngestionHonorsOrientationAndRawSettings),
     TestCase(name: "write rendered image encodes PNG and JPEG", run: testWriteRenderedImageEncodesPngAndJpeg),
