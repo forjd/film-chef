@@ -759,7 +759,13 @@ struct ControlsView: View {
 
                     TextField("Input", text: $editor.colorManagementSettings.inputIntent)
                     TextField("Working", text: $editor.colorManagementSettings.workingColorSpace)
-                    TextField("Output", text: $editor.colorManagementSettings.outputColorSpace)
+
+                    Picker("Output", selection: $editor.colorManagementSettings.outputColorSpace) {
+                        ForEach(ColorOutputProfile.allCases) { profile in
+                            Text(profile.label).tag(profile.rawValue)
+                        }
+                    }
+                    InfoRow("Output Profile", value: editor.selectedOutputProfile.label)
                     InfoRow("Calibration", value: editor.calibrationDataStatus.note)
                     if !editor.calibrationDataStatus.importedAssetNames.isEmpty {
                         InfoRow("Assets", value: "\(editor.calibrationDataStatus.importedAssetNames.count)")

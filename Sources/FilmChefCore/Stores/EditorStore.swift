@@ -456,6 +456,10 @@ public final class EditorStore: ObservableObject {
         return duplicate ? ["A preset named \(name) already exists."] : []
     }
 
+    package var selectedOutputProfile: ColorOutputProfile {
+        ColorOutputProfile(rawProfileName: colorManagementSettings.outputColorSpace)
+    }
+
     package var exportFileNamePreview: String {
         let item = FilmProjectItem(
             displayName: importedImageName ?? "Sample Photo.png",

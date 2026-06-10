@@ -322,6 +322,11 @@ func testRecipeDisplayMetadataAccessors() throws {
         try expect(stockType.label == label)
         try expect(stockType.systemImageName == systemImageName)
     }
+
+    try expect(ColorOutputProfile(rawProfileName: "Display P3") == .displayP3)
+    try expect(ColorOutputProfile(rawProfileName: "extended-linear-srgb") == .extendedSRGB)
+    try expect(ColorOutputProfile(rawProfileName: "linear_srgb") == .linearSRGB)
+    try expect(ColorOutputProfile(rawProfileName: "unknown") == .sRGB)
 }
 
 func testEveryBundledRecipeRendersSmallImageWithoutChangingExtent() throws {
@@ -1259,6 +1264,9 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         try expect(reopened.project.colorManagementSettings.rawDevelopment.exposureEV == 0.25)
         try expect(reopened.previewRenderStatus == "Preview ready")
         try expect(reopened.previewCacheHitCount == cacheHitsBeforeColorChange)
+        reopened.colorManagementSettings.outputColorSpace = ColorOutputProfile.displayP3.rawValue
+        try expect(reopened.selectedOutputProfile == .displayP3)
+        try expect(reopened.project.colorManagementSettings.outputColorSpace == "display_p3")
 
         let secondURL = directory.appendingPathComponent("Second Photo.png")
         try writeTestPNG(to: secondURL, width: 8, height: 6)

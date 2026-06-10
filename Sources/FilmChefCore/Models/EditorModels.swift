@@ -599,6 +599,45 @@ package struct ColorManagementSettings: Codable, Equatable, Hashable {
     package static let defaults = ColorManagementSettings()
 }
 
+package enum ColorOutputProfile: String, CaseIterable, Codable, Equatable, Hashable, Identifiable {
+    case sRGB = "srgb"
+    case displayP3 = "display_p3"
+    case extendedSRGB = "extended_srgb"
+    case linearSRGB = "linear_srgb"
+
+    package var id: String { rawValue }
+
+    package var label: String {
+        switch self {
+        case .sRGB:
+            return "sRGB"
+        case .displayP3:
+            return "Display P3"
+        case .extendedSRGB:
+            return "Extended sRGB"
+        case .linearSRGB:
+            return "Linear sRGB"
+        }
+    }
+
+    package init(rawProfileName: String) {
+        let normalized = rawProfileName
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+
+        if normalized.contains("display_p3") || normalized == "p3" {
+            self = .displayP3
+        } else if normalized.contains("extended") {
+            self = .extendedSRGB
+        } else if normalized.contains("linear") {
+            self = .linearSRGB
+        } else {
+            self = .sRGB
+        }
+    }
+}
+
 package struct CalibrationDataStatus: Codable, Equatable, Hashable {
     package var supportsSpectralCurves: Bool
     package var supportsMeasuredDensityCurves: Bool
