@@ -1404,6 +1404,24 @@ func testEditorSplitSamplerUsesVisibleImageSide() throws {
         processedSideSample.red + processedSideSample.green + processedSideSample.blue < 0.05,
         "Split sampler should read the processed side when the marker is right of the divider."
     )
+
+    // When the preview view reports the divider's image-space position, it
+    // takes precedence over the pane-normalized fallback.
+    editor.updateSplitDividerImagePosition(0.9)
+    editor.samplePreviewPixel(x: 0.75, y: 0.5)
+    let imageSpaceOriginalSample = try require(editor.pixelSample)
+    try expect(
+        imageSpaceOriginalSample.blue > 0.6,
+        "Sampler left of the image-space divider should read the original side."
+    )
+
+    editor.updateSplitDividerImagePosition(0.1)
+    editor.samplePreviewPixel(x: 0.25, y: 0.5)
+    let imageSpaceProcessedSample = try require(editor.pixelSample)
+    try expect(
+        imageSpaceProcessedSample.red + imageSpaceProcessedSample.green + imageSpaceProcessedSample.blue < 0.05,
+        "Sampler right of the image-space divider should read the processed side."
+    )
     }
 }
 

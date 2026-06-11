@@ -276,6 +276,7 @@ public final class EditorStore: ObservableObject {
             guard oldValue != comparisonMode else {
                 return
             }
+            splitPositionInImage = nil
             clearPixelSample(cancelPendingTask: true)
         }
     }
@@ -295,6 +296,10 @@ public final class EditorStore: ObservableObject {
     }
     @Published package private(set) var samplerX = 0.5
     @Published package private(set) var samplerY = 0.5
+    /// The split divider converted into image-normalized X by the preview
+    /// view; `splitPosition` itself is pane-normalized and only matches the
+    /// sampler's image space when the image exactly fills the pane.
+    @Published package private(set) var splitPositionInImage: Double?
     @Published package var histogramChannelMode = HistogramChannelMode.all
     @Published package var histogramClipWarningThreshold = 0.02
     @Published package var exportSettings = ExportSettings.defaults {
@@ -533,10 +538,14 @@ public final class EditorStore: ObservableObject {
         case .original:
             return true
         case .split:
-            return samplerX <= splitPosition
+            return samplerX <= (splitPositionInImage ?? splitPosition)
         case .edited:
             return false
         }
+    }
+
+    package func updateSplitDividerImagePosition(_ value: Double?) {
+        splitPositionInImage = value
     }
 
     nonisolated package static func histogramClipWarningText(

@@ -3,6 +3,7 @@ import SwiftUI
 struct PreviewPaneView: View {
     @ObservedObject var editor: EditorStore
     @State private var panDragStart = CGSize.zero
+    @State private var isPanningDrag = false
     @State private var isEditingLocalMaskDrag = false
     @State private var isDraggingSplitDivider = false
     @State private var liveSplitPosition = 0.5
@@ -95,31 +96,47 @@ struct PreviewPaneView: View {
                         if editor.localMaskEditingEnabled, editor.canEditLocalMaskOnPreview {
                             editLocalMask(at: value.location, in: proxy.size)
                         } else if editor.previewZoom > 1.0 {
+                            // A click samples on release; only real movement pans.
+                            guard isPanningDrag || max(abs(value.translation.width), abs(value.translation.height)) > 4 else {
+                                return
+                            }
+                            if !isPanningDrag {
+                                // Base the drag on the live pan so button pans and
+                                // zoom clamps applied since the last drag stick.
+                                panDragStart = CGSize(
+                                    width: editor.previewPanX - value.translation.width,
+                                    height: editor.previewPanY - value.translation.height
+                                )
+                                isPanningDrag = true
+                            }
                             editor.setPreviewPan(
                                 x: panDragStart.width + value.translation.width,
                                 y: panDragStart.height + value.translation.height
                             )
-                            updateSampleMarker(at: value.location, in: proxy.size)
                         } else {
                             updateSampleMarker(at: value.location, in: proxy.size)
                         }
                     }
-                    .onEnded { _ in
+                    .onEnded { value in
                         if isEditingLocalMaskDrag {
                             editor.endLocalMaskEditAtPreviewPoint()
                             isEditingLocalMaskDrag = false
+                        } else if editor.previewZoom > 1.0,
+                                  !isPanningDrag,
+                                  !(editor.localMaskEditingEnabled && editor.canEditLocalMaskOnPreview),
+                                  !shouldReserveDragForSplitDivider(value, in: proxy.size) {
+                            updateSampleMarker(at: value.location, in: proxy.size)
                         }
                         if isDraggingSampler {
-                            commitLiveSampleMarker()
+                            commitLiveSampleMarker(in: proxy.size)
                         }
                         isDraggingSplitDivider = false
-                        panDragStart = CGSize(width: editor.previewPanX, height: editor.previewPanY)
+                        isPanningDrag = false
                     }
             )
             .onChange(of: editor.previewZoom) {
                 if editor.previewZoom <= 1.0 {
                     editor.setPreviewPan(x: 0, y: 0)
-                    panDragStart = .zero
                 } else {
                     editor.setPreviewPan(x: editor.previewPanX, y: editor.previewPanY)
                 }
@@ -128,7 +145,6 @@ struct PreviewPaneView: View {
                 TapGesture(count: 2)
                     .onEnded {
                         editor.resetPreviewView()
-                        panDragStart = .zero
                     }
             )
             .onAppear {
@@ -306,15 +322,16 @@ struct PreviewPaneView: View {
     }
 
     private func maskShape(for layer: LocalAdjustmentLayer, in size: CGSize) -> Path {
-        let center = CGPoint(
-            x: size.width * CGFloat(layer.centerX),
-            y: size.height * CGFloat(1 - layer.centerY)
-        )
+        // Mask coordinates are normalized to the image, so the overlay must
+        // map through the fitted image frame exactly like the renderer maps
+        // through the image extent — not through the raw pane size.
+        let imageFrame = previewImageFrame(in: size)
+        let center = imagePoint(x: layer.centerX, y: layer.centerY, in: imageFrame)
         var path = Path()
 
         switch layer.mask {
         case .radial:
-            let radius = min(size.width, size.height) * CGFloat(layer.radius)
+            let radius = min(imageFrame.width, imageFrame.height) * CGFloat(layer.radius)
             path.addEllipse(
                 in: CGRect(
                     x: center.x - radius,
@@ -324,23 +341,20 @@ struct PreviewPaneView: View {
                 )
             )
         case .linear:
-            let width = max(18, size.width * CGFloat(layer.radius))
+            let width = max(18, imageFrame.width * CGFloat(layer.radius))
             path.addRect(
                 CGRect(
                     x: center.x - width / 2,
-                    y: 0,
+                    y: imageFrame.minY,
                     width: width,
-                    height: size.height
+                    height: imageFrame.height
                 )
             )
         case .brush:
             let points = layer.pathPoints.isEmpty ? [NormalizedMaskPoint(x: layer.centerX, y: layer.centerY)] : layer.pathPoints
-            let radius = max(4, min(size.width, size.height) * CGFloat(layer.brushSize) / 2)
+            let radius = max(4, min(imageFrame.width, imageFrame.height) * CGFloat(layer.brushSize) / 2)
             for point in points {
-                let mapped = CGPoint(
-                    x: size.width * CGFloat(point.x),
-                    y: size.height * CGFloat(1 - point.y)
-                )
+                let mapped = imagePoint(x: point.x, y: point.y, in: imageFrame)
                 path.addEllipse(
                     in: CGRect(
                         x: mapped.x - radius,
@@ -355,24 +369,21 @@ struct PreviewPaneView: View {
             guard let first = points.first else {
                 return path
             }
-            path.move(
-                to: CGPoint(
-                    x: size.width * CGFloat(first.x),
-                    y: size.height * CGFloat(1 - first.y)
-                )
-            )
+            path.move(to: imagePoint(x: first.x, y: first.y, in: imageFrame))
             for point in points.dropFirst() {
-                path.addLine(
-                    to: CGPoint(
-                        x: size.width * CGFloat(point.x),
-                        y: size.height * CGFloat(1 - point.y)
-                    )
-                )
+                path.addLine(to: imagePoint(x: point.x, y: point.y, in: imageFrame))
             }
             path.closeSubpath()
         }
 
         return path
+    }
+
+    private func imagePoint(x: Double, y: Double, in imageFrame: CGRect) -> CGPoint {
+        CGPoint(
+            x: imageFrame.minX + (imageFrame.width * CGFloat(x)),
+            y: imageFrame.minY + (imageFrame.height * CGFloat(1 - y))
+        )
     }
 
     @ViewBuilder
@@ -392,6 +403,13 @@ struct PreviewPaneView: View {
                 size: size
             )
 
+            // scaledToFill in a square frame renders the long image axis at
+            // diameter * aspect, so the offset must include that factor or the
+            // loupe magnifies the wrong region of non-square photos.
+            let imageAspect = max(image.size.width, 1) / max(image.size.height, 1)
+            let filledWidth = diameter * max(1, imageAspect)
+            let filledHeight = diameter * max(1, 1 / imageAspect)
+
             ZStack {
                 Image(nsImage: image)
                     .resizable()
@@ -399,8 +417,8 @@ struct PreviewPaneView: View {
                     .scaledToFill()
                     .scaleEffect(editor.loupeZoom)
                     .offset(
-                        x: (0.5 - samplerX) * diameter * editor.loupeZoom,
-                        y: (samplerY - 0.5) * diameter * editor.loupeZoom
+                        x: (0.5 - samplerX) * filledWidth * editor.loupeZoom,
+                        y: (samplerY - 0.5) * filledHeight * editor.loupeZoom
                     )
                     .frame(width: diameter, height: diameter)
                     .clipShape(Circle())
@@ -480,9 +498,22 @@ struct PreviewPaneView: View {
         }
     }
 
-    private func commitLiveSampleMarker() {
+    private func commitLiveSampleMarker(in size: CGSize) {
+        if editor.comparisonMode == .split {
+            editor.updateSplitDividerImagePosition(splitDividerImageX(in: size))
+        }
         editor.schedulePreviewPixelSample(x: liveSamplerX, y: liveSamplerY)
         isDraggingSampler = false
+    }
+
+    private func splitDividerImageX(in size: CGSize) -> Double? {
+        let imageFrame = previewImageFrame(in: size)
+        guard imageFrame.width > 0 else {
+            return nil
+        }
+
+        let dividerX = size.width * CGFloat(currentSplitPosition)
+        return Double((dividerX - imageFrame.minX) / imageFrame.width)
     }
 
     private func syncLiveSampleMarker() {
@@ -546,12 +577,15 @@ struct PreviewPaneView: View {
     }
 
     private func editLocalMask(at location: CGPoint, in size: CGSize) {
-        guard size.width > 0, size.height > 0 else {
+        // Mask points are image-normalized; convert the pane click through the
+        // fitted image frame just like the sampler does.
+        let imageFrame = previewImageFrame(in: size)
+        guard imageFrame.width > 0, imageFrame.height > 0 else {
             return
         }
 
-        let x = Double(location.x / size.width)
-        let y = Double(1 - (location.y / size.height))
+        let x = Double((location.x - imageFrame.minX) / imageFrame.width)
+        let y = Double(1 - ((location.y - imageFrame.minY) / imageFrame.height))
         if isEditingLocalMaskDrag {
             editor.updateLocalMaskEditAtPreviewPoint(x: x, y: y)
         } else {
