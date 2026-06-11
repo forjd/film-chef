@@ -6,7 +6,10 @@ PRODUCT_NAME="FilmChefCoreTests"
 
 cd "$ROOT_DIR"
 
-swift build --enable-code-coverage --product "$PRODUCT_NAME"
+# The test runner is an executable target, not a published product; a full
+# build links it with coverage instrumentation without exposing it as a
+# release product.
+swift build --enable-code-coverage
 
 BUILD_DIR="$(swift build --enable-code-coverage --show-bin-path)"
 CODECOV_DIR="$BUILD_DIR/codecov"

@@ -110,10 +110,21 @@ cat >"$INFO_PLIST" <<PLIST
 </plist>
 PLIST
 
+# Sign nested bundles first, then the app itself; --deep is deprecated for
+# distribution signing.
+sign_app() {
+  local identity="$1"
+  shift
+  while IFS= read -r -d '' nested_bundle; do
+    codesign --force "$@" --sign "$identity" "$nested_bundle"
+  done < <(find "$APP_RESOURCES" -name '*.bundle' -prune -print0)
+  codesign --force "$@" --sign "$identity" "$APP_BUNDLE"
+}
+
 if [[ -n "${SIGN_IDENTITY:-}" ]]; then
-  codesign --force --deep --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
+  sign_app "$SIGN_IDENTITY" --options runtime --timestamp
 else
-  codesign --force --deep --sign - "$APP_BUNDLE"
+  sign_app -
 fi
 
 codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
@@ -126,21 +137,26 @@ if [[ "$NOTARIZE" == "1" ]]; then
     exit 1
   fi
 
+  NOTARY_ARGS=()
   if [[ -n "${NOTARYTOOL_PROFILE:-}" ]]; then
-    xcrun notarytool submit "$ARCHIVE_PATH" \
-      --keychain-profile "$NOTARYTOOL_PROFILE" \
-      --wait
+    NOTARY_ARGS=(--keychain-profile "$NOTARYTOOL_PROFILE")
   else
     if [[ -z "${APPLE_ID:-}" || -z "${APPLE_TEAM_ID:-}" || -z "${APP_SPECIFIC_PASSWORD:-}" ]]; then
       echo "NOTARIZE=1 requires NOTARYTOOL_PROFILE or APPLE_ID, APPLE_TEAM_ID, and APP_SPECIFIC_PASSWORD." >&2
       exit 1
     fi
+    NOTARY_ARGS=(--apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APP_SPECIFIC_PASSWORD")
+  fi
 
-    xcrun notarytool submit "$ARCHIVE_PATH" \
-      --apple-id "$APPLE_ID" \
-      --team-id "$APPLE_TEAM_ID" \
-      --password "$APP_SPECIFIC_PASSWORD" \
-      --wait
+  SUBMIT_OUTPUT="$(xcrun notarytool submit "$ARCHIVE_PATH" "${NOTARY_ARGS[@]}" --wait 2>&1 | tee /dev/stderr)" || true
+  if ! grep -q "status: Accepted" <<<"$SUBMIT_OUTPUT"; then
+    SUBMISSION_ID="$(grep -m1 -E '^[[:space:]]*id: ' <<<"$SUBMIT_OUTPUT" | awk '{print $2}')"
+    if [[ -n "$SUBMISSION_ID" ]]; then
+      echo "Notarization was not accepted; fetching log for $SUBMISSION_ID" >&2
+      xcrun notarytool log "$SUBMISSION_ID" "${NOTARY_ARGS[@]}" >&2 || true
+    fi
+    echo "Notarization failed." >&2
+    exit 1
   fi
 
   xcrun stapler staple "$APP_BUNDLE"
@@ -148,7 +164,9 @@ if [[ "$NOTARIZE" == "1" ]]; then
   spctl --assess --type execute --verbose "$APP_BUNDLE"
   create_archive
 else
-  spctl --assess --type execute --verbose "$APP_BUNDLE" || true
+  if ! spctl --assess --type execute --verbose "$APP_BUNDLE"; then
+    echo "note: Gatekeeper assessment failed; distribution requires notarization (NOTARIZE=1)." >&2
+  fi
 fi
 
 echo "Release app: $APP_BUNDLE"

@@ -7,6 +7,11 @@ APP_BUNDLE="$ROOT_DIR/dist/$APP_NAME.app"
 
 cd "$ROOT_DIR"
 
+cleanup() {
+  pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
 ./script/test.sh
 swift build
 ./script/build_and_run.sh --verify

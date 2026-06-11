@@ -12,6 +12,7 @@ DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
+APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 
@@ -26,12 +27,15 @@ BUILD_BINARY="$BUILD_DIR/$APP_NAME"
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS"
+mkdir -p "$APP_RESOURCES"
 cp "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
 
+# Stage resources in Contents/Resources to match the release layout; items at
+# the .app root make the bundle structure invalid for code signing.
 for RESOURCE_BUNDLE in "$BUILD_DIR"/${APP_NAME}_*.bundle; do
   [[ -d "$RESOURCE_BUNDLE" ]] || continue
-  cp -R "$RESOURCE_BUNDLE" "$APP_BUNDLE/"
+  cp -R "$RESOURCE_BUNDLE" "$APP_RESOURCES/"
 done
 
 cat >"$INFO_PLIST" <<PLIST
@@ -108,6 +112,17 @@ open_app() {
   /usr/bin/open -n "$APP_BUNDLE"
 }
 
+wait_for_app() {
+  for _ in $(seq 1 40); do
+    if pgrep -x "$APP_NAME" >/dev/null; then
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "$APP_NAME did not launch within 10 seconds" >&2
+  return 1
+}
+
 verify_bundle() {
   [[ -x "$APP_BINARY" ]] || {
     echo "missing executable: $APP_BINARY" >&2
@@ -175,8 +190,7 @@ case "$MODE" in
   --verify|verify)
     verify_bundle
     open_app
-    sleep 1
-    pgrep -x "$APP_NAME" >/dev/null
+    wait_for_app
     ;;
   *)
     echo "usage: $0 [run|--debug|--logs|--telemetry|--verify]" >&2

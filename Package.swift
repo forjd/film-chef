@@ -7,8 +7,7 @@ let package = Package(
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "FilmChef", targets: ["FilmChef"]),
-        .executable(name: "FilmChefCoreTests", targets: ["FilmChefCoreTests"])
+        .executable(name: "FilmChef", targets: ["FilmChef"])
     ],
     targets: [
         .target(
