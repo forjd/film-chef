@@ -842,22 +842,36 @@ func testCameraProfileIngestionHonorsOrientationAndRawSettings() throws {
     )
     try expect(colorManaged.extent == loaded.extent)
 
-    let rawAdjusted = try processor.loadSourceImage(
-        from: orientedURL,
-        colorSettings: ColorManagementSettings(
-            rawDevelopment: RawDevelopmentSettings(
-                exposureEV: 1.0,
-                temperatureK: 5400,
-                tint: 0,
-                highlightRecovery: 0
-            )
+    let rawSettings = ColorManagementSettings(
+        rawDevelopment: RawDevelopmentSettings(
+            exposureEV: 1.0,
+            temperatureK: 5400,
+            tint: 0,
+            highlightRecovery: 0
         )
     )
-    try expect(rawAdjusted.extent == loaded.extent)
+
+    let nonRawAdjusted = try processor.loadSourceImage(
+        from: orientedURL,
+        colorSettings: rawSettings
+    )
+    try expect(nonRawAdjusted.extent == loaded.extent)
     try expect(
         renderBytes(loaded, context: CIContext(), extent: loaded.extent)
-            != renderBytes(rawAdjusted, context: CIContext(), extent: rawAdjusted.extent),
-        "RAW exposure development should affect ingested pixels."
+            == renderBytes(nonRawAdjusted, context: CIContext(), extent: nonRawAdjusted.extent),
+        "RAW development should not alter non-RAW sources."
+    )
+
+    let rawDeveloped = try processor.loadSourceImage(
+        from: orientedURL,
+        colorSettings: rawSettings,
+        treatAsRaw: true
+    )
+    try expect(rawDeveloped.extent == loaded.extent)
+    try expect(
+        renderBytes(loaded, context: CIContext(), extent: loaded.extent)
+            != renderBytes(rawDeveloped, context: CIContext(), extent: rawDeveloped.extent),
+        "RAW exposure development should affect ingested RAW pixels."
     )
 }
 
@@ -1728,6 +1742,41 @@ func testWriteRenderedImageEncodesPngAndJpeg() throws {
     let minimalExif = minimalProperties[kCGImagePropertyExifDictionary as String] as? [String: Any]
     try expect(minimalExif?[kCGImagePropertyExifUserComment as String] as? String != "Rendered with Film Chef")
 
+    let taggedAverage = try decodedAverageByteValue(at: jpegURL)
+    let untaggedAverage = try decodedAverageByteValue(at: minimalURL)
+    try expect(
+        abs(taggedAverage - untaggedAverage) < 8,
+        "Exports without an embedded profile must still be color matched (tagged avg \(taggedAverage), untagged avg \(untaggedAverage))."
+    )
+
+    let metadataSourceURL = directory.appendingPathComponent("metadata-source.jpg")
+    try writeTestJPEG(to: metadataSourceURL)
+    let metadataData = try Data(contentsOf: metadataSourceURL)
+    let metadataSource = try require(CGImageSourceCreateWithData(metadataData as CFData, nil))
+    let stampedImage = try require(CGImageSourceCreateImageAtIndex(metadataSource, 0, nil))
+    let stampedData = NSMutableData()
+    let stampedDestination = try require(CGImageDestinationCreateWithData(stampedData, "public.jpeg" as CFString, 1, nil))
+    CGImageDestinationAddImage(stampedDestination, stampedImage, [
+        kCGImagePropertyTIFFDictionary: [kCGImagePropertyTIFFMake: "TestCam"]
+    ] as CFDictionary)
+    try expect(CGImageDestinationFinalize(stampedDestination))
+    try (stampedData as Data).write(to: metadataSourceURL)
+
+    let preservedURL = directory.appendingPathComponent("render-preserved.jpg")
+    try processor.writeRenderedImage(
+        from: source,
+        recipe: recipe,
+        adjustments: adjustments(),
+        to: preservedURL,
+        settings: ExportSettings(fileFormat: .jpeg, preserveMetadata: true),
+        sourceMetadataURL: metadataSourceURL
+    )
+    let preservedSource = try require(CGImageSourceCreateWithURL(preservedURL as CFURL, nil))
+    let preservedProperties = try require(CGImageSourceCopyPropertiesAtIndex(preservedSource, 0, nil) as? [String: Any])
+    let preservedTIFF = try require(preservedProperties[kCGImagePropertyTIFFDictionary as String] as? [String: Any])
+    try expect(preservedTIFF[kCGImagePropertyTIFFMake as String] as? String == "TestCam", "Source camera metadata should survive export.")
+    try expect(preservedTIFF[kCGImagePropertyTIFFSoftware as String] as? String == "Film Chef")
+
     let tiffURL = directory.appendingPathComponent("render.tiff")
     try processor.writeRenderedImage(
         from: source,
@@ -1742,6 +1791,44 @@ func testWriteRenderedImageEncodesPngAndJpeg() throws {
         Array(tiffData.prefix(2)) == [0x49, 0x49] || Array(tiffData.prefix(2)) == [0x4D, 0x4D],
         "TIFF export did not have a TIFF byte-order signature."
     )
+    if recipe.output.bitDepth >= 16 {
+        let tiffSource = try require(CGImageSourceCreateWithURL(tiffURL as CFURL, nil))
+        let tiffProperties = try require(CGImageSourceCopyPropertiesAtIndex(tiffSource, 0, nil) as? [String: Any])
+        try expect(
+            tiffProperties[kCGImagePropertyDepth as String] as? Int == 16,
+            "TIFF export should honor the recipe's 16-bit output depth."
+        )
+    }
+}
+
+func decodedAverageByteValue(at url: URL) throws -> Double {
+    let source = try require(CGImageSourceCreateWithURL(url as CFURL, nil))
+    let cgImage = try require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+    let width = cgImage.width
+    let height = cgImage.height
+    var bytes = [UInt8](repeating: 0, count: width * height * 4)
+    let colorSpace = try require(CGColorSpace(name: CGColorSpace.sRGB))
+
+    try bytes.withUnsafeMutableBytes { buffer in
+        let bitmapContext = try require(CGContext(
+            data: buffer.baseAddress,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        bitmapContext.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+    }
+
+    var total = 0.0
+    var sampleCount = 0
+    for offset in stride(from: 0, to: bytes.count, by: 4) {
+        total += Double(bytes[offset]) + Double(bytes[offset + 1]) + Double(bytes[offset + 2])
+        sampleCount += 3
+    }
+    return total / Double(max(sampleCount, 1))
 }
 
 let tests: [TestCase] = [

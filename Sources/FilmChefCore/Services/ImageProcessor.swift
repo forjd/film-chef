@@ -47,11 +47,13 @@ package final class ImageProcessor {
 
     package func loadSourceImage(
         from url: URL,
-        colorSettings: ColorManagementSettings = .defaults
+        colorSettings: ColorManagementSettings = .defaults,
+        treatAsRaw: Bool? = nil
     ) throws -> CIImage {
+        let isRawSource = treatAsRaw ?? Self.isRawImage(at: url)
         guard let image = CIImage(contentsOf: url, options: sourceImageOptions(for: colorSettings)),
               let rendered = context.createCGImage(
-                  applyRawDevelopment(to: image, settings: colorSettings),
+                  isRawSource ? applyRawDevelopment(to: image, settings: colorSettings) : image,
                   from: image.extent,
                   format: .RGBAh,
                   colorSpace: workingColorSpace(for: colorSettings.workingColorSpace)
@@ -61,6 +63,17 @@ package final class ImageProcessor {
         }
 
         return CIImage(cgImage: rendered)
+    }
+
+    private static func isRawImage(at url: URL) -> Bool {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let typeIdentifier = CGImageSourceGetType(source) as String?,
+              let type = UTType(typeIdentifier)
+        else {
+            return false
+        }
+
+        return type.conforms(to: .rawImage)
     }
 
     package func validateReadableImage(at url: URL) throws {
@@ -127,7 +140,8 @@ package final class ImageProcessor {
         settings: ExportSettings = .defaults,
         localAdjustments: [LocalAdjustmentLayer] = [],
         calibration: CalibrationDataStatus = .descriptiveOnly,
-        colorSettings: ColorManagementSettings = .defaults
+        colorSettings: ColorManagementSettings = .defaults,
+        sourceMetadataURL: URL? = nil
     ) throws {
         var rendered = pipelineRenderer.render(
             source: source,
@@ -147,17 +161,24 @@ package final class ImageProcessor {
             )
         }
 
+        let fileType = exportFileType(for: url, settings: settings)
         let outputColorSpace = outputColorSpace(for: colorSettings.outputColorSpace)
-        guard let cgImage = context.createCGImage(
+        // Rendering must always color-match into the output space; skipping the
+        // match writes linear working-space pixels that viewers read as encoded.
+        // "Embed color profile" only controls whether the file keeps the tag.
+        let pixelFormat: CIFormat = recipe.output.bitDepth >= 16 && fileType != .jpeg ? .RGBA16 : .RGBA8
+        guard let matchedImage = context.createCGImage(
             rendered,
             from: rendered.extent,
-            format: .RGBA8,
-            colorSpace: settings.embedColorProfile ? outputColorSpace : nil
+            format: pixelFormat,
+            colorSpace: outputColorSpace
         ) else {
             throw ImageProcessorError.cannotRenderImage
         }
 
-        let fileType = exportFileType(for: url, settings: settings)
+        let cgImage = settings.embedColorProfile
+            ? matchedImage
+            : (matchedImage.copy(colorSpace: CGColorSpaceCreateDeviceRGB()) ?? matchedImage)
         let representation = NSBitmapImageRep(cgImage: cgImage)
         var bitmapProperties: [NSBitmapImageRep.PropertyKey: Any]
 
@@ -187,7 +208,8 @@ package final class ImageProcessor {
             from: cgImage,
             fileType: fileType,
             settings: settings,
-            profileName: outputProfileName(for: colorSettings.outputColorSpace)
+            profileName: outputProfileName(for: colorSettings.outputColorSpace),
+            sourceMetadataURL: sourceMetadataURL
         )
         try data.write(to: url)
     }
@@ -208,21 +230,34 @@ package final class ImageProcessor {
         let bytesPerRow = width * bytesPerPixel
         var bytes = [UInt8](repeating: 0, count: height * bytesPerRow)
 
-        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-              let bitmapContext = CGContext(
-                  data: &bytes,
-                  width: width,
-                  height: height,
-                  bitsPerComponent: 8,
-                  bytesPerRow: bytesPerRow,
-                  space: colorSpace,
-                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-              )
-        else {
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else {
             throw ImageProcessorError.cannotSampleImage
         }
 
-        bitmapContext.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        // The context must only live inside withUnsafeMutableBytes; passing
+        // &bytes directly would leave it holding a dangling pointer.
+        let didDraw = bytes.withUnsafeMutableBytes { buffer -> Bool in
+            guard let baseAddress = buffer.baseAddress,
+                  let bitmapContext = CGContext(
+                      data: baseAddress,
+                      width: width,
+                      height: height,
+                      bitsPerComponent: 8,
+                      bytesPerRow: bytesPerRow,
+                      space: colorSpace,
+                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                  )
+            else {
+                return false
+            }
+
+            bitmapContext.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+
+        guard didDraw else {
+            throw ImageProcessorError.cannotSampleImage
+        }
 
         let safeBins = max(2, bins)
         var red = [Double](repeating: 0, count: safeBins)
@@ -604,7 +639,8 @@ package final class ImageProcessor {
         from image: CGImage,
         fileType: NSBitmapImageRep.FileType,
         settings: ExportSettings,
-        profileName: String
+        profileName: String,
+        sourceMetadataURL: URL? = nil
     ) throws -> Data {
         let data = NSMutableData()
         guard let typeIdentifier = imageDestinationTypeIdentifier(for: fileType),
@@ -624,13 +660,33 @@ package final class ImageProcessor {
         }
 
         if settings.preserveMetadata {
-            properties[kCGImagePropertyTIFFDictionary] = [
-                kCGImagePropertyTIFFSoftware: "Film Chef",
-                kCGImagePropertyTIFFImageDescription: "Rendered with Film Chef"
-            ]
-            properties[kCGImagePropertyExifDictionary] = [
-                kCGImagePropertyExifUserComment: "Rendered with Film Chef"
-            ]
+            var tiff: [CFString: Any] = [:]
+            var exif: [CFString: Any] = [:]
+
+            if let sourceMetadataURL,
+               let imageSource = CGImageSourceCreateWithURL(sourceMetadataURL as CFURL, nil),
+               let sourceProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any] {
+                tiff = sourceProperties[kCGImagePropertyTIFFDictionary] as? [CFString: Any] ?? [:]
+                exif = sourceProperties[kCGImagePropertyExifDictionary] as? [CFString: Any] ?? [:]
+                if let gps = sourceProperties[kCGImagePropertyGPSDictionary] {
+                    properties[kCGImagePropertyGPSDictionary] = gps
+                }
+                if let iptc = sourceProperties[kCGImagePropertyIPTCDictionary] {
+                    properties[kCGImagePropertyIPTCDictionary] = iptc
+                }
+                // Orientation is already baked into the rendered pixels at load time.
+                tiff.removeValue(forKey: kCGImagePropertyTIFFOrientation)
+            }
+
+            tiff[kCGImagePropertyTIFFSoftware] = "Film Chef"
+            if tiff[kCGImagePropertyTIFFImageDescription] == nil {
+                tiff[kCGImagePropertyTIFFImageDescription] = "Rendered with Film Chef"
+            }
+            if exif[kCGImagePropertyExifUserComment] == nil {
+                exif[kCGImagePropertyExifUserComment] = "Rendered with Film Chef"
+            }
+            properties[kCGImagePropertyTIFFDictionary] = tiff
+            properties[kCGImagePropertyExifDictionary] = exif
         }
 
         if settings.embedColorProfile {

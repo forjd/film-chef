@@ -1576,7 +1576,8 @@ public final class EditorStore: ObservableObject {
                 settings: exportSettings,
                 localAdjustments: localAdjustments,
                 calibration: calibrationDataStatus,
-                colorSettings: colorManagementSettings
+                colorSettings: colorManagementSettings,
+                sourceMetadataURL: sourceURL
             )
         } catch {
             errorMessage = error.localizedDescription
@@ -1806,7 +1807,8 @@ public final class EditorStore: ObservableObject {
             settings: request.exportSettings,
             localAdjustments: item.localAdjustments,
             calibration: request.calibration,
-            colorSettings: request.colorSettings
+            colorSettings: request.colorSettings,
+            sourceMetadataURL: sourceURL
         )
         return exportURL
     }
