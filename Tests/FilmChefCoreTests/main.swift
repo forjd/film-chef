@@ -7,7 +7,7 @@ import FilmChefCore
 
 struct TestCase {
     let name: String
-    let run: () throws -> Void
+    let run: @MainActor () async throws -> Void
 }
 
 struct TestFailure: Error, CustomStringConvertible {
@@ -42,6 +42,23 @@ func require<T>(
     }
 
     return unwrapped
+}
+
+@MainActor
+func waitUntil(
+    _ description: String,
+    timeout: TimeInterval = 20,
+    file: StaticString = #filePath,
+    line: UInt = #line,
+    condition: @MainActor () -> Bool
+) async throws {
+    let start = Date()
+    while !condition() {
+        if Date().timeIntervalSince(start) > timeout {
+            throw TestFailure(message: "Timed out waiting for \(description).", file: file, line: line)
+        }
+        try? await Task.sleep(nanoseconds: 50_000_000)
+    }
 }
 
 func loadTestRecipes() throws -> [FilmRecipe] {
@@ -1618,6 +1635,127 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     try expect(project.updatedAt == project.createdAt)
 }
 
+@MainActor
+func testAsyncPreviewRenderAndBatchExportPipeline() async throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let editor = EditorStore(
+        recipeStore: RecipeStore(),
+        projectStore: ProjectStore(),
+        imageProcessor: ImageProcessor(),
+        rendersSynchronouslyForTesting: false,
+        presentsPhotoImportPanel: false
+    )
+    editor.loadRecipesIfNeeded()
+
+    let photoURL = directory.appendingPathComponent("async-photo.png")
+    try writeTestPNG(to: photoURL, width: 64, height: 48)
+    editor.importPhotoForTesting(from: photoURL)
+
+    try await waitUntil("the debounced preview render to finish") {
+        editor.editedPreviewImage != nil && !editor.isRenderingPreview
+    }
+    try expect(editor.previewRenderProgress == 1.0)
+
+    // Rapid-fire edits must coalesce through the debounce and stale renders
+    // must be dropped by the generation guard.
+    editor.exposureTrim = 0.2
+    editor.exposureTrim = 0.4
+    editor.exposureTrim = 0.6
+    try await waitUntil("the preview to settle after rapid edits") {
+        !editor.isRenderingPreview && editor.previewRenderProgress == 1.0
+    }
+    try expect(
+        editor.previewRenderStatus == "Preview ready" || editor.previewRenderStatus == "Loaded cached preview",
+        "Unexpected preview status: \(editor.previewRenderStatus)"
+    )
+
+    editor.samplePreviewPixel(x: 0.5, y: 0.5)
+    try await waitUntil("the async pixel sample to land") {
+        editor.pixelSample != nil
+    }
+
+    let exportDirectory = directory.appendingPathComponent("exports")
+    editor.startProjectExportTaskForTesting(to: exportDirectory)
+    try await waitUntil("the batch export task to finish") {
+        !editor.batchExportState.isExporting && editor.batchExportState.totalCount == 1
+    }
+    try expect(editor.batchExportState.exportedFileNames.count == 1)
+    try expect(editor.batchExportState.failures.isEmpty)
+
+    // Cancelling (or superseding) a run must leave the state quiescent and a
+    // follow-up export fully functional.
+    editor.startProjectExportTaskForTesting(to: directory.appendingPathComponent("cancelled"))
+    editor.cancelBatchExport()
+    try await waitUntil("the cancelled batch export to settle") {
+        !editor.batchExportState.isExporting
+    }
+
+    let finalExportDirectory = directory.appendingPathComponent("final-exports")
+    editor.startProjectExportTaskForTesting(to: finalExportDirectory)
+    try await waitUntil("the follow-up batch export to finish") {
+        !editor.batchExportState.isExporting
+            && editor.batchExportState.outputDirectoryPath == finalExportDirectory.path
+    }
+    try expect(editor.batchExportState.exportedFileNames.count == 1)
+    try expect(!editor.batchExportState.wasCancelled)
+}
+
+func testRendererAdjustmentInvariants() throws {
+    let recipes = try loadTestRecipes()
+    let recipe = try require(recipes.first { $0.stock.family != .blackAndWhiteNegative })
+    let context = CIContext()
+    let renderer = FilmPipelineRenderer()
+    let source = CIImage(color: CIColor(red: 0.45, green: 0.42, blue: 0.40, alpha: 1.0))
+        .cropped(to: CGRect(x: 0, y: 0, width: 16, height: 12))
+
+    func averageChannels(_ adjustments: RenderAdjustments) -> (red: Double, green: Double, blue: Double) {
+        let bytes = renderBytes(
+            renderer.render(source: source, recipe: recipe, adjustments: adjustments),
+            context: context,
+            extent: source.extent
+        )
+        var totals = (red: 0.0, green: 0.0, blue: 0.0)
+        var pixelCount = 0
+        for offset in stride(from: 0, to: bytes.count, by: 4) {
+            totals.red += Double(bytes[offset])
+            totals.green += Double(bytes[offset + 1])
+            totals.blue += Double(bytes[offset + 2])
+            pixelCount += 1
+        }
+        let count = Double(max(pixelCount, 1))
+        return (totals.red / count, totals.green / count, totals.blue / count)
+    }
+
+    func luminance(_ channels: (red: Double, green: Double, blue: Double)) -> Double {
+        (0.2126 * channels.red) + (0.7152 * channels.green) + (0.0722 * channels.blue)
+    }
+
+    func spread(_ channels: (red: Double, green: Double, blue: Double)) -> Double {
+        max(channels.red, max(channels.green, channels.blue))
+            - min(channels.red, min(channels.green, channels.blue))
+    }
+
+    let baseline = averageChannels(adjustments())
+    let brighter = averageChannels(adjustments(exposureTrim: 1.0))
+    try expect(
+        luminance(brighter) > luminance(baseline) + 8,
+        "A +1 EV exposure trim must brighten the render (baseline \(luminance(baseline)), trimmed \(luminance(brighter)))."
+    )
+
+    let desaturated = averageChannels(adjustments(saturationTrim: -0.75))
+    let saturated = averageChannels(adjustments(saturationTrim: 0.75))
+    try expect(
+        spread(desaturated) < spread(saturated),
+        "Saturation trim must widen channel separation (desaturated \(spread(desaturated)), saturated \(spread(saturated)))."
+    )
+}
+
 func testEditorUndoHistoryIntegrity() throws {
     try MainActor.assumeIsolated {
         let directory = FileManager.default.temporaryDirectory
@@ -2060,6 +2198,8 @@ let tests: [TestCase] = [
     TestCase(name: "editor calibration import flow", run: testEditorCalibrationImportFlow),
     TestCase(name: "editor export settings and batch flow", run: testEditorExportSettingsAndBatchFlow),
     TestCase(name: "project store loads sparse schema one projects with defaults", run: testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults),
+    TestCase(name: "renderer adjustment invariants", run: testRendererAdjustmentInvariants),
+    TestCase(name: "async preview render and batch export pipeline", run: testAsyncPreviewRenderAndBatchExportPipeline),
     TestCase(name: "editor undo history integrity", run: testEditorUndoHistoryIntegrity),
     TestCase(name: "project persists custom recipes", run: testProjectPersistsCustomRecipes),
     TestCase(name: "project store and editor persist restorable project", run: testProjectStoreAndEditorPersistRestorableProject),
@@ -2070,7 +2210,7 @@ var failures: [(String, Error)] = []
 
 for test in tests {
     do {
-        try test.run()
+        try await test.run()
         print("[PASS] \(test.name)")
     } catch {
         failures.append((test.name, error))

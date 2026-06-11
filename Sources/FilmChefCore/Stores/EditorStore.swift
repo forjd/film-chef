@@ -1407,6 +1407,10 @@ public final class EditorStore: ObservableObject {
         writeProjectExports(to: directory)
     }
 
+    package func startProjectExportTaskForTesting(to directory: URL) {
+        startProjectExportTask(to: directory)
+    }
+
     package func importRecipeForTesting(from url: URL) {
         importRecipe(from: url)
     }
