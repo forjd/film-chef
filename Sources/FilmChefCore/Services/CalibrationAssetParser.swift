@@ -191,16 +191,26 @@ package struct CalibrationAssetParser {
 
             let parts = trimmed.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
             if parts.first?.uppercased() == "LUT_3D_SIZE", parts.count == 2 {
-                lutSize = Int(parts[1])
+                guard let size = Int(parts[1]), (2...256).contains(size) else {
+                    throw CalibrationImportError.invalidAsset(url.lastPathComponent, "LUT_3D_SIZE must be an integer between 2 and 256.")
+                }
+                lutSize = size
                 continue
             }
 
             let values = parts.compactMap(Double.init)
+            guard values.count == parts.count else {
+                // Header keywords such as TITLE and DOMAIN_MIN/DOMAIN_MAX are not data rows.
+                continue
+            }
             if values.count == 3 {
                 guard values.allSatisfy({ $0.isFinite && (0...1).contains($0) }) else {
                     throw CalibrationImportError.invalidAsset(url.lastPathComponent, "LUT RGB values must be between 0 and 1.")
                 }
                 rows.append(values)
+                if let lutSize, rows.count > lutSize * lutSize * lutSize {
+                    throw CalibrationImportError.invalidAsset(url.lastPathComponent, "Expected \(lutSize * lutSize * lutSize) LUT rows but found more.")
+                }
             }
         }
 

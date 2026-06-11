@@ -1123,6 +1123,35 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     editor.importCalibrationAssetsForTesting(from: [invalidLUTURL])
     try expect(editor.errorMessage?.contains("Expected 8 LUT rows") == true)
 
+    let oversizedLUTURL = directory.appendingPathComponent("oversized-lut.cube")
+    try """
+    LUT_3D_SIZE 3000000
+    0.1 0.1 0.1
+    """.data(using: .utf8)?.write(to: oversizedLUTURL)
+    editor.errorMessage = nil
+    editor.importCalibrationAssetsForTesting(from: [oversizedLUTURL])
+    try expect(editor.errorMessage?.contains("LUT_3D_SIZE must be an integer between 2 and 256") == true)
+
+    let domainLUTURL = directory.appendingPathComponent("domain-lut.cube")
+    try """
+    TITLE "Domain LUT"
+    DOMAIN_MIN 0.0 0.0 0.0
+    DOMAIN_MAX 1.0 1.0 1.0
+    LUT_3D_SIZE 2
+    0.20 0.10 0.10
+    0.30 0.15 0.10
+    0.40 0.20 0.15
+    0.50 0.25 0.20
+    0.60 0.30 0.22
+    0.70 0.35 0.26
+    0.80 0.40 0.30
+    0.90 0.45 0.34
+    """.data(using: .utf8)?.write(to: domainLUTURL)
+    editor.errorMessage = nil
+    editor.importCalibrationAssetsForTesting(from: [domainLUTURL])
+    try expect(editor.errorMessage == nil, "Cube files with TITLE and DOMAIN header lines should import.")
+    try expect(editor.calibrationDataStatus.supportsThreeDimensionalLUTs)
+
     let typedCalibrationURL = directory.appendingPathComponent("measured-curves.json")
     try """
     {
