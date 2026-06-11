@@ -159,6 +159,28 @@ func writeTestJPEG(
     try (data as Data).write(to: url)
 }
 
+func makeTemporaryTestDirectory() throws -> URL {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    return directory
+}
+
+@MainActor
+func makeEditorWithImportedPhoto(
+    named fileName: String = "Sample Photo.png",
+    in directory: URL,
+    width: Int = 10,
+    height: Int = 8
+) throws -> EditorStore {
+    let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+    editor.loadRecipesIfNeeded()
+    let photoURL = directory.appendingPathComponent(fileName)
+    try writeTestPNG(to: photoURL, width: width, height: height)
+    editor.importPhotoForTesting(from: photoURL)
+    return editor
+}
+
 func renderBytes(
     _ image: CIImage,
     context: CIContext,
@@ -960,424 +982,489 @@ func testCameraProfileIngestionHonorsOrientationAndRawSettings() throws {
     )
 }
 
-func testEditorStoreStateImportExportAndViewConstruction() throws {
+func testEditorRecipeSelectionDuplicationAndDraftBasics() throws {
     try MainActor.assumeIsolated {
-    let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
-    editor.loadRecipesIfNeeded()
-    editor.loadRecipesIfNeeded()
+        let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        editor.loadRecipesIfNeeded()
+        editor.loadRecipesIfNeeded()
 
-    let recipe = try require(editor.recipes.first)
-    try expect(editor.selectedRecipe?.id == recipe.id)
-    try expect(!editor.selectedRecipeIsEditable)
-    try expect(editor.recipeDraft.displayName == recipe.displayName)
-    try expect(editor.recipeDraft.manufacturer == recipe.manufacturer)
-    try expect(editor.recipeDraft.summary == recipe.summary)
-    try expect(!editor.hasImportedImage)
-    try expect(!editor.canExport)
+        let recipe = try require(editor.recipes.first)
+        try expect(editor.selectedRecipe?.id == recipe.id)
+        try expect(!editor.selectedRecipeIsEditable)
+        try expect(editor.recipeDraft.displayName == recipe.displayName)
+        try expect(editor.recipeDraft.manufacturer == recipe.manufacturer)
+        try expect(editor.recipeDraft.summary == recipe.summary)
+        try expect(!editor.hasImportedImage)
+        try expect(!editor.canExport)
 
-    let bundledRecipeCount = editor.recipes.count
-    editor.recipeDraft.displayName = "Bundled Edit Attempt"
-    try expect(!editor.canApplyRecipeDraft)
-    editor.resetRecipeDraft()
-    try expect(editor.recipeDraft.displayName == recipe.displayName)
+        let bundledRecipeCount = editor.recipes.count
+        editor.recipeDraft.displayName = "Bundled Edit Attempt"
+        try expect(!editor.canApplyRecipeDraft)
+        editor.resetRecipeDraft()
+        try expect(editor.recipeDraft.displayName == recipe.displayName)
 
-    editor.duplicateSelectedRecipeForEditing()
-    let duplicatedRecipe = try require(editor.selectedRecipe)
-    try expect(editor.recipes.count == bundledRecipeCount + 1)
-    try expect(editor.selectedRecipeIsEditable)
-    try expect(duplicatedRecipe.id.hasPrefix("\(recipe.id)-custom"))
-    try expect(duplicatedRecipe.name.hasPrefix("\(recipe.name) Copy"))
-    try expect(editor.recipeImportStatus?.title == "Recipe imported")
+        editor.duplicateSelectedRecipeForEditing()
+        let duplicatedRecipe = try require(editor.selectedRecipe)
+        try expect(editor.recipes.count == bundledRecipeCount + 1)
+        try expect(editor.selectedRecipeIsEditable)
+        try expect(duplicatedRecipe.id.hasPrefix("\(recipe.id)-custom"))
+        try expect(duplicatedRecipe.name.hasPrefix("\(recipe.name) Copy"))
+        try expect(editor.recipeImportStatus?.title == "Recipe imported")
 
-    editor.recipeDraft.displayName = "   "
-    try expect(!editor.recipeDraftIssues.isEmpty)
-    try expect(!editor.canApplyRecipeDraft)
-    editor.recipeDraft.displayName = "Custom Gold 200"
-    editor.recipeDraft.manufacturer = "Film Chef Lab"
-    editor.recipeDraft.summary = "A user-adjusted metadata copy for export."
-    editor.recipeDraft.stockBoxSpeedIso = 500
-    editor.recipeDraft.exposedAtIso = 320
-    editor.recipeDraft.exposureCompensationEv = 0.15
-    editor.recipeDraft.captureColourTemperatureK = 6200
-    editor.recipeDraft.captureFilterType = "85"
-    editor.recipeDraft.captureFilterStrength = 0.4
-    editor.recipeDraft.colourSaturation = 1.2
-    editor.recipeDraft.processPushPullStops = 0.5
-    editor.recipeDraft.processContrastMultiplier = 1.15
-    editor.recipeDraft.processGrainMultiplier = 1.25
-    editor.recipeDraft.grainEnabled = false
-    editor.recipeDraft.grainStrength = 0.35
-    editor.recipeDraft.halationEnabled = true
-    editor.recipeDraft.halationStrength = 0.2
-    editor.recipeDraft.sharpnessAcutance = 0.6
-    editor.recipeDraft.rendererContrast = 1.1
-    editor.recipeDraft.outputColourSpace = "display_p3"
-    editor.recipeDraft.outputBitDepth = 16
-    try expect(editor.canApplyRecipeDraft)
-    editor.applyRecipeDraft()
-    try expect(editor.selectedRecipe?.name == "Custom Gold 200")
-    try expect(editor.selectedRecipe?.maker == "Film Chef Lab")
-    try expect(editor.selectedRecipe?.summary == "A user-adjusted metadata copy for export.")
-    try expect(editor.selectedRecipe?.stock.boxSpeedIso == 500)
-    try expect(editor.selectedRecipe?.exposure.exposedAtIso == 320)
-    try expect(editor.selectedRecipe?.captureConditions.colourTemperatureK == 6200)
-    try expect(editor.selectedRecipe?.captureConditions.filter.type == "85")
-    try expect(editor.selectedRecipe?.captureConditions.filter.strength == 0.4)
-    try expect(editor.selectedRecipe?.colourModel.saturation == 1.2)
-    try expect(editor.selectedRecipe?.process.pushPullStops == 0.5)
-    try expect(editor.selectedRecipe?.process.contrastMultiplier == 1.15)
-    try expect(editor.selectedRecipe?.process.grainMultiplier == 1.25)
-    try expect(editor.selectedRecipe?.grain.enabled == false)
-    try expect(editor.selectedRecipe?.grain.strength == 0.35)
-    try expect(editor.selectedRecipe?.halation.enabled == true)
-    try expect(editor.selectedRecipe?.halation.strength == 0.2)
-    try expect(editor.selectedRecipe?.sharpness.acutance == 0.6)
-    try expect(editor.selectedRecipe?.renderer.contrast == 1.1)
-    try expect(editor.selectedRecipe?.output.colourSpace == "display_p3")
-    try expect(editor.selectedRecipe?.output.bitDepth == 16)
-    try expect(editor.recipeDraft.displayName == "Custom Gold 200")
-
-    editor.beginImport()
-    try expect(editor.isImporting)
-
-    struct ImportError: LocalizedError {
-        var errorDescription: String? { "Import failed." }
+        editor.recipeDraft.displayName = "   "
+        try expect(!editor.recipeDraftIssues.isEmpty)
+        try expect(!editor.canApplyRecipeDraft)
+        editor.recipeDraft.displayName = "Custom Gold 200"
+        editor.recipeDraft.manufacturer = "Film Chef Lab"
+        editor.recipeDraft.summary = "A user-adjusted metadata copy for export."
+        editor.recipeDraft.stockBoxSpeedIso = 500
+        editor.recipeDraft.exposedAtIso = 320
+        editor.recipeDraft.exposureCompensationEv = 0.15
+        editor.recipeDraft.captureColourTemperatureK = 6200
+        editor.recipeDraft.captureFilterType = "85"
+        editor.recipeDraft.captureFilterStrength = 0.4
+        editor.recipeDraft.colourSaturation = 1.2
+        editor.recipeDraft.processPushPullStops = 0.5
+        editor.recipeDraft.processContrastMultiplier = 1.15
+        editor.recipeDraft.processGrainMultiplier = 1.25
+        editor.recipeDraft.grainEnabled = false
+        editor.recipeDraft.grainStrength = 0.35
+        editor.recipeDraft.halationEnabled = true
+        editor.recipeDraft.halationStrength = 0.2
+        editor.recipeDraft.sharpnessAcutance = 0.6
+        editor.recipeDraft.rendererContrast = 1.1
+        editor.recipeDraft.outputColourSpace = "display_p3"
+        editor.recipeDraft.outputBitDepth = 16
+        try expect(editor.canApplyRecipeDraft)
+        editor.applyRecipeDraft()
+        try expect(editor.selectedRecipe?.name == "Custom Gold 200")
+        try expect(editor.selectedRecipe?.maker == "Film Chef Lab")
+        try expect(editor.selectedRecipe?.summary == "A user-adjusted metadata copy for export.")
+        try expect(editor.selectedRecipe?.stock.boxSpeedIso == 500)
+        try expect(editor.selectedRecipe?.exposure.exposedAtIso == 320)
+        try expect(editor.selectedRecipe?.captureConditions.colourTemperatureK == 6200)
+        try expect(editor.selectedRecipe?.captureConditions.filter.type == "85")
+        try expect(editor.selectedRecipe?.captureConditions.filter.strength == 0.4)
+        try expect(editor.selectedRecipe?.colourModel.saturation == 1.2)
+        try expect(editor.selectedRecipe?.process.pushPullStops == 0.5)
+        try expect(editor.selectedRecipe?.process.contrastMultiplier == 1.15)
+        try expect(editor.selectedRecipe?.process.grainMultiplier == 1.25)
+        try expect(editor.selectedRecipe?.grain.enabled == false)
+        try expect(editor.selectedRecipe?.grain.strength == 0.35)
+        try expect(editor.selectedRecipe?.halation.enabled == true)
+        try expect(editor.selectedRecipe?.halation.strength == 0.2)
+        try expect(editor.selectedRecipe?.sharpness.acutance == 0.6)
+        try expect(editor.selectedRecipe?.renderer.contrast == 1.1)
+        try expect(editor.selectedRecipe?.output.colourSpace == "display_p3")
+        try expect(editor.selectedRecipe?.output.bitDepth == 16)
+        try expect(editor.recipeDraft.displayName == "Custom Gold 200")
     }
-    editor.handleImportResult(.failure(ImportError()))
-    try expect(editor.errorMessage == "Import failed.")
-    editor.errorMessage = nil
-    editor.handleImportResults(.success([]))
-    try expect(editor.errorMessage == nil)
-    editor.handleImportResults(.failure(ImportError()))
-    try expect(editor.errorMessage == "Import failed.")
-    editor.errorMessage = nil
+}
 
-    let directory = FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString, isDirectory: true)
-    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    defer {
-        try? FileManager.default.removeItem(at: directory)
-    }
+func testEditorPhotoImportPreviewControlsAndCache() throws {
+    let directory = try makeTemporaryTestDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
 
     let sourceURL = directory.appendingPathComponent(" Sample Photo .png")
     try writeTestPNG(to: sourceURL, width: 10, height: 8)
-
-    editor.handleImportResult(.success(sourceURL))
     let importedViaTestingURL = directory.appendingPathComponent("Testing Import.png")
     try writeTestPNG(to: importedViaTestingURL, width: 9, height: 7)
-    editor.importPhotoForTesting(from: importedViaTestingURL)
-    editor.handleImportResults(.success([sourceURL]))
-    try expect(editor.hasImportedImage)
-    try expect(editor.canExport)
-    try expect(editor.importedImageName == " Sample Photo .png")
-    try expect(editor.originalPreviewImage != nil)
-    try expect(editor.editedPreviewImage != nil)
-    try expect(editor.histogramSummary != nil)
-    try expect(editor.project.items.count == 2)
-    try expect(editor.canBatchExport)
-    try expect(editor.editHistory.count >= 1)
-    try expect(editor.displayedPreviewImage === editor.editedPreviewImage)
 
-    let otherItem = try require(editor.project.items.first { $0.displayName == "Testing Import.png" })
-    editor.selectProjectItem(id: otherItem.id)
-    try expect(editor.importedImageName == "Testing Import.png")
-    let sourceItem = try require(editor.project.items.first { $0.displayName == " Sample Photo .png" })
-    editor.selectProjectItem(id: sourceItem.id)
-    try expect(editor.importedImageName == " Sample Photo .png")
+    try MainActor.assumeIsolated {
+        let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        editor.loadRecipesIfNeeded()
 
-    editor.showOriginal = true
-    try expect(editor.displayedPreviewImage === editor.originalPreviewImage)
-    editor.comparisonMode = .split
-    try expect(editor.comparisonMode == .split)
-    editor.previewZoom = 2.0
-    editor.panPreview(deltaX: 24, deltaY: -12)
-    try expect(editor.previewPanX == 24)
-    try expect(editor.previewPanY == -12)
-    editor.setPreviewPan(x: 1_000, y: -1_000)
-    try expect(editor.previewPanX == 220)
-    try expect(editor.previewPanY == -220)
-    editor.loupeEnabled = true
-    editor.loupeZoom = 3.0
-    editor.loupePlacement = .topRight
-    try expect(editor.loupePlacement == .topRight)
-    try expect(editor.canResetPreviewView)
-    editor.resetPreviewView()
-    try expect(editor.previewZoom == 1.0)
-    try expect(editor.previewPanX == 0)
-    try expect(editor.previewPanY == 0)
-    try expect(!editor.loupeEnabled)
+        editor.beginImport()
+        try expect(editor.isImporting)
 
-    editor.intensity = 0.25
-    try expect(editor.previewRenderProgress == 1.0)
-    try expect(editor.previewRenderStatus == "Preview ready")
-    let cacheHitsBeforeRepeat = editor.previewCacheHitCount
-    editor.intensity = 0.25
-    try expect(editor.previewCacheHitCount > cacheHitsBeforeRepeat)
-    for step in 1...9 {
-        editor.intensity = Double(step) / 10.0
+        struct ImportError: LocalizedError {
+            var errorDescription: String? { "Import failed." }
+        }
+        editor.handleImportResult(.failure(ImportError()))
+        try expect(editor.errorMessage == "Import failed.")
+        editor.errorMessage = nil
+        editor.handleImportResults(.success([]))
+        try expect(editor.errorMessage == nil)
+        editor.handleImportResults(.failure(ImportError()))
+        try expect(editor.errorMessage == "Import failed.")
+        editor.errorMessage = nil
+
+        editor.handleImportResult(.success(sourceURL))
+        editor.importPhotoForTesting(from: importedViaTestingURL)
+        editor.handleImportResults(.success([sourceURL]))
+        try expect(editor.hasImportedImage)
+        try expect(editor.canExport)
+        try expect(editor.importedImageName == " Sample Photo .png")
+        try expect(editor.originalPreviewImage != nil)
+        try expect(editor.editedPreviewImage != nil)
+        try expect(editor.histogramSummary != nil)
+        try expect(editor.project.items.count == 2)
+        try expect(editor.canBatchExport)
+        try expect(editor.editHistory.count >= 1)
+        try expect(editor.displayedPreviewImage === editor.editedPreviewImage)
+
+        let otherItem = try require(editor.project.items.first { $0.displayName == "Testing Import.png" })
+        editor.selectProjectItem(id: otherItem.id)
+        try expect(editor.importedImageName == "Testing Import.png")
+        let sourceItem = try require(editor.project.items.first { $0.displayName == " Sample Photo .png" })
+        editor.selectProjectItem(id: sourceItem.id)
+        try expect(editor.importedImageName == " Sample Photo .png")
+
+        editor.showOriginal = true
+        try expect(editor.displayedPreviewImage === editor.originalPreviewImage)
+        editor.comparisonMode = .split
+        try expect(editor.comparisonMode == .split)
+        editor.previewZoom = 2.0
+        editor.panPreview(deltaX: 24, deltaY: -12)
+        try expect(editor.previewPanX == 24)
+        try expect(editor.previewPanY == -12)
+        editor.setPreviewPan(x: 1_000, y: -1_000)
+        try expect(editor.previewPanX == 220)
+        try expect(editor.previewPanY == -220)
+        editor.loupeEnabled = true
+        editor.loupeZoom = 3.0
+        editor.loupePlacement = .topRight
+        try expect(editor.loupePlacement == .topRight)
+        try expect(editor.canResetPreviewView)
+        editor.resetPreviewView()
+        try expect(editor.previewZoom == 1.0)
+        try expect(editor.previewPanX == 0)
+        try expect(editor.previewPanY == 0)
+        try expect(!editor.loupeEnabled)
+
+        editor.intensity = 0.25
+        try expect(editor.previewRenderProgress == 1.0)
+        try expect(editor.previewRenderStatus == "Preview ready")
+        let cacheHitsBeforeRepeat = editor.previewCacheHitCount
+        editor.intensity = 0.25
+        try expect(editor.previewCacheHitCount > cacheHitsBeforeRepeat)
+        for step in 1...9 {
+            editor.intensity = Double(step) / 10.0
+        }
+        try expect(editor.previewRenderCacheSize <= 8)
     }
-    try expect(editor.previewRenderCacheSize <= 8)
-    editor.intensity = 0.25
-    editor.exposureTrim = 0.2
-    editor.contrastTrim = -0.1
-    editor.saturationTrim = 0.15
-    editor.grainEnabled = false
-    editor.addLocalAdjustment()
-    try expect(editor.localAdjustments.count == 1)
-    try expect(editor.selectedLocalAdjustmentID == editor.localAdjustments[0].id)
-    try expect(editor.canEditLocalMaskOnPreview)
-    editor.beginLocalMaskEditAtPreviewPoint(x: 0.35, y: 0.65)
-    editor.updateLocalMaskEditAtPreviewPoint(x: 0.45, y: 0.55)
-    editor.endLocalMaskEditAtPreviewPoint()
-    try expect(editor.localAdjustments[0].centerX == 0.45)
-    try expect(editor.localAdjustments[0].centerY == 0.55)
-    editor.localAdjustments[0].mask = .brush
-    editor.beginLocalMaskEditAtPreviewPoint(x: 0.2, y: 0.2)
-    editor.updateLocalMaskEditAtPreviewPoint(x: 0.24, y: 0.25)
-    editor.endLocalMaskEditAtPreviewPoint()
-    try expect(editor.localAdjustments[0].pathPoints.count == 2)
-    editor.localAdjustments[0].mask = .path
-    editor.localAdjustments[0].pathPoints = [
-        NormalizedMaskPoint(x: 0.1, y: 0.1),
-        NormalizedMaskPoint(x: 0.9, y: 0.1),
-        NormalizedMaskPoint(x: 0.5, y: 0.9)
-    ]
-    editor.beginLocalMaskEditAtPreviewPoint(x: 0.88, y: 0.12)
-    editor.updateLocalMaskEditAtPreviewPoint(x: 0.7, y: 0.3)
-    editor.endLocalMaskEditAtPreviewPoint()
-    try expect(editor.localAdjustments[0].pathPoints[1] == NormalizedMaskPoint(x: 0.7, y: 0.3))
-    editor.localAdjustments[0].mask = .radial
-    editor.localAdjustments[0].centerX = 0.45
-    editor.localAdjustments[0].exposureEV = 0.35
-    try expect(editor.currentAdjustments.intensity == 0.25)
-    try expect(editor.canUndoEdit)
-    editor.undoEdit()
-    try expect(editor.canRedoEdit)
-    editor.redoEdit()
-    editor.captureVariant(note: "Warm review")
-    let capturedVariant = try require(editor.editHistory.last)
-    editor.renameVariant(id: capturedVariant.id, note: "Warm review v1")
-    try expect(editor.editHistory.last?.note == "Warm review v1")
-    editor.duplicateVariant(id: capturedVariant.id)
-    try expect(editor.editHistory.last?.note == "Warm review v1 Copy")
-    try expect(editor.editHistoryIndex == editor.editHistory.count - 1)
-    let duplicateVariant = try require(editor.editHistory.last)
-    editor.restoreVariant(id: capturedVariant.id)
-    try expect(editor.editHistory[editor.editHistoryIndex ?? -1].id == capturedVariant.id)
-    editor.deleteVariant(id: duplicateVariant.id)
-    try expect(!editor.editHistory.contains { $0.id == duplicateVariant.id })
-    try expect(editor.project.items.first { $0.id == editor.project.selectedItemID }?.localAdjustments.count == 1)
-    editor.resetControls()
-    try expect(editor.currentAdjustments == RenderAdjustments.defaults)
-    try expect(!editor.showOriginal)
-    editor.samplePreviewPixel(x: 0.25, y: 0.75)
-    try expect(editor.pixelSample != nil)
-    try expect(editor.pixelSample?.x == 0.25)
-    try expect(editor.pixelSample?.y == 0.75)
-    let sampledRGB = (editor.pixelSample?.red ?? 0) + (editor.pixelSample?.green ?? 0) + (editor.pixelSample?.blue ?? 0)
-    try expect(sampledRGB > 0, "Preview sampler should read non-black color from the test image.")
-    editor.samplePreviewPixel(x: -1, y: 2)
-    try expect(editor.samplerX == 0)
-    try expect(editor.samplerY == 1)
-    try expect(editor.pixelSample?.x == 0)
-    try expect(editor.pixelSample?.y == 1)
-    editor.removeLocalAdjustments()
-    try expect(editor.localAdjustments.isEmpty)
-    try expect(editor.selectedLocalAdjustmentID == nil)
+}
 
-    let lutURL = directory.appendingPathComponent("test-lut.cube")
-    try """
-    LUT_3D_SIZE 2
-    0.20 0.10 0.10
-    0.30 0.15 0.10
-    0.40 0.20 0.15
-    0.50 0.25 0.20
-    0.60 0.30 0.22
-    0.70 0.35 0.26
-    0.80 0.40 0.30
-    0.90 0.45 0.34
-    """.data(using: .utf8)?.write(to: lutURL)
-    let spectralURL = directory.appendingPathComponent("spectral-density.json")
-    try #"{"red":0.7,"green":0.5,"blue":0.3,"density":0.8}"#.data(using: .utf8)?.write(to: spectralURL)
-    let grainURL = directory.appendingPathComponent("grain-spectrum.csv")
-    try "frequency,amount\n1,0.4\n2,0.7\n".data(using: .utf8)?.write(to: grainURL)
-    editor.importCalibrationAssetsForTesting(from: [lutURL, spectralURL, grainURL])
-    try expect(editor.calibrationDataStatus.supportsThreeDimensionalLUTs)
-    try expect(editor.calibrationDataStatus.supportsSpectralCurves)
-    try expect(editor.calibrationDataStatus.supportsMeasuredDensityCurves)
-    try expect(editor.calibrationDataStatus.supportsGrainSpectra)
-    try expect(editor.calibrationDataStatus.redScale > editor.calibrationDataStatus.blueScale)
-    try expect(editor.calibrationDataStatus.densityGamma > 1.0)
-    try expect(editor.calibrationDataStatus.grainAmount > 0)
-    try expect(editor.calibrationDataStatus.importedAssetSummaries.contains("test-lut.cube: 3D LUT"))
-    try expect(editor.calibrationDataStatus.importedAssetSummaries.contains("spectral-density.json: density curves, spectral curves"))
-    try expect(editor.calibrationDataStatus.importedAssetSummaries.contains("grain-spectrum.csv: grain spectra, spectral curves"))
+func testEditorLocalAdjustmentMasksAndVariantLifecycle() throws {
+    let directory = try makeTemporaryTestDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
 
-    let invalidLUTURL = directory.appendingPathComponent("invalid-lut.cube")
-    try """
-    LUT_3D_SIZE 2
-    0.1 0.1 0.1
-    """.data(using: .utf8)?.write(to: invalidLUTURL)
-    editor.errorMessage = nil
-    editor.importCalibrationAssetsForTesting(from: [invalidLUTURL])
-    try expect(editor.errorMessage?.contains("Expected 8 LUT rows") == true)
+    try MainActor.assumeIsolated {
+        let editor = try makeEditorWithImportedPhoto(named: "Local Masks.png", in: directory)
+        editor.intensity = 0.25
+        editor.exposureTrim = 0.2
+        editor.contrastTrim = -0.1
+        editor.saturationTrim = 0.15
+        editor.grainEnabled = false
 
-    let oversizedLUTURL = directory.appendingPathComponent("oversized-lut.cube")
-    try """
-    LUT_3D_SIZE 3000000
-    0.1 0.1 0.1
-    """.data(using: .utf8)?.write(to: oversizedLUTURL)
-    editor.errorMessage = nil
-    editor.importCalibrationAssetsForTesting(from: [oversizedLUTURL])
-    try expect(editor.errorMessage?.contains("LUT_3D_SIZE must be an integer between 2 and 256") == true)
-
-    let domainLUTURL = directory.appendingPathComponent("domain-lut.cube")
-    try """
-    TITLE "Domain LUT"
-    DOMAIN_MIN 0.0 0.0 0.0
-    DOMAIN_MAX 1.0 1.0 1.0
-    LUT_3D_SIZE 2
-    0.20 0.10 0.10
-    0.30 0.15 0.10
-    0.40 0.20 0.15
-    0.50 0.25 0.20
-    0.60 0.30 0.22
-    0.70 0.35 0.26
-    0.80 0.40 0.30
-    0.90 0.45 0.34
-    """.data(using: .utf8)?.write(to: domainLUTURL)
-    editor.errorMessage = nil
-    editor.importCalibrationAssetsForTesting(from: [domainLUTURL])
-    try expect(editor.errorMessage == nil, "Cube files with TITLE and DOMAIN header lines should import.")
-    try expect(editor.calibrationDataStatus.supportsThreeDimensionalLUTs)
-
-    let typedCalibrationURL = directory.appendingPathComponent("measured-curves.json")
-    try """
-    {
-      "asset_types": ["spectral_curves", "density_curves", "grain_spectra"],
-      "values": [0.15, 0.35, 0.55, 0.75],
-      "rgb_scale": { "red": 1.08, "green": 1.0, "blue": 0.92 }
+        editor.addLocalAdjustment()
+        try expect(editor.localAdjustments.count == 1)
+        try expect(editor.selectedLocalAdjustmentID == editor.localAdjustments[0].id)
+        try expect(editor.canEditLocalMaskOnPreview)
+        editor.beginLocalMaskEditAtPreviewPoint(x: 0.35, y: 0.65)
+        editor.updateLocalMaskEditAtPreviewPoint(x: 0.45, y: 0.55)
+        editor.endLocalMaskEditAtPreviewPoint()
+        try expect(editor.localAdjustments[0].centerX == 0.45)
+        try expect(editor.localAdjustments[0].centerY == 0.55)
+        editor.localAdjustments[0].mask = .brush
+        editor.beginLocalMaskEditAtPreviewPoint(x: 0.2, y: 0.2)
+        editor.updateLocalMaskEditAtPreviewPoint(x: 0.24, y: 0.25)
+        editor.endLocalMaskEditAtPreviewPoint()
+        try expect(editor.localAdjustments[0].pathPoints.count == 2)
+        editor.localAdjustments[0].mask = .path
+        editor.localAdjustments[0].pathPoints = [
+            NormalizedMaskPoint(x: 0.1, y: 0.1),
+            NormalizedMaskPoint(x: 0.9, y: 0.1),
+            NormalizedMaskPoint(x: 0.5, y: 0.9)
+        ]
+        editor.beginLocalMaskEditAtPreviewPoint(x: 0.88, y: 0.12)
+        editor.updateLocalMaskEditAtPreviewPoint(x: 0.7, y: 0.3)
+        editor.endLocalMaskEditAtPreviewPoint()
+        try expect(editor.localAdjustments[0].pathPoints[1] == NormalizedMaskPoint(x: 0.7, y: 0.3))
+        editor.localAdjustments[0].mask = .radial
+        editor.localAdjustments[0].centerX = 0.45
+        editor.localAdjustments[0].exposureEV = 0.35
+        try expect(editor.currentAdjustments.intensity == 0.25)
+        try expect(editor.canUndoEdit)
+        editor.undoEdit()
+        try expect(editor.canRedoEdit)
+        editor.redoEdit()
+        editor.captureVariant(note: "Warm review")
+        let capturedVariant = try require(editor.editHistory.last)
+        editor.renameVariant(id: capturedVariant.id, note: "Warm review v1")
+        try expect(editor.editHistory.last?.note == "Warm review v1")
+        editor.duplicateVariant(id: capturedVariant.id)
+        try expect(editor.editHistory.last?.note == "Warm review v1 Copy")
+        try expect(editor.editHistoryIndex == editor.editHistory.count - 1)
+        let duplicateVariant = try require(editor.editHistory.last)
+        editor.restoreVariant(id: capturedVariant.id)
+        try expect(editor.editHistory[editor.editHistoryIndex ?? -1].id == capturedVariant.id)
+        editor.deleteVariant(id: duplicateVariant.id)
+        try expect(!editor.editHistory.contains { $0.id == duplicateVariant.id })
+        try expect(editor.project.items.first { $0.id == editor.project.selectedItemID }?.localAdjustments.count == 1)
+        editor.showOriginal = true
+        editor.resetControls()
+        try expect(editor.currentAdjustments == RenderAdjustments.defaults)
+        try expect(!editor.showOriginal)
+        editor.removeLocalAdjustments()
+        try expect(editor.localAdjustments.isEmpty)
+        try expect(editor.selectedLocalAdjustmentID == nil)
     }
-    """.data(using: .utf8)?.write(to: typedCalibrationURL)
-    let typedCalibrationEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
-    typedCalibrationEditor.importCalibrationAssetsForTesting(from: [typedCalibrationURL])
-    try expect(typedCalibrationEditor.calibrationDataStatus.supportsSpectralCurves)
-    try expect(typedCalibrationEditor.calibrationDataStatus.supportsMeasuredDensityCurves)
-    try expect(typedCalibrationEditor.calibrationDataStatus.supportsGrainSpectra)
-    try expect(typedCalibrationEditor.calibrationDataStatus.supportsThreeDimensionalLUTs)
-    try expect(typedCalibrationEditor.calibrationDataStatus.redScale > typedCalibrationEditor.calibrationDataStatus.blueScale)
-    try expect(typedCalibrationEditor.calibrationDataStatus.importedAssetSummaries == ["measured-curves.json: density curves, grain spectra, RGB scale, spectral curves"])
+}
 
-    let suggestedName = editor.suggestedExportFileNameForTesting()
-    try expect(
-        suggestedName == editor.exportFileNamePreview,
-        "Save panel suggestion should match the naming-template preview."
-    )
-    try expect(suggestedName.hasSuffix(".jpg"))
+func testEditorPixelSamplingAndMarkerClamping() throws {
+    let directory = try makeTemporaryTestDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
 
-    try expect(editor.exportPresets.count >= 3)
-    try expect(editor.exportNamingTemplateIssues.isEmpty)
-    try expect(editor.exportFileNamePreview.hasSuffix(".jpg"))
-    editor.exportSettings.namingTemplate = "{photo}-{bad}"
-    try expect(editor.exportNamingTemplateIssues.contains("Unsupported naming token {bad}. Use {photo}, {recipe}, or {format}."))
-    try expect(!editor.canSaveExportPreset)
-    editor.exportSettings.namingTemplate = "{photo-{recipe}"
-    try expect(editor.exportNamingTemplateIssues.contains("Unsupported naming token {photo-{recipe}. Use {photo}, {recipe}, or {format}."))
-    editor.exportSettings.namingTemplate = "{photo}-{recipe}"
-    editor.exportPresetDraftName = "Small Review"
-    editor.exportSettings = ExportSettings(fileFormat: .png, jpegQuality: 1.0, scale: 0.5, preserveMetadata: false, embedColorProfile: true, namingTemplate: "{photo}-small")
-    editor.saveExportPreset()
-    let smallReviewPreset = try require(editor.exportPresets.first { $0.name == "Small Review" })
-    try expect(editor.selectedExportPresetID == smallReviewPreset.id)
-    editor.exportSettings = .defaults
-    editor.applySelectedExportPreset()
-    try expect(editor.exportSettings.fileFormat == .png)
-    try expect(editor.exportSettings.scale == 0.5)
-    editor.duplicateSelectedExportPreset()
-    let copiedPreset = try require(editor.exportPresets.first { $0.name == "Small Review Copy" })
-    try expect(editor.selectedExportPresetID == copiedPreset.id)
-    try expect(editor.exportPresetDraftName == "Small Review Copy")
-    try expect(copiedPreset.settings == smallReviewPreset.settings)
-    editor.beginNewExportPreset()
-    try expect(editor.selectedExportPresetID == nil)
-    editor.exportPresetDraftName = "Small Review"
-    try expect(editor.exportPresetNameIssues == ["A preset named Small Review already exists."])
-    try expect(!editor.canSaveExportPreset)
-    editor.exportPresetDraftName = "Small Review Mobile"
-    try expect(editor.canSaveExportPreset)
-    editor.saveExportPreset()
-    let mobilePreset = try require(editor.exportPresets.first { $0.name == "Small Review Mobile" })
-    editor.exportPresetDraftName = "Small Review Mobile Updated"
-    editor.saveExportPreset()
-    try expect(editor.exportPresets.first { $0.id == mobilePreset.id }?.name == "Small Review Mobile Updated")
-    editor.deleteSelectedExportPreset()
-    try expect(!editor.exportPresets.contains { $0.id == mobilePreset.id })
-    editor.restoreDefaultExportPresets()
-    try expect(editor.exportPresets == ExportPreset.defaults)
-    try expect(editor.selectedExportPresetID == nil)
+    try MainActor.assumeIsolated {
+        let editor = try makeEditorWithImportedPhoto(named: "Sampler.png", in: directory)
+        editor.addLocalAdjustment()
+        editor.localAdjustments[0].exposureEV = 0.35
 
-    let exportURL = directory.appendingPathComponent("export.jpeg")
-    editor.exportEditedPhotoForTesting(to: exportURL)
-    try expect(FileManager.default.fileExists(atPath: exportURL.path))
-
-    let batchDirectory = directory.appendingPathComponent("batch", isDirectory: true)
-    editor.exportSettings.fileFormat = .jpeg
-    editor.exportSettings.namingTemplate = "{photo}_{recipe}_{format}"
-    editor.exportProjectPhotosForTesting(to: batchDirectory)
-    let batchFiles = try FileManager.default.contentsOfDirectory(atPath: batchDirectory.path)
-    try expect(batchFiles.count == 2, "Expected both project photos to export.")
-    try expect(batchFiles.allSatisfy { $0.contains("_jpeg") })
-    try expect(!editor.batchExportState.isExporting)
-    try expect(editor.batchExportState.completedCount == 2)
-    try expect(editor.batchExportState.exportedFileNames.count == 2)
-
-    let recipeExportURL = directory.appendingPathComponent("recipe.json")
-    editor.exportSelectedRecipeForTesting(to: recipeExportURL)
-    try expect(FileManager.default.fileExists(atPath: recipeExportURL.path))
-    editor.importRecipeForTesting(from: recipeExportURL)
-    try expect(editor.selectedRecipe != nil)
-    try expect(editor.selectedRecipeIsEditable)
-    try expect(editor.recipeImportStatus?.title == "Recipe imported")
-
-    let invalidRecipeURL = directory.appendingPathComponent("invalid-recipe.json")
-    try writeRecipeJSON(from: recipe, to: invalidRecipeURL) { object in
-        setJSONValue(0, path: ["output", "bit_depth"], object: &object)
+        editor.samplePreviewPixel(x: 0.25, y: 0.75)
+        try expect(editor.pixelSample != nil)
+        try expect(editor.pixelSample?.x == 0.25)
+        try expect(editor.pixelSample?.y == 0.75)
+        let sampledRGB = (editor.pixelSample?.red ?? 0) + (editor.pixelSample?.green ?? 0) + (editor.pixelSample?.blue ?? 0)
+        try expect(sampledRGB > 0, "Preview sampler should read non-black color from the test image.")
+        editor.samplePreviewPixel(x: -1, y: 2)
+        try expect(editor.samplerX == 0)
+        try expect(editor.samplerY == 1)
+        try expect(editor.pixelSample?.x == 0)
+        try expect(editor.pixelSample?.y == 1)
     }
-    let selectedRecipeID = editor.selectedRecipeID
-    editor.errorMessage = nil
-    editor.importRecipeForTesting(from: invalidRecipeURL)
-    try expect(editor.selectedRecipeID == selectedRecipeID)
-    try expect(editor.errorMessage?.contains("output.bit_depth must be greater than 0.") == true)
-    if case .failed(let name, let issues) = editor.recipeImportStatus {
-        try expect(name == "invalid-recipe.json")
-        try expect(issues.map(\.message).contains("output.bit_depth must be greater than 0."))
-    } else {
-        try expect(false, "Expected invalid recipe import to record structured validation issues.")
+}
+
+func testEditorCalibrationAssetImportVariants() throws {
+    let directory = try makeTemporaryTestDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    try MainActor.assumeIsolated {
+        let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        editor.loadRecipesIfNeeded()
+
+        let lutURL = directory.appendingPathComponent("test-lut.cube")
+        try """
+        LUT_3D_SIZE 2
+        0.20 0.10 0.10
+        0.30 0.15 0.10
+        0.40 0.20 0.15
+        0.50 0.25 0.20
+        0.60 0.30 0.22
+        0.70 0.35 0.26
+        0.80 0.40 0.30
+        0.90 0.45 0.34
+        """.data(using: .utf8)?.write(to: lutURL)
+        let spectralURL = directory.appendingPathComponent("spectral-density.json")
+        try #"{"red":0.7,"green":0.5,"blue":0.3,"density":0.8}"#.data(using: .utf8)?.write(to: spectralURL)
+        let grainURL = directory.appendingPathComponent("grain-spectrum.csv")
+        try "frequency,amount\n1,0.4\n2,0.7\n".data(using: .utf8)?.write(to: grainURL)
+        editor.importCalibrationAssetsForTesting(from: [lutURL, spectralURL, grainURL])
+        try expect(editor.calibrationDataStatus.supportsThreeDimensionalLUTs)
+        try expect(editor.calibrationDataStatus.supportsSpectralCurves)
+        try expect(editor.calibrationDataStatus.supportsMeasuredDensityCurves)
+        try expect(editor.calibrationDataStatus.supportsGrainSpectra)
+        try expect(editor.calibrationDataStatus.redScale > editor.calibrationDataStatus.blueScale)
+        try expect(editor.calibrationDataStatus.densityGamma > 1.0)
+        try expect(editor.calibrationDataStatus.grainAmount > 0)
+        try expect(editor.calibrationDataStatus.importedAssetSummaries.contains("test-lut.cube: 3D LUT"))
+        try expect(editor.calibrationDataStatus.importedAssetSummaries.contains("spectral-density.json: density curves, spectral curves"))
+        try expect(editor.calibrationDataStatus.importedAssetSummaries.contains("grain-spectrum.csv: grain spectra, spectral curves"))
+
+        let invalidLUTURL = directory.appendingPathComponent("invalid-lut.cube")
+        try """
+        LUT_3D_SIZE 2
+        0.1 0.1 0.1
+        """.data(using: .utf8)?.write(to: invalidLUTURL)
+        editor.errorMessage = nil
+        editor.importCalibrationAssetsForTesting(from: [invalidLUTURL])
+        try expect(editor.errorMessage?.contains("Expected 8 LUT rows") == true)
+
+        let oversizedLUTURL = directory.appendingPathComponent("oversized-lut.cube")
+        try """
+        LUT_3D_SIZE 3000000
+        0.1 0.1 0.1
+        """.data(using: .utf8)?.write(to: oversizedLUTURL)
+        editor.errorMessage = nil
+        editor.importCalibrationAssetsForTesting(from: [oversizedLUTURL])
+        try expect(editor.errorMessage?.contains("LUT_3D_SIZE must be an integer between 2 and 256") == true)
+
+        let domainLUTURL = directory.appendingPathComponent("domain-lut.cube")
+        try """
+        TITLE "Domain LUT"
+        DOMAIN_MIN 0.0 0.0 0.0
+        DOMAIN_MAX 1.0 1.0 1.0
+        LUT_3D_SIZE 2
+        0.20 0.10 0.10
+        0.30 0.15 0.10
+        0.40 0.20 0.15
+        0.50 0.25 0.20
+        0.60 0.30 0.22
+        0.70 0.35 0.26
+        0.80 0.40 0.30
+        0.90 0.45 0.34
+        """.data(using: .utf8)?.write(to: domainLUTURL)
+        editor.errorMessage = nil
+        editor.importCalibrationAssetsForTesting(from: [domainLUTURL])
+        try expect(editor.errorMessage == nil, "Cube files with TITLE and DOMAIN header lines should import.")
+        try expect(editor.calibrationDataStatus.supportsThreeDimensionalLUTs)
+
+        let typedCalibrationURL = directory.appendingPathComponent("measured-curves.json")
+        try """
+        {
+          "asset_types": ["spectral_curves", "density_curves", "grain_spectra"],
+          "values": [0.15, 0.35, 0.55, 0.75],
+          "rgb_scale": { "red": 1.08, "green": 1.0, "blue": 0.92 }
+        }
+        """.data(using: .utf8)?.write(to: typedCalibrationURL)
+        let typedCalibrationEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        typedCalibrationEditor.importCalibrationAssetsForTesting(from: [typedCalibrationURL])
+        try expect(typedCalibrationEditor.calibrationDataStatus.supportsSpectralCurves)
+        try expect(typedCalibrationEditor.calibrationDataStatus.supportsMeasuredDensityCurves)
+        try expect(typedCalibrationEditor.calibrationDataStatus.supportsGrainSpectra)
+        try expect(typedCalibrationEditor.calibrationDataStatus.supportsThreeDimensionalLUTs)
+        try expect(typedCalibrationEditor.calibrationDataStatus.redScale > typedCalibrationEditor.calibrationDataStatus.blueScale)
+        try expect(typedCalibrationEditor.calibrationDataStatus.importedAssetSummaries == ["measured-curves.json: density curves, grain spectra, RGB scale, spectral curves"])
     }
-    editor.clearRecipeImportStatus()
-    try expect(editor.recipeImportStatus == nil)
+}
 
-    let fallbackEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
-    try expect(fallbackEditor.suggestedExportFileNameForTesting() == fallbackEditor.exportFileNamePreview)
-    fallbackEditor.triggerExportPanelForTesting()
+func testEditorExportPresetsNamingTemplatesAndBatchExport() throws {
+    let directory = try makeTemporaryTestDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
 
-    let failingRecipeEditor = EditorStore(recipeStore: RecipeStore(recipeURLProvider: { [] }))
-    failingRecipeEditor.loadRecipesIfNeeded()
-    try expect(failingRecipeEditor.errorMessage == RecipeStore.RecipeStoreError.missingResource.errorDescription)
+    let secondPhotoURL = directory.appendingPathComponent("Testing Import.png")
+    try writeTestPNG(to: secondPhotoURL, width: 9, height: 7)
 
-    let failingImportEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
-    failingImportEditor.loadRecipesIfNeeded()
-    failingImportEditor.importPhotoForTesting(from: directory.appendingPathComponent("missing.png"))
-    try expect(failingImportEditor.errorMessage == ImageProcessor.ImageProcessorError.cannotLoadImage.errorDescription)
+    try MainActor.assumeIsolated {
+        let editor = try makeEditorWithImportedPhoto(named: " Sample Photo .png", in: directory)
+        editor.importPhotoForTesting(from: secondPhotoURL)
+        try expect(editor.project.items.count == 2)
 
-    let failingExportEditor = EditorStore(
-        recipeStore: RecipeStore(),
-        imageProcessor: ImageProcessor { _, _, _ in nil }
-    )
-    failingExportEditor.loadRecipesIfNeeded()
-    failingExportEditor.importPhotoForTesting(from: sourceURL)
-    failingExportEditor.exportEditedPhotoForTesting(to: directory.appendingPathComponent("bad-export.jpg"))
-    try expect(failingExportEditor.errorMessage == ImageProcessor.ImageProcessorError.cannotEncodeImage.errorDescription)
+        let suggestedName = editor.suggestedExportFileNameForTesting()
+        try expect(
+            suggestedName == editor.exportFileNamePreview,
+            "Save panel suggestion should match the naming-template preview."
+        )
+        try expect(suggestedName.hasSuffix(".jpg"))
+
+        try expect(editor.exportPresets.count >= 3)
+        try expect(editor.exportNamingTemplateIssues.isEmpty)
+        try expect(editor.exportFileNamePreview.hasSuffix(".jpg"))
+        editor.exportSettings.namingTemplate = "{photo}-{bad}"
+        try expect(editor.exportNamingTemplateIssues.contains("Unsupported naming token {bad}. Use {photo}, {recipe}, or {format}."))
+        try expect(!editor.canSaveExportPreset)
+        editor.exportSettings.namingTemplate = "{photo-{recipe}"
+        try expect(editor.exportNamingTemplateIssues.contains("Unsupported naming token {photo-{recipe}. Use {photo}, {recipe}, or {format}."))
+        editor.exportSettings.namingTemplate = "{photo}-{recipe}"
+        editor.exportPresetDraftName = "Small Review"
+        editor.exportSettings = ExportSettings(fileFormat: .png, jpegQuality: 1.0, scale: 0.5, preserveMetadata: false, embedColorProfile: true, namingTemplate: "{photo}-small")
+        editor.saveExportPreset()
+        let smallReviewPreset = try require(editor.exportPresets.first { $0.name == "Small Review" })
+        try expect(editor.selectedExportPresetID == smallReviewPreset.id)
+        editor.exportSettings = .defaults
+        editor.applySelectedExportPreset()
+        try expect(editor.exportSettings.fileFormat == .png)
+        try expect(editor.exportSettings.scale == 0.5)
+        editor.duplicateSelectedExportPreset()
+        let copiedPreset = try require(editor.exportPresets.first { $0.name == "Small Review Copy" })
+        try expect(editor.selectedExportPresetID == copiedPreset.id)
+        try expect(editor.exportPresetDraftName == "Small Review Copy")
+        try expect(copiedPreset.settings == smallReviewPreset.settings)
+        editor.beginNewExportPreset()
+        try expect(editor.selectedExportPresetID == nil)
+        editor.exportPresetDraftName = "Small Review"
+        try expect(editor.exportPresetNameIssues == ["A preset named Small Review already exists."])
+        try expect(!editor.canSaveExportPreset)
+        editor.exportPresetDraftName = "Small Review Mobile"
+        try expect(editor.canSaveExportPreset)
+        editor.saveExportPreset()
+        let mobilePreset = try require(editor.exportPresets.first { $0.name == "Small Review Mobile" })
+        editor.exportPresetDraftName = "Small Review Mobile Updated"
+        editor.saveExportPreset()
+        try expect(editor.exportPresets.first { $0.id == mobilePreset.id }?.name == "Small Review Mobile Updated")
+        editor.deleteSelectedExportPreset()
+        try expect(!editor.exportPresets.contains { $0.id == mobilePreset.id })
+        editor.restoreDefaultExportPresets()
+        try expect(editor.exportPresets == ExportPreset.defaults)
+        try expect(editor.selectedExportPresetID == nil)
+
+        let exportURL = directory.appendingPathComponent("export.jpeg")
+        editor.exportEditedPhotoForTesting(to: exportURL)
+        try expect(FileManager.default.fileExists(atPath: exportURL.path))
+
+        let batchDirectory = directory.appendingPathComponent("batch", isDirectory: true)
+        editor.exportSettings.fileFormat = .jpeg
+        editor.exportSettings.namingTemplate = "{photo}_{recipe}_{format}"
+        editor.exportProjectPhotosForTesting(to: batchDirectory)
+        let batchFiles = try FileManager.default.contentsOfDirectory(atPath: batchDirectory.path)
+        try expect(batchFiles.count == 2, "Expected both project photos to export.")
+        try expect(batchFiles.allSatisfy { $0.contains("_jpeg") })
+        try expect(!editor.batchExportState.isExporting)
+        try expect(editor.batchExportState.completedCount == 2)
+        try expect(editor.batchExportState.exportedFileNames.count == 2)
+    }
+}
+
+func testEditorRecipeImportExportRoundTripAndFailureInjection() throws {
+    let directory = try makeTemporaryTestDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let sourceURL = directory.appendingPathComponent("Sample Photo.png")
+    try writeTestPNG(to: sourceURL, width: 10, height: 8)
+
+    try MainActor.assumeIsolated {
+        let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        editor.loadRecipesIfNeeded()
+        let recipe = try require(editor.recipes.first)
+        editor.duplicateSelectedRecipeForEditing()
+
+        let recipeExportURL = directory.appendingPathComponent("recipe.json")
+        editor.exportSelectedRecipeForTesting(to: recipeExportURL)
+        try expect(FileManager.default.fileExists(atPath: recipeExportURL.path))
+        editor.importRecipeForTesting(from: recipeExportURL)
+        try expect(editor.selectedRecipe != nil)
+        try expect(editor.selectedRecipeIsEditable)
+        try expect(editor.recipeImportStatus?.title == "Recipe imported")
+
+        let invalidRecipeURL = directory.appendingPathComponent("invalid-recipe.json")
+        try writeRecipeJSON(from: recipe, to: invalidRecipeURL) { object in
+            setJSONValue(0, path: ["output", "bit_depth"], object: &object)
+        }
+        let selectedRecipeID = editor.selectedRecipeID
+        editor.errorMessage = nil
+        editor.importRecipeForTesting(from: invalidRecipeURL)
+        try expect(editor.selectedRecipeID == selectedRecipeID)
+        try expect(editor.errorMessage?.contains("output.bit_depth must be greater than 0.") == true)
+        if case .failed(let name, let issues) = editor.recipeImportStatus {
+            try expect(name == "invalid-recipe.json")
+            try expect(issues.map(\.message).contains("output.bit_depth must be greater than 0."))
+        } else {
+            try expect(false, "Expected invalid recipe import to record structured validation issues.")
+        }
+        editor.clearRecipeImportStatus()
+        try expect(editor.recipeImportStatus == nil)
+
+        let fallbackEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        try expect(fallbackEditor.suggestedExportFileNameForTesting() == fallbackEditor.exportFileNamePreview)
+        fallbackEditor.triggerExportPanelForTesting()
+
+        let failingRecipeEditor = EditorStore(recipeStore: RecipeStore(recipeURLProvider: { [] }))
+        failingRecipeEditor.loadRecipesIfNeeded()
+        try expect(failingRecipeEditor.errorMessage == RecipeStore.RecipeStoreError.missingResource.errorDescription)
+
+        let failingImportEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        failingImportEditor.loadRecipesIfNeeded()
+        failingImportEditor.importPhotoForTesting(from: directory.appendingPathComponent("missing.png"))
+        try expect(failingImportEditor.errorMessage == ImageProcessor.ImageProcessorError.cannotLoadImage.errorDescription)
+
+        let failingExportEditor = EditorStore(
+            recipeStore: RecipeStore(),
+            imageProcessor: ImageProcessor { _, _, _ in nil }
+        )
+        failingExportEditor.loadRecipesIfNeeded()
+        failingExportEditor.importPhotoForTesting(from: sourceURL)
+        failingExportEditor.exportEditedPhotoForTesting(to: directory.appendingPathComponent("bad-export.jpg"))
+        try expect(failingExportEditor.errorMessage == ImageProcessor.ImageProcessorError.cannotEncodeImage.errorDescription)
     }
 }
 
@@ -2191,7 +2278,13 @@ let tests: [TestCase] = [
     TestCase(name: "image processor loads renders and reports errors", run: testImageProcessorLoadsRendersAndReportsErrors),
     TestCase(name: "camera profile ingestion honors orientation and RAW settings", run: testCameraProfileIngestionHonorsOrientationAndRawSettings),
     TestCase(name: "write rendered image encodes PNG and JPEG", run: testWriteRenderedImageEncodesPngAndJpeg),
-    TestCase(name: "editor store end to end smoke flow", run: testEditorStoreStateImportExportAndViewConstruction),
+    TestCase(name: "editor recipe selection duplication and draft basics", run: testEditorRecipeSelectionDuplicationAndDraftBasics),
+    TestCase(name: "editor photo import preview controls and cache", run: testEditorPhotoImportPreviewControlsAndCache),
+    TestCase(name: "editor local adjustment masks and variant lifecycle", run: testEditorLocalAdjustmentMasksAndVariantLifecycle),
+    TestCase(name: "editor pixel sampling and marker clamping", run: testEditorPixelSamplingAndMarkerClamping),
+    TestCase(name: "editor calibration asset import variants", run: testEditorCalibrationAssetImportVariants),
+    TestCase(name: "editor export presets naming templates and batch export", run: testEditorExportPresetsNamingTemplatesAndBatchExport),
+    TestCase(name: "editor recipe import export round trip and failure injection", run: testEditorRecipeImportExportRoundTripAndFailureInjection),
     TestCase(name: "editor split sampler uses visible image side", run: testEditorSplitSamplerUsesVisibleImageSide),
     TestCase(name: "editor recipe draft editing flow", run: testEditorRecipeDraftEditingFlow),
     TestCase(name: "editor preview local mask and variant controls", run: testEditorPreviewLocalMaskAndVariantControls),
