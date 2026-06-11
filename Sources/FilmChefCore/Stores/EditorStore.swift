@@ -362,6 +362,7 @@ public final class EditorStore: ObservableObject {
     private var previewRenderTask: Task<Void, Never>?
     private var previewRenderGeneration = 0
     private var pixelSampleTask: Task<Void, Never>?
+    private var pixelSampleGeneration = 0
     private var previewRenderCache: [PreviewRenderCacheKey: PreviewRenderResult] = [:]
     private var previewRenderCacheAccessOrder: [PreviewRenderCacheKey] = []
     private let previewRenderCacheLimit = 8
@@ -1069,27 +1070,95 @@ public final class EditorStore: ObservableObject {
             return
         }
 
-        do {
-            let sampleSource: CIImage
-            if pixelSampleUsesOriginalImage {
-                sampleSource = sourceImage
-            } else {
-                sampleSource = imageProcessor.renderedPreviewSource(
-                    from: sourceImage,
+        let usesOriginal = pixelSampleUsesOriginalImage
+        let adjustments = currentAdjustments
+        let localAdjustments = self.localAdjustments
+        let calibration = calibrationDataStatus
+        let sampleX = samplerX
+        let sampleY = samplerY
+
+        if rendersSynchronouslyForTesting {
+            do {
+                pixelSample = try Self.computePixelSample(
+                    imageProcessor: imageProcessor,
+                    sourceImage: sourceImage,
                     recipe: selectedRecipe,
-                    adjustments: currentAdjustments,
+                    usesOriginal: usesOriginal,
+                    adjustments: adjustments,
                     localAdjustments: localAdjustments,
-                    calibration: calibrationDataStatus
+                    calibration: calibration,
+                    x: sampleX,
+                    y: sampleY
                 )
+            } catch {
+                errorMessage = error.localizedDescription
             }
-            pixelSample = try imageProcessor.samplePixel(
-                from: sampleSource,
-                normalisedX: samplerX,
-                normalisedY: samplerY
-            )
-        } catch {
-            errorMessage = error.localizedDescription
+            return
         }
+
+        // Sampling the edited side renders the full pipeline (and rasterizes
+        // any brush masks); keep that off the main actor so clicks don't
+        // stall the UI.
+        pixelSampleGeneration += 1
+        let generation = pixelSampleGeneration
+        Task.detached(priority: .userInitiated) { [imageProcessor] in
+            do {
+                let sample = try Self.computePixelSample(
+                    imageProcessor: imageProcessor,
+                    sourceImage: sourceImage,
+                    recipe: selectedRecipe,
+                    usesOriginal: usesOriginal,
+                    adjustments: adjustments,
+                    localAdjustments: localAdjustments,
+                    calibration: calibration,
+                    x: sampleX,
+                    y: sampleY
+                )
+                await MainActor.run {
+                    guard generation == self.pixelSampleGeneration else {
+                        return
+                    }
+                    self.pixelSample = sample
+                }
+            } catch {
+                await MainActor.run {
+                    guard generation == self.pixelSampleGeneration else {
+                        return
+                    }
+                    self.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    nonisolated private static func computePixelSample(
+        imageProcessor: ImageProcessor,
+        sourceImage: CIImage,
+        recipe: FilmRecipe,
+        usesOriginal: Bool,
+        adjustments: RenderAdjustments,
+        localAdjustments: [LocalAdjustmentLayer],
+        calibration: CalibrationDataStatus,
+        x: Double,
+        y: Double
+    ) throws -> PixelSample {
+        let sampleSource: CIImage
+        if usesOriginal {
+            sampleSource = sourceImage
+        } else {
+            sampleSource = imageProcessor.renderedPreviewSource(
+                from: sourceImage,
+                recipe: recipe,
+                adjustments: adjustments,
+                localAdjustments: localAdjustments,
+                calibration: calibration
+            )
+        }
+        return try imageProcessor.samplePixel(
+            from: sampleSource,
+            normalisedX: x,
+            normalisedY: y
+        )
     }
 
     public func addLocalAdjustment() {
@@ -1517,6 +1586,9 @@ public final class EditorStore: ObservableObject {
             pixelSampleTask?.cancel()
             pixelSampleTask = nil
         }
+        // Invalidate any in-flight async sample so it cannot land after the
+        // sample was cleared.
+        pixelSampleGeneration += 1
         pixelSample = nil
     }
 
