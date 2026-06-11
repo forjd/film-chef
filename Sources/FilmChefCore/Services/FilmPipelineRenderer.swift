@@ -136,7 +136,7 @@ package struct FilmPipelineRenderer {
             output = output.applyingFilter(
                 "CIHighlightShadowAdjust",
                 parameters: [
-                    "inputHighlightAmount": clamped(1.0 - (highlightProtection * intensity), lower: 0.0, upper: 1.0),
+                    "inputHighlightAmount": clamped(1.0 - (highlightProtection * intensity), lower: 0.3, upper: 1.0),
                     "inputShadowAmount": shadowLift * intensity
                 ]
             )
@@ -161,10 +161,11 @@ package struct FilmPipelineRenderer {
         )
 
         if stock.family != .blackAndWhiteNegative {
+            // The capture filter's own temperature shift is applied in applyCaptureFilter;
+            // this stage only balances native stock temperature against the capture light.
             let nativeTemperature = Double(stock.nativeColourTemperatureK ?? 5500)
             let captureTemperature = Double(conditions.colourTemperatureK)
-            let filterShift = colourTemperatureShift(for: conditions.filter)
-            let targetTemperature = 6500.0 + ((nativeTemperature - captureTemperature) * 0.35 + filterShift) * intensity
+            let targetTemperature = 6500.0 + ((nativeTemperature - captureTemperature) * 0.35) * intensity
 
             if abs(targetTemperature - 6500.0) > 1.0 {
                 output = output.applyingFilter(
@@ -480,16 +481,19 @@ package struct FilmPipelineRenderer {
         let radius = max(0.25, halation.radius * (1.0 - ((halation.edgePreservation ?? 0.0) * 0.35)))
         let strength = clamped(halation.strength * intensity, lower: 0.0, upper: 1.0)
 
+        // Map luminance in [threshold, 1] onto [0, 1] in one matrix: lum * rescale - threshold * rescale.
+        // A contrast-based rescale is wrong here because CIColorControls pivots around 0.5.
+        let rescale = 1.0 / max(0.04, 1.0 - threshold)
         let luminanceMask = reference
             .cropped(to: extent)
             .applyingFilter(
                 "CIColorMatrix",
                 parameters: [
-                    "inputRVector": CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
-                    "inputGVector": CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
-                    "inputBVector": CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
+                    "inputRVector": CIVector(x: CGFloat(0.2126 * rescale), y: CGFloat(0.7152 * rescale), z: CGFloat(0.0722 * rescale), w: 0),
+                    "inputGVector": CIVector(x: CGFloat(0.2126 * rescale), y: CGFloat(0.7152 * rescale), z: CGFloat(0.0722 * rescale), w: 0),
+                    "inputBVector": CIVector(x: CGFloat(0.2126 * rescale), y: CGFloat(0.7152 * rescale), z: CGFloat(0.0722 * rescale), w: 0),
                     "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
-                    "inputBiasVector": CIVector(x: CGFloat(-threshold), y: CGFloat(-threshold), z: CGFloat(-threshold), w: 0)
+                    "inputBiasVector": CIVector(x: CGFloat(-threshold * rescale), y: CGFloat(-threshold * rescale), z: CGFloat(-threshold * rescale), w: 0)
                 ]
             )
             .applyingFilter(
@@ -497,14 +501,6 @@ package struct FilmPipelineRenderer {
                 parameters: [
                     "inputMinComponents": CIVector(x: 0, y: 0, z: 0, w: 0),
                     "inputMaxComponents": CIVector(x: 1, y: 1, z: 1, w: 1)
-                ]
-            )
-            .applyingFilter(
-                "CIColorControls",
-                parameters: [
-                    "inputSaturation": 0.0,
-                    "inputBrightness": 0.0,
-                    "inputContrast": clamped(1.0 / max(0.04, 1.0 - threshold), lower: 1.0, upper: 12.0)
                 ]
             )
             .clampedToExtent()
@@ -818,12 +814,8 @@ package struct FilmPipelineRenderer {
 
         if output.dither {
             rendered = rendered.applyingFilter(
-                "CIColorControls",
-                parameters: [
-                    "inputSaturation": 1.0,
-                    "inputBrightness": 0.0,
-                    "inputContrast": 1.0
-                ]
+                "CIDither",
+                parameters: ["inputIntensity": 0.1]
             )
         }
 
@@ -934,17 +926,6 @@ package struct FilmPipelineRenderer {
                 "inputBiasVector": CIVector(x: CGFloat(bias.r), y: CGFloat(bias.g), z: CGFloat(bias.b), w: 0)
             ]
         )
-    }
-
-    private func colourTemperatureShift(for filter: FilmCaptureFilter) -> Double {
-        switch filter.type.lowercased() {
-        case "85":
-            return 700.0 * filter.strength
-        case "80a":
-            return -900.0 * filter.strength
-        default:
-            return 0.0
-        }
     }
 
     private func matrixRow(_ matrix: [[Double]], index: Int, fallback: [Double]) -> [Double] {

@@ -523,6 +523,61 @@ func testRendererClampsIntensityBeforeApplyingRecipe() throws {
     )
 }
 
+func testHalationGlowsHighlightsWithoutShiftingShadows() throws {
+    let recipes = try loadTestRecipes()
+    let colourRecipe = try require(recipes.first { $0.stock.family != .blackAndWhiteNegative })
+    let halationRecipe = try mutatedRecipe(from: colourRecipe) { object in
+        setJSONValue(true, path: ["halation", "enabled"], object: &object)
+        setJSONValue(0.8, path: ["halation", "strength"], object: &object)
+        setJSONValue(3.0, path: ["halation", "radius"], object: &object)
+        setJSONValue(0.6, path: ["halation", "threshold"], object: &object)
+        setJSONValue(0.0, path: ["halation", "edge_preservation"], object: &object)
+        setJSONValue(1.0, path: ["halation", "colour", "r"], object: &object)
+        setJSONValue(0.35, path: ["halation", "colour", "g"], object: &object)
+        setJSONValue(0.2, path: ["halation", "colour", "b"], object: &object)
+    }
+    let noHalationRecipe = try mutatedRecipe(from: halationRecipe) { object in
+        setJSONValue(false, path: ["halation", "enabled"], object: &object)
+    }
+
+    let width = 48
+    let height = 32
+    let background = CIImage(color: CIColor(red: 0.05, green: 0.05, blue: 0.05, alpha: 1.0))
+        .cropped(to: CGRect(x: 0, y: 0, width: width, height: height))
+    let highlight = CIImage(color: CIColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0))
+        .cropped(to: CGRect(x: 20, y: 12, width: 8, height: 8))
+    let source = highlight.composited(over: background)
+
+    let context = CIContext()
+    let renderer = FilmPipelineRenderer()
+    let withHalation = renderBytes(
+        renderer.render(source: source, recipe: halationRecipe, adjustments: adjustments()),
+        context: context,
+        extent: source.extent
+    )
+    let withoutHalation = renderBytes(
+        renderer.render(source: source, recipe: noHalationRecipe, adjustments: adjustments()),
+        context: context,
+        extent: source.extent
+    )
+
+    let centerRow = height / 2
+    let nearIndex = ((centerRow * width) + 29) * 4
+    let farIndex = ((centerRow * width) + 4) * 4
+
+    try expect(
+        Int(withHalation[nearIndex]) > Int(withoutHalation[nearIndex]) + 4,
+        "Halation should add red glow just outside a bright highlight."
+    )
+    for channelOffset in 0..<3 {
+        let difference = abs(Int(withHalation[farIndex + channelOffset]) - Int(withoutHalation[farIndex + channelOffset]))
+        try expect(
+            difference <= 3,
+            "Halation should not shift shadow pixels far from highlights (channel \(channelOffset) moved by \(difference))."
+        )
+    }
+}
+
 func testPreviewScalingRespectsMaxDimension() throws {
     let processor = ImageProcessor()
     let preview = try processor.makePreviewImage(
@@ -1671,6 +1726,7 @@ let tests: [TestCase] = [
     TestCase(name: "renderer applies calibration inside pipeline", run: testRendererAppliesCalibrationInsidePipeline),
     TestCase(name: "renderer covers profile driven branches", run: testRendererCoversProfileDrivenBranches),
     TestCase(name: "renderer clamps intensity before applying recipe", run: testRendererClampsIntensityBeforeApplyingRecipe),
+    TestCase(name: "halation glows highlights without shifting shadows", run: testHalationGlowsHighlightsWithoutShiftingShadows),
     TestCase(name: "preview scaling respects max dimension", run: testPreviewScalingRespectsMaxDimension),
     TestCase(name: "histogram clip warning text uses configured threshold", run: testHistogramClipWarningTextUsesConfiguredThreshold),
     TestCase(name: "image processor samples actual pixel color", run: testImageProcessorSamplesActualPixelColor),
