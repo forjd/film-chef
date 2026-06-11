@@ -1252,7 +1252,10 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     try expect(typedCalibrationEditor.calibrationDataStatus.importedAssetSummaries == ["measured-curves.json: density curves, grain spectra, RGB scale, spectral curves"])
 
     let suggestedName = editor.suggestedExportFileNameForTesting()
-    try expect(suggestedName.hasPrefix("Sample Photo-"))
+    try expect(
+        suggestedName == editor.exportFileNamePreview,
+        "Save panel suggestion should match the naming-template preview."
+    )
     try expect(suggestedName.hasSuffix(".jpg"))
 
     try expect(editor.exportPresets.count >= 3)
@@ -1338,7 +1341,7 @@ func testEditorStoreStateImportExportAndViewConstruction() throws {
     try expect(editor.recipeImportStatus == nil)
 
     let fallbackEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
-    try expect(fallbackEditor.suggestedExportFileNameForTesting() == "film-chef-photo-edited.jpg")
+    try expect(fallbackEditor.suggestedExportFileNameForTesting() == fallbackEditor.exportFileNamePreview)
     fallbackEditor.triggerExportPanelForTesting()
 
     let failingRecipeEditor = EditorStore(recipeStore: RecipeStore(recipeURLProvider: { [] }))
@@ -1663,6 +1666,51 @@ func testEditorUndoHistoryIntegrity() throws {
         try expect(reopened.editHistoryIndex == savedIndex, "Reopened project should restore the undo position.")
         try expect(abs(reopened.exposureTrim - savedExposure) < 0.0001)
         try expect(reopened.canRedoEdit, "Reopened project should preserve redo availability.")
+    }
+}
+
+func testProjectPersistsCustomRecipes() throws {
+    try MainActor.assumeIsolated {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        editor.loadRecipesIfNeeded()
+        let photoURL = directory.appendingPathComponent("photo.png")
+        try writeTestPNG(to: photoURL)
+        editor.importPhotoForTesting(from: photoURL)
+
+        editor.duplicateSelectedRecipeForEditing()
+        let customRecipe = try require(editor.selectedRecipe)
+        try expect(editor.selectedRecipeIsEditable)
+
+        let projectURL = directory.appendingPathComponent("custom-recipe.filmchef")
+        editor.saveProjectForTesting(to: projectURL)
+
+        let reopened = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        reopened.loadRecipesIfNeeded()
+        reopened.openProjectForTesting(from: projectURL)
+        try expect(
+            reopened.recipes.contains { $0.id == customRecipe.id },
+            "Reopened project should restore custom recipes."
+        )
+        try expect(
+            reopened.selectedRecipe?.id == customRecipe.id,
+            "Reopened project should resolve the item's custom recipe selection."
+        )
+        try expect(reopened.selectedRecipeIsEditable, "Restored custom recipes should stay editable.")
+        try expect(reopened.editedPreviewImage != nil, "Preview should render with the restored custom recipe.")
+
+        // Opening before the bundled recipes load must also keep the custom recipe.
+        let coldEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        coldEditor.openProjectForTesting(from: projectURL)
+        coldEditor.loadRecipesIfNeeded()
+        try expect(coldEditor.recipes.contains { $0.id == customRecipe.id })
+        try expect(coldEditor.recipes.count > 1, "Bundled recipes should still load after opening a project.")
     }
 }
 
@@ -1995,6 +2043,7 @@ let tests: [TestCase] = [
     TestCase(name: "editor export settings and batch flow", run: testEditorExportSettingsAndBatchFlow),
     TestCase(name: "project store loads sparse schema one projects with defaults", run: testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults),
     TestCase(name: "editor undo history integrity", run: testEditorUndoHistoryIntegrity),
+    TestCase(name: "project persists custom recipes", run: testProjectPersistsCustomRecipes),
     TestCase(name: "project store and editor persist restorable project", run: testProjectStoreAndEditorPersistRestorableProject),
     TestCase(name: "error descriptions are stable", run: testErrorDescriptionsAreStable)
 ]

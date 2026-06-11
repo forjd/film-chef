@@ -8,6 +8,9 @@ package struct FilmProject: Codable, Equatable {
     package var selectedItemID: UUID?
     package var editHistory: [EditSnapshot]
     package var editHistoryIndex: Int?
+    /// Custom and imported recipes referenced by project items; bundled
+    /// recipes are resolved from the app and are not stored here.
+    package var customRecipes: [FilmRecipe]
     package var exportSettings: ExportSettings
     package var exportPresets: [ExportPreset]
     package var colorManagementSettings: ColorManagementSettings
@@ -23,6 +26,7 @@ package struct FilmProject: Codable, Equatable {
         selectedItemID: UUID? = nil,
         editHistory: [EditSnapshot] = [],
         editHistoryIndex: Int? = nil,
+        customRecipes: [FilmRecipe] = [],
         exportSettings: ExportSettings = .defaults,
         exportPresets: [ExportPreset] = ExportPreset.defaults,
         colorManagementSettings: ColorManagementSettings = .defaults,
@@ -37,6 +41,7 @@ package struct FilmProject: Codable, Equatable {
         self.selectedItemID = selectedItemID
         self.editHistory = editHistory
         self.editHistoryIndex = editHistoryIndex
+        self.customRecipes = customRecipes
         self.exportSettings = exportSettings
         self.exportPresets = exportPresets
         self.colorManagementSettings = colorManagementSettings
@@ -54,6 +59,7 @@ package struct FilmProject: Codable, Equatable {
         selectedItemID = try container.decodeIfPresent(UUID.self, forKey: .selectedItemID)
         editHistory = try container.decodeIfPresent([EditSnapshot].self, forKey: .editHistory) ?? []
         editHistoryIndex = try container.decodeIfPresent(Int.self, forKey: .editHistoryIndex)
+        customRecipes = try container.decodeIfPresent([FilmRecipe].self, forKey: .customRecipes) ?? []
         exportSettings = try container.decodeIfPresent(ExportSettings.self, forKey: .exportSettings) ?? .defaults
         exportPresets = try container.decodeIfPresent([ExportPreset].self, forKey: .exportPresets) ?? ExportPreset.defaults
         colorManagementSettings = try container.decodeIfPresent(ColorManagementSettings.self, forKey: .colorManagementSettings) ?? .defaults

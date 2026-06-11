@@ -58,7 +58,7 @@ public final class RecipeStore {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(recipe)
-        try data.write(to: url)
+        try data.write(to: url, options: [.atomic])
     }
 
     private static func bundledRecipeURLs() -> [URL] {

@@ -8,6 +8,7 @@ The project is early, useful, and intentionally open-ended: the renderer is prof
 
 - Native SwiftUI macOS app with a three-pane editor: recipes, preview, and inspector controls
 - Multi-photo import, `.filmchef` project files, missing-photo relink, edit history, undo/redo, and named variants
+- Custom and imported recipes are saved inside `.filmchef` projects and restored on open
 - Generated app bundles declare Film Chef project document ownership for `.filmchef` files
 - Non-destructive local adjustment layers with radial, linear, brush, and path masks, including direct preview editing
 - Original, edited, and split preview modes with bounded pan, loupe placement, zoom, and draggable comparison

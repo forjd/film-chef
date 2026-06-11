@@ -368,6 +368,19 @@ public final class EditorStore: ObservableObject {
     private var isAdjustmentGestureActive = false
     private var activeGestureSnapshotID: UUID?
     private let editHistoryLimit = 200
+    private var hasLoadedBundledRecipes = false
+    private var batchExportGeneration = 0
+
+    package enum EditorStoreError: LocalizedError {
+        case missingRecipe(itemName: String)
+
+        package var errorDescription: String? {
+            switch self {
+            case .missingRecipe(let itemName):
+                return "No matching recipe is available to render \(itemName)."
+            }
+        }
+    }
 
     public init(recipeStore: RecipeStore) {
         self.recipeStore = recipeStore
@@ -596,15 +609,26 @@ public final class EditorStore: ObservableObject {
     }
 
     public func loadRecipesIfNeeded() {
-        guard recipes.isEmpty else {
+        guard !hasLoadedBundledRecipes else {
             return
         }
 
         do {
-            recipes = try recipeStore.loadRecipes()
-            suppressPreviewUpdates = true
-            selectedRecipeID = recipes.first?.id
-            suppressPreviewUpdates = false
+            let bundled = try recipeStore.loadRecipes()
+            hasLoadedBundledRecipes = true
+            // Keep custom recipes already restored from an opened project.
+            var merged = recipes
+            for recipe in bundled where !merged.contains(where: { $0.id == recipe.id }) {
+                merged.append(recipe)
+            }
+            recipes = merged.sorted {
+                $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+            if selectedRecipeID == nil {
+                suppressPreviewUpdates = true
+                selectedRecipeID = recipes.first?.id
+                suppressPreviewUpdates = false
+            }
             if editHistory.isEmpty {
                 recordCurrentEditSnapshot(note: "Initial recipe")
             }
@@ -1327,9 +1351,17 @@ public final class EditorStore: ObservableObject {
 
     private func openProject(from url: URL) {
         do {
+            let didStartAccessing = url.startAccessingSecurityScopedResource()
+            defer {
+                if didStartAccessing {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
             let loadedProject = try projectStore.loadProject(from: url)
             suppressSettingsUpdates = true
             project = loadedProject
+            restoreCustomRecipes(loadedProject.customRecipes)
             editHistory = loadedProject.editHistory
             editHistoryIndex = loadedProject.editHistoryIndex
             exportSettings = loadedProject.exportSettings
@@ -1350,10 +1382,29 @@ public final class EditorStore: ObservableObject {
         }
     }
 
+    private func restoreCustomRecipes(_ customRecipes: [FilmRecipe]) {
+        guard !customRecipes.isEmpty else {
+            return
+        }
+
+        for recipe in customRecipes {
+            editableRecipeIDs.insert(recipe.id)
+            if let index = recipes.firstIndex(where: { $0.id == recipe.id }) {
+                recipes[index] = recipe
+            } else {
+                recipes.append(recipe)
+            }
+        }
+        recipes.sort {
+            $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
+    }
+
     private func writeProject(to url: URL) {
         updateCurrentProjectItem()
         project.editHistory = editHistory
         project.editHistoryIndex = editHistoryIndex
+        project.customRecipes = recipes.filter { editableRecipeIDs.contains($0.id) }
         project.exportSettings = exportSettings
         project.exportPresets = exportPresets
         project.colorManagementSettings = colorManagementSettings
@@ -1395,6 +1446,13 @@ public final class EditorStore: ObservableObject {
     }
 
     private func importRecipe(from url: URL) {
+        let didStartAccessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
         do {
             let importedRecipe = try recipeStore.loadRecipe(from: url)
             replaceRecipe(importedRecipe)
@@ -1493,6 +1551,11 @@ public final class EditorStore: ObservableObject {
     private func importCalibrationAssets(from urls: [URL]) {
         guard !urls.isEmpty else {
             return
+        }
+
+        let accessedURLs = urls.filter { $0.startAccessingSecurityScopedResource() }
+        defer {
+            accessedURLs.forEach { $0.stopAccessingSecurityScopedResource() }
         }
 
         do {
@@ -1607,6 +1670,10 @@ public final class EditorStore: ObservableObject {
         let request = makeBatchExportRequest(directory: directory)
         cancelBatchExportRequested = false
         batchExportTask?.cancel()
+        // A superseded run must not write progress state that now belongs to a
+        // newer run, or clear the newer run's task handle.
+        batchExportGeneration += 1
+        let generation = batchExportGeneration
         batchExportState = BatchExportState(
             isExporting: true,
             completedCount: 0,
@@ -1631,7 +1698,11 @@ public final class EditorStore: ObservableObject {
                             failures: failures
                         )
                         await MainActor.run {
+                            guard generation == self.batchExportGeneration else {
+                                return
+                            }
                             self.batchExportState = cancelledState
+                            self.batchExportTask = nil
                         }
                         return
                     }
@@ -1644,6 +1715,9 @@ public final class EditorStore: ObservableObject {
                         failures: failures
                     )
                     await MainActor.run {
+                        guard generation == self.batchExportGeneration else {
+                            return
+                        }
                         self.batchExportState = progressState
                     }
 
@@ -1666,6 +1740,9 @@ public final class EditorStore: ObservableObject {
                     failures: failures
                 )
                 await MainActor.run {
+                    guard generation == self.batchExportGeneration else {
+                        return
+                    }
                     self.batchExportState = finishedState
                     if !finishedState.failures.isEmpty {
                         self.errorMessage = Self.batchFailureMessage(finishedState.failures)
@@ -1674,6 +1751,9 @@ public final class EditorStore: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
+                    guard generation == self.batchExportGeneration else {
+                        return
+                    }
                     self.batchExportState.isExporting = false
                     self.errorMessage = error.localizedDescription
                     self.batchExportTask = nil
@@ -1808,9 +1888,17 @@ public final class EditorStore: ObservableObject {
         }
 
         let source = try imageProcessor.loadSourceImage(from: sourceURL, colorSettings: request.colorSettings)
-        let recipe = request.recipes.first { $0.id == item.selectedRecipeID } ??
-            request.recipes.first { $0.id == request.fallbackRecipeID } ??
-            request.recipes[0]
+        // An item whose recipe cannot be resolved is a failure, not a request
+        // to silently render with whatever recipe happens to be selected.
+        let resolvedRecipe: FilmRecipe?
+        if let selectedID = item.selectedRecipeID {
+            resolvedRecipe = request.recipes.first { $0.id == selectedID }
+        } else {
+            resolvedRecipe = request.recipes.first { $0.id == request.fallbackRecipeID } ?? request.recipes.first
+        }
+        guard let recipe = resolvedRecipe else {
+            throw EditorStoreError.missingRecipe(itemName: item.displayName)
+        }
         let exportURL = Self.uniqueExportURL(
             in: request.directory,
             item: item,
@@ -2245,6 +2333,15 @@ public final class EditorStore: ObservableObject {
 
             renderPreviewIfNeeded()
         } catch {
+            // Clear the previous photo's state so exports and previews cannot
+            // operate on a source that no longer matches the selected item.
+            sourceImage = nil
+            sourceURL = nil
+            importedImageName = nil
+            originalPreviewImage = nil
+            editedPreviewImage = nil
+            histogramSummary = nil
+            clearPixelSample(cancelPendingTask: true)
             projectItemNeedingRelinkID = item.id
             errorMessage = error.localizedDescription
         }
@@ -2280,23 +2377,15 @@ public final class EditorStore: ObservableObject {
     }
 
     private func suggestedExportFileName() -> String {
-        let baseName = sourceURL?
-            .deletingPathExtension()
-            .lastPathComponent
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let safeBaseName = baseName?.isEmpty == false ? baseName! : "film-chef-photo"
-        let recipeSlug = selectedRecipe?.name
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "-")
-            .replacingOccurrences(of: "+", with: "plus")
-            .components(separatedBy: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-")).inverted)
-            .joined()
-
-        if let recipeSlug, !recipeSlug.isEmpty {
-            return "\(safeBaseName)-\(recipeSlug).\(exportSettings.fileFormat.preferredPathExtension)"
+        // The save panel must suggest the same name the naming-template
+        // preview shows; the template is validated before export is enabled.
+        guard exportNamingTemplateIssues.isEmpty else {
+            let base = URL(fileURLWithPath: importedImageName ?? "film-chef-photo")
+                .deletingPathExtension()
+                .lastPathComponent
+            return "\(Self.sanitizedFileComponent(base))-edited.\(exportSettings.fileFormat.preferredPathExtension)"
         }
 
-        return "\(safeBaseName)-edited.\(exportSettings.fileFormat.preferredPathExtension)"
+        return exportFileNamePreview
     }
 }

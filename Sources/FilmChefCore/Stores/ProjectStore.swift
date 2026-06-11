@@ -35,7 +35,8 @@ package final class ProjectStore {
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(project)
-        try data.write(to: url)
+        // Atomic so a crash mid-save cannot truncate the user's only copy.
+        try data.write(to: url, options: [.atomic])
     }
 
     package func bookmarkData(for url: URL) -> Data? {
@@ -64,6 +65,14 @@ package final class ProjectStore {
                 return (url, nil)
             }
 
+            // Creating a security-scoped bookmark requires active access to
+            // the resource in a sandboxed process.
+            let didStartAccessing = url.startAccessingSecurityScopedResource()
+            defer {
+                if didStartAccessing {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
             return (url, self.bookmarkData(for: url))
         }
 
