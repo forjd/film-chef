@@ -245,7 +245,7 @@ public final class EditorStore: ObservableObject {
     @Published package var selectedRecipeID: String? {
         didSet {
             syncRecipeDraftWithSelection()
-            guard !isApplyingEditSnapshot else {
+            guard !isApplyingEditSnapshot, !suppressPreviewUpdates else {
                 return
             }
             recordCurrentEditSnapshot(note: "Changed recipe")
@@ -365,6 +365,9 @@ public final class EditorStore: ObservableObject {
     private var cancelBatchExportRequested = false
     private var batchExportTask: Task<Void, Never>?
     private var activeLocalMaskPointIndex: Int?
+    private var isAdjustmentGestureActive = false
+    private var activeGestureSnapshotID: UUID?
+    private let editHistoryLimit = 200
 
     public init(recipeStore: RecipeStore) {
         self.recipeStore = recipeStore
@@ -599,10 +602,13 @@ public final class EditorStore: ObservableObject {
 
         do {
             recipes = try recipeStore.loadRecipes()
+            suppressPreviewUpdates = true
             selectedRecipeID = recipes.first?.id
+            suppressPreviewUpdates = false
             if editHistory.isEmpty {
                 recordCurrentEditSnapshot(note: "Initial recipe")
             }
+            renderPreviewIfNeeded()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -783,7 +789,16 @@ public final class EditorStore: ObservableObject {
     }
 
     public func captureVariant(note: String = "Captured variant") {
-        recordCurrentEditSnapshot(note: note, force: true)
+        recordCurrentEditSnapshot(note: note, force: true, pinned: true)
+    }
+
+    /// Coalesces continuous input (slider drags, mask painting) into a single
+    /// history snapshot instead of one per tick.
+    package func setAdjustmentGestureActive(_ active: Bool) {
+        if !active {
+            activeGestureSnapshotID = nil
+        }
+        isAdjustmentGestureActive = active
     }
 
     public func restoreVariant(id: UUID) {
@@ -801,6 +816,7 @@ public final class EditorStore: ObservableObject {
 
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         editHistory[index].note = trimmedNote.isEmpty ? "Untitled variant" : trimmedNote
+        editHistory[index].isPinned = true
         updateCurrentProjectItem()
     }
 
@@ -814,7 +830,8 @@ public final class EditorStore: ObservableObject {
             recipeID: source.recipeID,
             adjustments: source.adjustments,
             localAdjustments: source.localAdjustments,
-            note: uniqueVariantNote(base: "\(source.note) Copy")
+            note: uniqueVariantNote(base: "\(source.note) Copy"),
+            isPinned: true
         )
         editHistory.insert(duplicate, at: index + 1)
         editHistoryIndex = index + 1
@@ -1074,6 +1091,7 @@ public final class EditorStore: ObservableObject {
             return
         }
 
+        setAdjustmentGestureActive(true)
         let point = NormalizedMaskPoint(x: clampedUnit(x), y: clampedUnit(y))
         switch localAdjustments[index].mask {
         case .radial, .linear:
@@ -1111,6 +1129,7 @@ public final class EditorStore: ObservableObject {
 
     package func endLocalMaskEditAtPreviewPoint() {
         activeLocalMaskPointIndex = nil
+        setAdjustmentGestureActive(false)
     }
 
     public func cancelBatchExport() {
@@ -1143,8 +1162,7 @@ public final class EditorStore: ObservableObject {
 
         updateCurrentProjectItem()
         project.selectedItemID = id
-        editHistory = item.variants
-        editHistoryIndex = editHistory.isEmpty ? nil : editHistory.count - 1
+        restoreEditHistory(for: item)
         applyProjectItem(item)
     }
 
@@ -2049,28 +2067,80 @@ public final class EditorStore: ObservableObject {
         }
     }
 
-    private func recordCurrentEditSnapshot(note: String, force: Bool = false) {
+    private func recordCurrentEditSnapshot(note: String, force: Bool = false, pinned: Bool = false) {
         let snapshot = EditSnapshot(
             recipeID: selectedRecipeID,
             adjustments: currentAdjustments,
             localAdjustments: localAdjustments,
-            note: note
+            note: note,
+            isPinned: pinned
         )
 
+        // Compare against the snapshot the editor is currently sitting on,
+        // not the history tail; after an undo those are different entries.
+        let currentSnapshot: EditSnapshot?
+        if let editHistoryIndex, editHistory.indices.contains(editHistoryIndex) {
+            currentSnapshot = editHistory[editHistoryIndex]
+        } else {
+            currentSnapshot = editHistory.last
+        }
+
         if !force,
-           editHistory.last?.recipeID == snapshot.recipeID,
-           editHistory.last?.adjustments == snapshot.adjustments,
-           editHistory.last?.localAdjustments == snapshot.localAdjustments {
+           let currentSnapshot,
+           currentSnapshot.recipeID == snapshot.recipeID,
+           currentSnapshot.adjustments == snapshot.adjustments,
+           currentSnapshot.localAdjustments == snapshot.localAdjustments {
+            return
+        }
+
+        if isAdjustmentGestureActive, !force,
+           let gestureID = activeGestureSnapshotID,
+           let index = editHistoryIndex,
+           editHistory.indices.contains(index),
+           editHistory[index].id == gestureID,
+           !editHistory[index].isPinned {
+            editHistory[index] = EditSnapshot(
+                id: gestureID,
+                recipeID: snapshot.recipeID,
+                adjustments: snapshot.adjustments,
+                localAdjustments: snapshot.localAdjustments,
+                note: note,
+                createdAt: editHistory[index].createdAt
+            )
+            updateCurrentProjectItem()
             return
         }
 
         if let editHistoryIndex, editHistoryIndex < editHistory.count - 1 {
-            editHistory = Array(editHistory.prefix(editHistoryIndex + 1))
+            let retainedVariants = editHistory[(editHistoryIndex + 1)...].filter(\.isPinned)
+            editHistory = Array(editHistory.prefix(editHistoryIndex + 1)) + retainedVariants
         }
 
         editHistory.append(snapshot)
         editHistoryIndex = editHistory.count - 1
+        if isAdjustmentGestureActive {
+            activeGestureSnapshotID = snapshot.id
+        }
+        trimEditHistoryIfNeeded()
         updateCurrentProjectItem()
+    }
+
+    private func trimEditHistoryIfNeeded() {
+        guard editHistory.count > editHistoryLimit else {
+            return
+        }
+
+        var index = 0
+        while editHistory.count > editHistoryLimit, index < editHistory.count {
+            if editHistory[index].isPinned || index == editHistoryIndex {
+                index += 1
+                continue
+            }
+            editHistory.remove(at: index)
+            if let current = editHistoryIndex, current > index {
+                editHistoryIndex = current - 1
+            }
+        }
     }
 
     private func applyEditSnapshot(at index: Int) {
@@ -2126,8 +2196,18 @@ public final class EditorStore: ObservableObject {
         project.items[itemIndex].adjustments = currentAdjustments
         project.items[itemIndex].localAdjustments = localAdjustments
         project.items[itemIndex].variants = editHistory
+        project.items[itemIndex].variantIndex = editHistoryIndex
         project.items[itemIndex].updatedAt = Date()
         project.updatedAt = Date()
+    }
+
+    private func restoreEditHistory(for item: FilmProjectItem) {
+        editHistory = item.variants
+        if let variantIndex = item.variantIndex, editHistory.indices.contains(variantIndex) {
+            editHistoryIndex = variantIndex
+        } else {
+            editHistoryIndex = editHistory.isEmpty ? nil : editHistory.count - 1
+        }
     }
 
     private func applyProjectItem(_ item: FilmProjectItem) {
@@ -2158,8 +2238,7 @@ public final class EditorStore: ObservableObject {
             suppressPreviewUpdates = false
             comparisonMode = .edited
 
-            editHistory = item.variants
-            editHistoryIndex = editHistory.isEmpty ? nil : editHistory.count - 1
+            restoreEditHistory(for: item)
             if projectItemNeedingRelinkID == item.id {
                 projectItemNeedingRelinkID = nil
             }

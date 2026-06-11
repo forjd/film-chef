@@ -419,7 +419,8 @@ struct ControlsView: View {
                         value: $editor.intensity,
                         range: 0...1,
                         step: 0.01,
-                        valueText: "\(Int(editor.intensity * 100))%"
+                        valueText: "\(Int(editor.intensity * 100))%",
+                        onEditingChanged: editor.setAdjustmentGestureActive
                     )
 
                     SliderControl(
@@ -427,7 +428,8 @@ struct ControlsView: View {
                         value: $editor.exposureTrim,
                         range: -1...1,
                         step: 0.05,
-                        valueText: signedValue(editor.exposureTrim)
+                        valueText: signedValue(editor.exposureTrim),
+                        onEditingChanged: editor.setAdjustmentGestureActive
                     )
 
                     SliderControl(
@@ -435,7 +437,8 @@ struct ControlsView: View {
                         value: $editor.contrastTrim,
                         range: -0.5...0.5,
                         step: 0.01,
-                        valueText: signedValue(editor.contrastTrim)
+                        valueText: signedValue(editor.contrastTrim),
+                        onEditingChanged: editor.setAdjustmentGestureActive
                     )
 
                     SliderControl(
@@ -443,7 +446,8 @@ struct ControlsView: View {
                         value: $editor.saturationTrim,
                         range: -0.75...0.75,
                         step: 0.01,
-                        valueText: signedValue(editor.saturationTrim)
+                        valueText: signedValue(editor.saturationTrim),
+                        onEditingChanged: editor.setAdjustmentGestureActive
                     )
 
                     Toggle("Grain", isOn: $editor.grainEnabled)
@@ -694,7 +698,8 @@ struct ControlsView: View {
                             value: localLayerBinding(\.centerX),
                             range: 0...1,
                             step: 0.01,
-                            valueText: "\(Int(selectedLocalLayer.centerX * 100))%"
+                            valueText: "\(Int(selectedLocalLayer.centerX * 100))%",
+                            onEditingChanged: editor.setAdjustmentGestureActive
                         )
 
                         SliderControl(
@@ -702,7 +707,8 @@ struct ControlsView: View {
                             value: localLayerBinding(\.centerY),
                             range: 0...1,
                             step: 0.01,
-                            valueText: "\(Int(selectedLocalLayer.centerY * 100))%"
+                            valueText: "\(Int(selectedLocalLayer.centerY * 100))%",
+                            onEditingChanged: editor.setAdjustmentGestureActive
                         )
 
                         SliderControl(
@@ -710,7 +716,8 @@ struct ControlsView: View {
                             value: localLayerBinding(\.radius),
                             range: 0.05...1,
                             step: 0.01,
-                            valueText: "\(Int(selectedLocalLayer.radius * 100))%"
+                            valueText: "\(Int(selectedLocalLayer.radius * 100))%",
+                            onEditingChanged: editor.setAdjustmentGestureActive
                         )
 
                         if selectedLocalLayer.mask == .brush || selectedLocalLayer.mask == .path {
@@ -719,7 +726,8 @@ struct ControlsView: View {
                                 value: localLayerBinding(\.brushSize),
                                 range: 0.02...0.5,
                                 step: 0.01,
-                                valueText: "\(Int(selectedLocalLayer.brushSize * 100))%"
+                                valueText: "\(Int(selectedLocalLayer.brushSize * 100))%",
+                                onEditingChanged: editor.setAdjustmentGestureActive
                             )
 
                             InfoRow("Path Points", value: "\(selectedLocalLayer.pathPoints.count)")
@@ -730,7 +738,8 @@ struct ControlsView: View {
                             value: localLayerBinding(\.exposureEV),
                             range: -1...1,
                             step: 0.05,
-                            valueText: signedValue(selectedLocalLayer.exposureEV)
+                            valueText: signedValue(selectedLocalLayer.exposureEV),
+                            onEditingChanged: editor.setAdjustmentGestureActive
                         )
 
                         SliderControl(
@@ -738,7 +747,8 @@ struct ControlsView: View {
                             value: localLayerBinding(\.contrast),
                             range: -0.5...0.5,
                             step: 0.01,
-                            valueText: signedValue(selectedLocalLayer.contrast)
+                            valueText: signedValue(selectedLocalLayer.contrast),
+                            onEditingChanged: editor.setAdjustmentGestureActive
                         )
 
                         SliderControl(
@@ -746,7 +756,8 @@ struct ControlsView: View {
                             value: localLayerBinding(\.saturation),
                             range: -0.75...0.75,
                             step: 0.01,
-                            valueText: signedValue(selectedLocalLayer.saturation)
+                            valueText: signedValue(selectedLocalLayer.saturation),
+                            onEditingChanged: editor.setAdjustmentGestureActive
                         )
                     }
                 }

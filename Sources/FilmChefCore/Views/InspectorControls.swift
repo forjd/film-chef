@@ -62,19 +62,22 @@ package struct SliderControl: View {
     let range: ClosedRange<Double>
     let step: Double
     let valueText: String
+    let onEditingChanged: (Bool) -> Void
 
     package init(
         title: String,
         value: Binding<Double>,
         range: ClosedRange<Double>,
         step: Double,
-        valueText: String
+        valueText: String,
+        onEditingChanged: @escaping (Bool) -> Void = { _ in }
     ) {
         self.title = title
         _value = value
         self.range = range
         self.step = step
         self.valueText = valueText
+        self.onEditingChanged = onEditingChanged
     }
 
     package var body: some View {
@@ -90,7 +93,7 @@ package struct SliderControl: View {
             }
             .font(.callout)
 
-            Slider(value: $value, in: range, step: step)
+            Slider(value: $value, in: range, step: step, onEditingChanged: onEditingChanged)
         }
     }
 }

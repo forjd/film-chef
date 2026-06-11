@@ -72,6 +72,7 @@ package struct FilmProjectItem: Codable, Equatable, Identifiable {
     package var adjustments: RenderAdjustments
     package var localAdjustments: [LocalAdjustmentLayer]
     package var variants: [EditSnapshot]
+    package var variantIndex: Int?
     package var createdAt: Date
     package var updatedAt: Date
 
@@ -84,6 +85,7 @@ package struct FilmProjectItem: Codable, Equatable, Identifiable {
         adjustments: RenderAdjustments,
         localAdjustments: [LocalAdjustmentLayer] = [],
         variants: [EditSnapshot] = [],
+        variantIndex: Int? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -95,6 +97,7 @@ package struct FilmProjectItem: Codable, Equatable, Identifiable {
         self.adjustments = adjustments
         self.localAdjustments = localAdjustments
         self.variants = variants
+        self.variantIndex = variantIndex
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -106,6 +109,9 @@ package struct EditSnapshot: Codable, Equatable, Identifiable {
     package var adjustments: RenderAdjustments
     package var localAdjustments: [LocalAdjustmentLayer]
     package var note: String
+    /// Pinned snapshots are user-curated variants (captured, renamed, or
+    /// duplicated) and survive redo-branch truncation and history trimming.
+    package var isPinned: Bool
     package var createdAt: Date
 
     package init(
@@ -114,6 +120,7 @@ package struct EditSnapshot: Codable, Equatable, Identifiable {
         adjustments: RenderAdjustments,
         localAdjustments: [LocalAdjustmentLayer] = [],
         note: String,
+        isPinned: Bool = false,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -121,6 +128,7 @@ package struct EditSnapshot: Codable, Equatable, Identifiable {
         self.adjustments = adjustments
         self.localAdjustments = localAdjustments
         self.note = note
+        self.isPinned = isPinned
         self.createdAt = createdAt
     }
 
@@ -131,6 +139,7 @@ package struct EditSnapshot: Codable, Equatable, Identifiable {
         adjustments = try container.decode(RenderAdjustments.self, forKey: .adjustments)
         localAdjustments = try container.decodeIfPresent([LocalAdjustmentLayer].self, forKey: .localAdjustments) ?? []
         note = try container.decode(String.self, forKey: .note)
+        isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
         createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
 }

@@ -1597,6 +1597,75 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     try expect(project.updatedAt == project.createdAt)
 }
 
+func testEditorUndoHistoryIntegrity() throws {
+    try MainActor.assumeIsolated {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        editor.loadRecipesIfNeeded()
+        let photoURL = directory.appendingPathComponent("photo.png")
+        try writeTestPNG(to: photoURL)
+        editor.importPhotoForTesting(from: photoURL)
+
+        let baselineCount = editor.editHistory.count
+        editor.exposureTrim = 0.4
+        try expect(editor.editHistory.count == baselineCount + 1)
+
+        editor.undoEdit()
+        try expect(abs(editor.exposureTrim) < 0.0001, "Undo should restore the previous exposure.")
+        try expect(editor.canRedoEdit)
+
+        let countAfterUndo = editor.editHistory.count
+        editor.exposureTrim = 0.0
+        try expect(editor.editHistory.count == countAfterUndo, "No-op edits after undo must not append snapshots.")
+        try expect(editor.canRedoEdit, "No-op edits after undo must keep redo available.")
+
+        editor.redoEdit()
+        try expect(abs(editor.exposureTrim - 0.4) < 0.0001)
+
+        editor.captureVariant(note: "Keeper")
+        editor.undoEdit()
+        editor.saturationTrim = 0.5
+        try expect(
+            editor.editHistory.contains { $0.note == "Keeper" },
+            "Editing after an undo must not delete captured variants."
+        )
+
+        let beforeGesture = editor.editHistory.count
+        editor.setAdjustmentGestureActive(true)
+        editor.contrastTrim = 0.1
+        editor.contrastTrim = 0.2
+        editor.contrastTrim = 0.3
+        editor.setAdjustmentGestureActive(false)
+        try expect(
+            editor.editHistory.count == beforeGesture + 1,
+            "A continuous slider drag should coalesce into a single snapshot."
+        )
+        try expect(abs((editor.editHistory.last?.adjustments.contrastTrim ?? 0) - 0.3) < 0.0001)
+
+        editor.exposureTrim = 0.6
+        editor.undoEdit()
+        let savedIndex = editor.editHistoryIndex
+        let savedExposure = editor.exposureTrim
+        try expect(editor.canRedoEdit)
+
+        let projectURL = directory.appendingPathComponent("history.filmchef")
+        editor.saveProjectForTesting(to: projectURL)
+
+        let reopened = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        reopened.loadRecipesIfNeeded()
+        reopened.openProjectForTesting(from: projectURL)
+        try expect(reopened.editHistoryIndex == savedIndex, "Reopened project should restore the undo position.")
+        try expect(abs(reopened.exposureTrim - savedExposure) < 0.0001)
+        try expect(reopened.canRedoEdit, "Reopened project should preserve redo availability.")
+    }
+}
+
 func testProjectStoreAndEditorPersistRestorableProject() throws {
     let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -1925,6 +1994,7 @@ let tests: [TestCase] = [
     TestCase(name: "editor calibration import flow", run: testEditorCalibrationImportFlow),
     TestCase(name: "editor export settings and batch flow", run: testEditorExportSettingsAndBatchFlow),
     TestCase(name: "project store loads sparse schema one projects with defaults", run: testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults),
+    TestCase(name: "editor undo history integrity", run: testEditorUndoHistoryIntegrity),
     TestCase(name: "project store and editor persist restorable project", run: testProjectStoreAndEditorPersistRestorableProject),
     TestCase(name: "error descriptions are stable", run: testErrorDescriptionsAreStable)
 ]
