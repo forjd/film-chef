@@ -119,13 +119,37 @@ package final class ImageProcessor {
         maxDimension: CGFloat = ImageProcessor.defaultPreviewMaxDimension
     ) -> CIImage {
         let previewSource = scaleForPreview(source, maxDimension: maxDimension)
+        let longestSide = max(source.extent.width, source.extent.height)
+        let spatialScale = (maxDimension > 0 && longestSide > maxDimension)
+            ? Double(maxDimension / longestSide)
+            : 1.0
         let rendered = pipelineRenderer.render(
             source: previewSource,
             recipe: recipe,
             adjustments: adjustments,
-            calibration: calibration
+            calibration: calibration,
+            spatialScale: spatialScale
         )
         return applyLocalAdjustments(localAdjustments, to: rendered)
+    }
+
+    package func makeNSImageAndHistogramSummary(
+        from image: CIImage,
+        bins: Int = 32,
+        histogramMaxDimension: CGFloat = 512
+    ) throws -> (image: NSImage, histogram: HistogramSummary) {
+        guard let cgImage = context.createCGImage(image, from: image.extent) else {
+            throw ImageProcessorError.cannotRenderImage
+        }
+
+        let nsImage = NSImage(
+            cgImage: cgImage,
+            size: NSSize(width: image.extent.width, height: image.extent.height)
+        )
+        // Reusing the rendered bitmap avoids evaluating the filter graph a
+        // second time just for the histogram.
+        let histogram = try histogramSummary(from: cgImage, bins: bins, maxDimension: histogramMaxDimension)
+        return (nsImage, histogram)
     }
 
     package func makeNSImageForTesting(from image: CIImage) throws -> NSImage {
@@ -224,8 +248,20 @@ package final class ImageProcessor {
             throw ImageProcessorError.cannotSampleImage
         }
 
-        let width = cgImage.width
-        let height = cgImage.height
+        return try histogramSummary(from: cgImage, bins: bins, maxDimension: maxDimension)
+    }
+
+    private func histogramSummary(
+        from cgImage: CGImage,
+        bins: Int,
+        maxDimension: CGFloat
+    ) throws -> HistogramSummary {
+        let sourceWidth = CGFloat(cgImage.width)
+        let sourceHeight = CGFloat(cgImage.height)
+        let longestSide = max(sourceWidth, sourceHeight)
+        let scale = (maxDimension > 0 && longestSide > maxDimension) ? maxDimension / longestSide : 1
+        let width = max(1, Int((sourceWidth * scale).rounded()))
+        let height = max(1, Int((sourceHeight * scale).rounded()))
         let bytesPerPixel = 4
         let bytesPerRow = width * bytesPerPixel
         var bytes = [UInt8](repeating: 0, count: height * bytesPerRow)

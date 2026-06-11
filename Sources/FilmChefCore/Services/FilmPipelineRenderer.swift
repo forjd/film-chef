@@ -9,10 +9,15 @@ package struct FilmPipelineRenderer {
         source: CIImage,
         recipe: FilmRecipe,
         adjustments: RenderAdjustments,
-        calibration: CalibrationDataStatus = .descriptiveOnly
+        calibration: CalibrationDataStatus = .descriptiveOnly,
+        spatialScale: Double = 1.0
     ) -> CIImage {
         let extent = source.extent
         let intensity = clamped(adjustments.intensity, lower: 0.0, upper: 1.0)
+        // Grain, halation, and MTF parameters are specified in full-resolution
+        // pixels; preview renders pass the downscale factor so spatial effects
+        // match the exported image.
+        let spatialScale = clamped(spatialScale, lower: 0.01, upper: 4.0)
 
         let normalised = normaliseInput(source, input: recipe.input)
         let exposed = applyExposure(
@@ -61,7 +66,8 @@ package struct FilmPipelineRenderer {
             reference: conditioned,
             halation: recipe.halation,
             extent: extent,
-            intensity: intensity
+            intensity: intensity,
+            spatialScale: spatialScale
         )
         let withGrain = applyGrain(
             to: withHalation,
@@ -69,19 +75,22 @@ package struct FilmPipelineRenderer {
             grain: recipe.grain,
             process: recipe.process,
             adjustments: adjustments,
-            intensity: intensity
+            intensity: intensity,
+            spatialScale: spatialScale
         )
         let withCalibratedGrain = applyCalibrationGrain(
             to: withGrain,
             extent: extent,
-            calibration: calibration
+            calibration: calibration,
+            spatialScale: spatialScale
         )
         let opticallyResolved = applySharpnessAndMTF(
             to: withCalibratedGrain,
             sharpness: recipe.sharpness,
             renderer: recipe.renderer,
             extent: extent,
-            intensity: intensity
+            intensity: intensity,
+            spatialScale: spatialScale
         )
         let rendered = applyScanOrPrintRenderer(
             to: opticallyResolved,
@@ -467,7 +476,8 @@ package struct FilmPipelineRenderer {
         reference: CIImage,
         halation: FilmHalation,
         extent: CGRect,
-        intensity: Double
+        intensity: Double,
+        spatialScale: Double
     ) -> CIImage {
         guard halation.enabled,
               halation.strength > 0.001,
@@ -478,7 +488,7 @@ package struct FilmPipelineRenderer {
         }
 
         let threshold = clamped(halation.threshold, lower: 0.0, upper: 0.99)
-        let radius = max(0.25, halation.radius * (1.0 - ((halation.edgePreservation ?? 0.0) * 0.35)))
+        let radius = max(0.25, halation.radius * (1.0 - ((halation.edgePreservation ?? 0.0) * 0.35)) * spatialScale)
         let strength = clamped(halation.strength * intensity, lower: 0.0, upper: 1.0)
 
         // Map luminance in [threshold, 1] onto [0, 1] in one matrix: lum * rescale - threshold * rescale.
@@ -535,7 +545,8 @@ package struct FilmPipelineRenderer {
         grain: FilmGrain,
         process: FilmProcess,
         adjustments: RenderAdjustments,
-        intensity: Double
+        intensity: Double,
+        spatialScale: Double
     ) -> CIImage {
         guard grain.enabled,
               adjustments.grainEnabled,
@@ -553,7 +564,7 @@ package struct FilmPipelineRenderer {
             distributionMultiplier = 1.0
         }
 
-        let size = clamped(grain.size, lower: 0.35, upper: 3.0)
+        let size = clamped(grain.size, lower: 0.35, upper: 3.0) * spatialScale
         let clumpiness = clamped(grain.clumpiness, lower: 0.0, upper: 1.0)
         let alpha = clamped(
             grain.strength * process.grainMultiplier * distributionMultiplier * (1.0 + (clumpiness * 0.35)) * intensity,
@@ -665,7 +676,8 @@ package struct FilmPipelineRenderer {
     private func applyCalibrationGrain(
         to image: CIImage,
         extent: CGRect,
-        calibration: CalibrationDataStatus
+        calibration: CalibrationDataStatus,
+        spatialScale: Double
     ) -> CIImage {
         let grainAmount = clamped(calibration.grainAmount, lower: 0, upper: 0.25)
         guard calibration.supportsGrainSpectra,
@@ -676,6 +688,7 @@ package struct FilmPipelineRenderer {
         }
 
         let noise = random
+            .transformed(by: CGAffineTransform(scaleX: spatialScale, y: spatialScale))
             .cropped(to: extent)
             .applyingFilter(
                 "CIColorControls",
@@ -709,7 +722,8 @@ package struct FilmPipelineRenderer {
         sharpness: FilmSharpness,
         renderer: FilmRenderer,
         extent: CGRect,
-        intensity: Double
+        intensity: Double,
+        spatialScale: Double
     ) -> CIImage {
         guard intensity > 0.001 else {
             return image
@@ -717,7 +731,7 @@ package struct FilmPipelineRenderer {
 
         var output = image
         let scannerBlur = renderer.scannerMtf?.blurRadius ?? 0.0
-        let blurRadius = (sharpness.filmMtfBlur + sharpness.scannerMtfBlur + scannerBlur) * intensity
+        let blurRadius = (sharpness.filmMtfBlur + sharpness.scannerMtfBlur + scannerBlur) * intensity * spatialScale
 
         if blurRadius > 0.01 {
             output = output
@@ -737,7 +751,7 @@ package struct FilmPipelineRenderer {
             output = output.applyingFilter(
                 "CIUnsharpMask",
                 parameters: [
-                    "inputRadius": clamped(1.0 + blurRadius, lower: 0.5, upper: 4.0),
+                    "inputRadius": clamped(spatialScale + blurRadius, lower: 0.5, upper: 4.0),
                     "inputIntensity": unsharpIntensity
                 ]
             )

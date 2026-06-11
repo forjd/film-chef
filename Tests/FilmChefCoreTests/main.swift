@@ -578,6 +578,74 @@ func testHalationGlowsHighlightsWithoutShiftingShadows() throws {
     }
 }
 
+func testRendererScalesSpatialParametersForPreview() throws {
+    let recipes = try loadTestRecipes()
+    let base = try require(recipes.first { $0.stock.family != .blackAndWhiteNegative })
+    let context = CIContext()
+    let renderer = FilmPipelineRenderer()
+
+    let background = CIImage(color: CIColor(red: 0.10, green: 0.10, blue: 0.10, alpha: 1.0))
+        .cropped(to: CGRect(x: 0, y: 0, width: 48, height: 32))
+    let highlight = CIImage(color: CIColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0))
+        .cropped(to: CGRect(x: 20, y: 12, width: 8, height: 8))
+    let source = highlight.composited(over: background)
+
+    let spatialRecipe = try mutatedRecipe(from: base) { object in
+        setJSONValue(true, path: ["grain", "enabled"], object: &object)
+        setJSONValue(0.5, path: ["grain", "strength"], object: &object)
+        setJSONValue(true, path: ["halation", "enabled"], object: &object)
+        setJSONValue(0.6, path: ["halation", "strength"], object: &object)
+        setJSONValue(4.0, path: ["halation", "radius"], object: &object)
+        setJSONValue(0.6, path: ["halation", "threshold"], object: &object)
+        setJSONValue(1.5, path: ["sharpness", "film_mtf_blur"], object: &object)
+    }
+    let fullScale = renderer.render(
+        source: source,
+        recipe: spatialRecipe,
+        adjustments: adjustments(grainEnabled: true),
+        spatialScale: 1.0
+    )
+    let halfScale = renderer.render(
+        source: source,
+        recipe: spatialRecipe,
+        adjustments: adjustments(grainEnabled: true),
+        spatialScale: 0.5
+    )
+    try expect(
+        renderBytes(fullScale, context: context, extent: source.extent)
+            != renderBytes(halfScale, context: context, extent: source.extent),
+        "Spatial scale should shrink grain, halation, and blur footprints."
+    )
+
+    let pointwiseRecipe = try mutatedRecipe(from: base) { object in
+        setJSONValue(false, path: ["grain", "enabled"], object: &object)
+        setJSONValue(false, path: ["halation", "enabled"], object: &object)
+        setJSONValue(0.0, path: ["sharpness", "film_mtf_blur"], object: &object)
+        setJSONValue(0.0, path: ["sharpness", "scanner_mtf_blur"], object: &object)
+        setJSONValue(0.0, path: ["sharpness", "acutance"], object: &object)
+        setJSONValue(0.0, path: ["sharpness", "digital_sharpening"], object: &object)
+        setJSONValue(0.0, path: ["renderer", "sharpening"], object: &object)
+        setJSONValue(NSNull(), path: ["renderer", "scanner_mtf"], object: &object)
+    }
+    let pointwiseFull = renderer.render(
+        source: source,
+        recipe: pointwiseRecipe,
+        adjustments: adjustments(),
+        spatialScale: 1.0
+    )
+    let pointwiseHalf = renderer.render(
+        source: source,
+        recipe: pointwiseRecipe,
+        adjustments: adjustments(),
+        spatialScale: 0.5
+    )
+    try expect(
+        renderBytes(pointwiseFull, context: context, extent: source.extent)
+            == renderBytes(pointwiseHalf, context: context, extent: source.extent),
+        "Spatial scale must not change pointwise color stages."
+    )
+}
+
 func testPreviewScalingRespectsMaxDimension() throws {
     let processor = ImageProcessor()
     let preview = try processor.makePreviewImage(
@@ -1843,6 +1911,7 @@ let tests: [TestCase] = [
     TestCase(name: "renderer covers profile driven branches", run: testRendererCoversProfileDrivenBranches),
     TestCase(name: "renderer clamps intensity before applying recipe", run: testRendererClampsIntensityBeforeApplyingRecipe),
     TestCase(name: "halation glows highlights without shifting shadows", run: testHalationGlowsHighlightsWithoutShiftingShadows),
+    TestCase(name: "renderer scales spatial parameters for preview", run: testRendererScalesSpatialParametersForPreview),
     TestCase(name: "preview scaling respects max dimension", run: testPreviewScalingRespectsMaxDimension),
     TestCase(name: "histogram clip warning text uses configured threshold", run: testHistogramClipWarningTextUsesConfiguredThreshold),
     TestCase(name: "image processor samples actual pixel color", run: testImageProcessorSamplesActualPixelColor),

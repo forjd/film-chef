@@ -1882,8 +1882,7 @@ public final class EditorStore: ObservableObject {
                         localAdjustments: localAdjustments,
                         calibration: calibration
                     )
-                    let previewImage = try imageProcessor.makeNSImageForTesting(from: renderedSource)
-                    let histogram = try imageProcessor.makeHistogramSummary(from: renderedSource)
+                    let (previewImage, histogram) = try imageProcessor.makeNSImageAndHistogramSummary(from: renderedSource)
                     return PreviewRenderResult(image: previewImage, histogram: histogram)
                 }.value
 
@@ -1929,8 +1928,9 @@ public final class EditorStore: ObservableObject {
                 localAdjustments: localAdjustments,
                 calibration: calibration
             )
-            editedPreviewImage = try imageProcessor.makeNSImageForTesting(from: renderedSource)
-            histogramSummary = try imageProcessor.makeHistogramSummary(from: renderedSource)
+            let (previewImage, histogram) = try imageProcessor.makeNSImageAndHistogramSummary(from: renderedSource)
+            editedPreviewImage = previewImage
+            histogramSummary = histogram
             if let editedPreviewImage, let histogramSummary {
                 storePreviewRenderResult(
                     PreviewRenderResult(image: editedPreviewImage, histogram: histogramSummary),
