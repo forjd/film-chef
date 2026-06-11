@@ -10,7 +10,10 @@ struct SidebarView: View {
             }
 
             Section("Project") {
+                // These rows are not recipe selections; without this, clicking
+                // them nils the list's recipe selection.
                 LabeledContent("Photos", value: "\(editor.project.items.count)")
+                    .selectionDisabled()
                 ForEach(editor.project.items) { item in
                     VStack(alignment: .leading, spacing: 6) {
                         Button(action: { editor.selectProjectItem(id: item.id) }) {
@@ -37,6 +40,7 @@ struct SidebarView: View {
                             .controlSize(.small)
                         }
                     }
+                    .selectionDisabled()
                 }
             }
         }

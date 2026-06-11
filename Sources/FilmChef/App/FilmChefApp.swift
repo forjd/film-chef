@@ -12,6 +12,7 @@ struct FilmChefApp: App {
             ContentView(editor: editor)
                 .frame(minWidth: 1040, minHeight: 680)
                 .task {
+                    appDelegate.editor = editor
                     editor.loadRecipesIfNeeded()
                 }
         }
@@ -21,10 +22,38 @@ struct FilmChefApp: App {
     }
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    // The bundle declares ownership of .filmchef documents, so Finder routes
+    // double-clicked project files here. Files can arrive before the SwiftUI
+    // scene assigns the editor, so buffer them until it does.
+    var editor: EditorStore? {
+        didSet {
+            openPendingProjectURLs()
+        }
+    }
+    private var pendingProjectURLs: [URL] = []
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        pendingProjectURLs.append(contentsOf: urls.filter { $0.pathExtension.lowercased() == "filmchef" })
+        openPendingProjectURLs()
+    }
+
+    private func openPendingProjectURLs() {
+        guard let editor, !pendingProjectURLs.isEmpty else {
+            return
+        }
+
+        let urls = pendingProjectURLs
+        pendingProjectURLs = []
+        for url in urls {
+            editor.handleProjectOpenResults(.success([url]))
+        }
     }
 }
 
@@ -86,7 +115,9 @@ struct FilmChefCommands: Commands {
             .keyboardShortcut("r", modifiers: [.command, .shift])
         }
 
-        CommandGroup(after: .undoRedo) {
+        // Replace the system items: adding alongside them leaves two menu
+        // items on Cmd+Z and makes keyboard undo focus-dependent.
+        CommandGroup(replacing: .undoRedo) {
             Button("Undo Edit") {
                 editor.undoEdit()
             }

@@ -241,7 +241,11 @@ public final class EditorStore: ObservableObject {
     @Published package private(set) var recipes: [FilmRecipe] = []
     @Published package private(set) var editableRecipeIDs: Set<String> = []
     @Published package private(set) var recipeImportStatus: RecipeImportStatus?
-    @Published package var recipeDraft = RecipeDraft()
+    @Published package var recipeDraft = RecipeDraft() {
+        didSet {
+            invalidateRecipeValidationCache()
+        }
+    }
     @Published package var selectedRecipeID: String? {
         didSet {
             syncRecipeDraftWithSelection()
@@ -306,7 +310,17 @@ public final class EditorStore: ObservableObject {
         didSet { handleExportSettingsChanged() }
     }
     @Published package var exportPresets = ExportPreset.defaults
-    @Published package var selectedExportPresetID: UUID?
+    @Published package var selectedExportPresetID: UUID? {
+        didSet {
+            // Selecting a preset applies it; programmatic restoration (e.g.
+            // opening a project) runs under suppressSettingsUpdates so it
+            // cannot clobber the project's saved export settings.
+            guard !suppressSettingsUpdates, oldValue != selectedExportPresetID else {
+                return
+            }
+            applySelectedExportPreset()
+        }
+    }
     @Published package var exportPresetDraftName = "Custom Preset"
     @Published package var colorManagementSettings = ColorManagementSettings.defaults {
         didSet { handleColorManagementChanged() }
@@ -423,7 +437,26 @@ public final class EditorStore: ObservableObject {
         return editableRecipeIDs.contains(selectedRecipeID)
     }
 
+    // Validation builds full recipe copies; cache the results because every
+    // inspector body evaluation reads these several times.
+    private var cachedRecipeDraftIssues: [RecipeValidationIssue]?
+    private var cachedSelectedRecipeIssues: [RecipeValidationIssue]?
+
+    private func invalidateRecipeValidationCache() {
+        cachedRecipeDraftIssues = nil
+        cachedSelectedRecipeIssues = nil
+    }
+
     package var recipeDraftIssues: [RecipeValidationIssue] {
+        if let cachedRecipeDraftIssues {
+            return cachedRecipeDraftIssues
+        }
+        let issues = computeRecipeDraftIssues()
+        cachedRecipeDraftIssues = issues
+        return issues
+    }
+
+    private func computeRecipeDraftIssues() -> [RecipeValidationIssue] {
         guard let selectedRecipe else {
             return []
         }
@@ -465,10 +498,15 @@ public final class EditorStore: ObservableObject {
     }
 
     package var selectedRecipeValidationIssues: [RecipeValidationIssue] {
+        if let cachedSelectedRecipeIssues {
+            return cachedSelectedRecipeIssues
+        }
         guard let selectedRecipe else {
             return []
         }
-        return FilmRecipeValidator.issues(for: selectedRecipe)
+        let issues = FilmRecipeValidator.issues(for: selectedRecipe)
+        cachedSelectedRecipeIssues = issues
+        return issues
     }
 
     package var previewRenderCacheSize: Int {
@@ -851,6 +889,28 @@ public final class EditorStore: ObservableObject {
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         editHistory[index].note = trimmedNote.isEmpty ? "Untitled variant" : trimmedNote
         editHistory[index].isPinned = true
+        updateCurrentProjectItem()
+    }
+
+    /// Stores the note exactly as typed; normalization happens on commit via
+    /// `finalizeVariantNote` so typing isn't fought character by character.
+    public func setVariantNote(id: UUID, note: String) {
+        guard let index = editHistory.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        editHistory[index].note = note
+        editHistory[index].isPinned = true
+        updateCurrentProjectItem()
+    }
+
+    public func finalizeVariantNote(id: UUID) {
+        guard let index = editHistory.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let trimmedNote = editHistory[index].note.trimmingCharacters(in: .whitespacesAndNewlines)
+        editHistory[index].note = trimmedNote.isEmpty ? "Untitled variant" : trimmedNote
         updateCurrentProjectItem()
     }
 
@@ -1476,6 +1536,7 @@ public final class EditorStore: ObservableObject {
         recipes.sort {
             $0.name.localizedStandardCompare($1.name) == .orderedAscending
         }
+        invalidateRecipeValidationCache()
     }
 
     private func writeProject(to url: URL) {
@@ -1665,6 +1726,7 @@ public final class EditorStore: ObservableObject {
         recipes.sort {
             $0.name.localizedStandardCompare($1.name) == .orderedAscending
         }
+        invalidateRecipeValidationCache()
         if selectedRecipeID == recipe.id {
             syncRecipeDraftWithSelection()
         }

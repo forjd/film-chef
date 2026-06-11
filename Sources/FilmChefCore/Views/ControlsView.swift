@@ -391,19 +391,23 @@ struct ControlsView: View {
                             Label("Left", systemImage: "arrow.left")
                                 .frame(maxWidth: .infinity)
                         }
+                        .disabled(editor.previewZoom <= 1.0)
 
                         Button(action: { editor.panPreview(deltaX: 32, deltaY: 0) }) {
                             Label("Right", systemImage: "arrow.right")
                                 .frame(maxWidth: .infinity)
                         }
+                        .disabled(editor.previewZoom <= 1.0)
 
+                        // Center also turns the loupe off, so it must stay
+                        // enabled whenever canResetPreviewView says so.
                         Button(action: editor.resetPreviewView) {
                             Label("Center", systemImage: "scope")
                                 .frame(maxWidth: .infinity)
                         }
                         .disabled(!editor.canResetPreviewView)
                     }
-                    .disabled(!editor.hasImportedImage || editor.previewZoom <= 1.0)
+                    .disabled(!editor.hasImportedImage)
 
                     SliderControl(
                         title: "Split",
@@ -464,9 +468,6 @@ struct ControlsView: View {
                         ForEach(editor.exportPresets) { preset in
                             Text(preset.name).tag(Optional(preset.id))
                         }
-                    }
-                    .onChange(of: editor.selectedExportPresetID) {
-                        editor.applySelectedExportPreset()
                     }
 
                     TextField("Preset Name", text: $editor.exportPresetDraftName)
@@ -597,6 +598,9 @@ struct ControlsView: View {
 
                                 TextField("Variant Name", text: variantNoteBinding(snapshot.id))
                                     .textFieldStyle(.roundedBorder)
+                                    .onSubmit {
+                                        editor.finalizeVariantNote(id: snapshot.id)
+                                    }
                             }
 
                             HStack(spacing: 8) {
@@ -1032,7 +1036,7 @@ struct ControlsView: View {
     fileprivate func variantNoteBinding(_ id: UUID) -> Binding<String> {
         Binding(
             get: { editor.editHistory.first(where: { $0.id == id })?.note ?? "" },
-            set: { editor.renameVariant(id: id, note: $0) }
+            set: { editor.setVariantNote(id: id, note: $0) }
         )
     }
 
