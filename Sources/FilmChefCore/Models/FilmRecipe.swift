@@ -527,10 +527,10 @@ package struct RenderAdjustments: Codable, Equatable, Hashable {
         saturationTrim: Double,
         grainEnabled: Bool
     ) {
-        self.intensity = intensity
-        self.exposureTrim = exposureTrim
-        self.contrastTrim = contrastTrim
-        self.saturationTrim = saturationTrim
+        self.intensity = Self.clamped(intensity, lower: 0, upper: 1)
+        self.exposureTrim = Self.clamped(exposureTrim, lower: -1, upper: 1)
+        self.contrastTrim = Self.clamped(contrastTrim, lower: -0.5, upper: 0.5)
+        self.saturationTrim = Self.clamped(saturationTrim, lower: -0.75, upper: 0.75)
         self.grainEnabled = grainEnabled
     }
 

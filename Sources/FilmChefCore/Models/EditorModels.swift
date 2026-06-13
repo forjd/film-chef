@@ -308,15 +308,20 @@ package struct LocalAdjustmentLayer: Codable, Equatable, Hashable, Identifiable 
         self.name = name
         self.isEnabled = isEnabled
         self.mask = mask
-        self.centerX = centerX
-        self.centerY = centerY
-        self.radius = radius
-        self.feather = feather
-        self.brushSize = brushSize
-        self.pathPoints = pathPoints
-        self.exposureEV = exposureEV
-        self.contrast = contrast
-        self.saturation = saturation
+        self.centerX = Self.clamped(centerX, lower: 0, upper: 1)
+        self.centerY = Self.clamped(centerY, lower: 0, upper: 1)
+        self.radius = Self.clamped(radius, lower: 0.05, upper: 1)
+        self.feather = Self.clamped(feather, lower: 0, upper: 1)
+        self.brushSize = Self.clamped(brushSize, lower: 0.02, upper: 0.5)
+        self.pathPoints = pathPoints.map { point in
+            NormalizedMaskPoint(
+                x: Self.clamped(point.x, lower: 0, upper: 1),
+                y: Self.clamped(point.y, lower: 0, upper: 1)
+            )
+        }
+        self.exposureEV = Self.clamped(exposureEV, lower: -1, upper: 1)
+        self.contrast = Self.clamped(contrast, lower: -0.5, upper: 0.5)
+        self.saturation = Self.clamped(saturation, lower: -0.75, upper: 0.75)
     }
 
     package init(from decoder: Decoder) throws {
@@ -805,10 +810,10 @@ package struct RawDevelopmentSettings: Codable, Equatable, Hashable {
         highlightRecovery: Double = 0.25
     ) {
         self.enabled = enabled
-        self.exposureEV = exposureEV
-        self.temperatureK = temperatureK
-        self.tint = tint
-        self.highlightRecovery = highlightRecovery
+        self.exposureEV = Self.clamped(exposureEV, lower: -2, upper: 2)
+        self.temperatureK = Self.clamped(temperatureK, lower: 2500, upper: 9000)
+        self.tint = Self.clamped(tint, lower: -1, upper: 1)
+        self.highlightRecovery = Self.clamped(highlightRecovery, lower: 0, upper: 1)
     }
 
     package init(from decoder: Decoder) throws {
