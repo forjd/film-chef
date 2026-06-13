@@ -285,14 +285,40 @@ public final class EditorStore: ObservableObject {
             clearPixelSample(cancelPendingTask: true)
         }
     }
-    @Published package var previewZoom = 1.0
+    @Published package var previewZoom = 1.0 {
+        didSet {
+            let boundedZoom = clamped(previewZoom, lower: 0.5, upper: 4.0)
+            if abs(previewZoom - boundedZoom) > 0.0001 {
+                previewZoom = boundedZoom
+            }
+            guard previewZoom > 1.0 else {
+                previewPanX = 0
+                previewPanY = 0
+                return
+            }
+            let limit = previewPanLimit()
+            previewPanX = clamped(previewPanX, lower: -limit, upper: limit)
+            previewPanY = clamped(previewPanY, lower: -limit, upper: limit)
+        }
+    }
     @Published package var previewPanX = 0.0
     @Published package var previewPanY = 0.0
     @Published package var loupeEnabled = false
-    @Published package var loupeZoom = 2.0
+    @Published package var loupeZoom = 2.0 {
+        didSet {
+            let boundedZoom = clamped(loupeZoom, lower: 1.5, upper: 5.0)
+            if abs(loupeZoom - boundedZoom) > 0.0001 {
+                loupeZoom = boundedZoom
+            }
+        }
+    }
     @Published package var loupePlacement = LoupePlacement.nearSampler
     @Published package var splitPosition = 0.5 {
         didSet {
+            let boundedPosition = clamped(splitPosition, lower: 0.1, upper: 0.9)
+            if abs(splitPosition - boundedPosition) > 0.0001 {
+                splitPosition = boundedPosition
+            }
             guard abs(oldValue - splitPosition) > 0.0001 else {
                 return
             }
@@ -306,7 +332,14 @@ public final class EditorStore: ObservableObject {
     /// sampler's image space when the image exactly fills the pane.
     @Published package private(set) var splitPositionInImage: Double?
     @Published package var histogramChannelMode = HistogramChannelMode.all
-    @Published package var histogramClipWarningThreshold = 0.02
+    @Published package var histogramClipWarningThreshold = 0.02 {
+        didSet {
+            let boundedThreshold = clamped(histogramClipWarningThreshold, lower: 0.005, upper: 0.25)
+            if abs(histogramClipWarningThreshold - boundedThreshold) > 0.0001 {
+                histogramClipWarningThreshold = boundedThreshold
+            }
+        }
+    }
     @Published package var exportSettings = ExportSettings.defaults {
         didSet { handleExportSettingsChanged() }
     }
@@ -2668,7 +2701,11 @@ public final class EditorStore: ObservableObject {
     }
 
     private func clampedUnit(_ value: Double) -> Double {
-        min(max(value, 0), 1)
+        clamped(value, lower: 0, upper: 1)
+    }
+
+    private func clamped(_ value: Double, lower: Double, upper: Double) -> Double {
+        min(max(value, lower), upper)
     }
 
     private func suggestedExportFileName() -> String {
