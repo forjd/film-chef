@@ -2911,6 +2911,18 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         try expect(false, "Expected missing project photo reference to fail.")
     } catch ProjectStore.ProjectStoreError.missingPhotoReference {
     }
+
+    let blankPathReference = FilmProjectItem(
+        displayName: "Blank",
+        originalURLPath: "   ",
+        selectedRecipeID: nil,
+        adjustments: RenderAdjustments.defaults
+    )
+    do {
+        _ = try ProjectStore().resolvePhotoURL(for: blankPathReference)
+        try expect(false, "Expected blank project photo references to fail.")
+    } catch ProjectStore.ProjectStoreError.missingPhotoReference {
+    }
 }
 
 func testWriteRenderedImageEncodesPngAndJpeg() throws {
