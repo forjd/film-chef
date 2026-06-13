@@ -1626,6 +1626,10 @@ func testEditorExportPresetsNamingTemplatesAndBatchExport() throws {
         editor.exportPresetDraftName = "Small Review Mobile Updated"
         editor.saveExportPreset()
         try expect(editor.exportPresets.first { $0.id == mobilePreset.id }?.name == "Small Review Mobile Updated")
+        editor.exportPresetDraftName = "   "
+        editor.saveExportPreset()
+        try expect(editor.exportPresets.first { $0.id == mobilePreset.id }?.name == "Custom Preset")
+        try expect(editor.exportPresetDraftName == "Custom Preset")
         editor.deleteSelectedExportPreset()
         try expect(!editor.exportPresets.contains { $0.id == mobilePreset.id })
         editor.restoreDefaultExportPresets()
