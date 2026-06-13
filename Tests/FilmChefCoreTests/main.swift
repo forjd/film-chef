@@ -1132,6 +1132,10 @@ func testEditorPhotoImportPreviewControlsAndCache() throws {
         let sourceItem = try require(editor.project.items.first { $0.displayName == " Sample Photo .png" })
         editor.selectProjectItem(id: sourceItem.id)
         try expect(editor.importedImageName == " Sample Photo .png")
+        editor.intensity = 0.33
+        editor.selectProjectItem(id: sourceItem.id)
+        try expect(editor.currentAdjustments.intensity == 0.33)
+        try expect(editor.project.items.first { $0.id == sourceItem.id }?.adjustments.intensity == 0.33)
 
         editor.showOriginal = true
         try expect(editor.displayedPreviewImage === editor.originalPreviewImage)

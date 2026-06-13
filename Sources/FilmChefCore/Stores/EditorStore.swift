@@ -1325,13 +1325,13 @@ public final class EditorStore: ObservableObject {
     }
 
     public func selectProjectItem(id: UUID) {
+        updateCurrentProjectItem()
+
         guard let item = project.items.first(where: { $0.id == id }) else {
             return
         }
 
-        updateCurrentProjectItem()
         project.selectedItemID = id
-        restoreEditHistory(for: item)
         applyProjectItem(item)
     }
 
