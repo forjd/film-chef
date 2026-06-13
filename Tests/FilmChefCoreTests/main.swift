@@ -1336,6 +1336,12 @@ func testEditorCalibrationAssetImportVariants() throws {
         editor.errorMessage = nil
         editor.importCalibrationAssetsForTesting(from: [booleanOnlyCalibrationURL])
         try expect(editor.errorMessage?.contains("No numeric calibration values found.") == true)
+
+        let oversizedCalibrationURL = directory.appendingPathComponent("oversized-calibration.csv")
+        try Data(repeating: 0, count: (16 * 1024 * 1024) + 1).write(to: oversizedCalibrationURL)
+        editor.errorMessage = nil
+        editor.importCalibrationAssetsForTesting(from: [oversizedCalibrationURL])
+        try expect(editor.errorMessage?.contains("Calibration assets must be 16 MB or smaller.") == true)
     }
 }
 
