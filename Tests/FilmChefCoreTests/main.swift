@@ -2364,6 +2364,26 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         let batchFiles = try FileManager.default.contentsOfDirectory(atPath: batchDirectory.path)
         try expect(batchFiles.count == 2)
 
+        let emptyProjectURL = directory.appendingPathComponent("Empty Project.filmchef")
+        try ProjectStore().writeProject(FilmProject(name: "Empty Project"), to: emptyProjectURL)
+        let emptyEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        emptyEditor.loadRecipesIfNeeded()
+        emptyEditor.importPhotoForTesting(from: sourceURL)
+        emptyEditor.intensity = 0.3
+        emptyEditor.addLocalAdjustment()
+        try expect(emptyEditor.hasImportedImage)
+        emptyEditor.openProjectForTesting(from: emptyProjectURL)
+        try expect(emptyEditor.project.items.isEmpty)
+        try expect(emptyEditor.project.selectedItemID == nil)
+        try expect(!emptyEditor.hasImportedImage)
+        try expect(emptyEditor.selectedRecipeID == nil)
+        try expect(emptyEditor.currentAdjustments == RenderAdjustments.defaults)
+        try expect(emptyEditor.localAdjustments.isEmpty)
+        try expect(emptyEditor.editHistory.isEmpty)
+        try expect(emptyEditor.editedPreviewImage == nil)
+        try expect(emptyEditor.histogramSummary == nil)
+        try expect(emptyEditor.previewRenderStatus == "Idle")
+
         let missingItemID = UUID()
         let missingAdjustments = RenderAdjustments(
             intensity: 0.65,
