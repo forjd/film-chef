@@ -1947,7 +1947,12 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
       },
       "calibrationDataStatus": {
         "supportsSpectralCurves": true,
-        "importedAssetNames": ["curves.json"]
+        "importedAssetNames": ["curves.json"],
+        "redScale": 9,
+        "greenScale": -9,
+        "blueScale": 0.25,
+        "densityGamma": 9,
+        "grainAmount": 9
       }
     }
     """.data(using: .utf8)?.write(to: partialProjectURL)
@@ -2000,7 +2005,11 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     try expect(partialProject.calibrationDataStatus.supportsSpectralCurves)
     try expect(!partialProject.calibrationDataStatus.supportsMeasuredDensityCurves)
     try expect(partialProject.calibrationDataStatus.importedAssetNames == ["curves.json"])
-    try expect(partialProject.calibrationDataStatus.redScale == 1.0)
+    try expect(partialProject.calibrationDataStatus.redScale == 1.5)
+    try expect(partialProject.calibrationDataStatus.greenScale == 0.5)
+    try expect(partialProject.calibrationDataStatus.blueScale == 0.5)
+    try expect(partialProject.calibrationDataStatus.densityGamma == 1.35)
+    try expect(partialProject.calibrationDataStatus.grainAmount == 0.25)
     try expect(partialProject.calibrationDataStatus.note == CalibrationDataStatus.descriptiveOnly.note)
 
     let oversizedProjectURL = directory.appendingPathComponent("Oversized.filmchef")
