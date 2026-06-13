@@ -59,16 +59,30 @@ package struct CalibrationAssetParser {
                     labels.append("RGB scale")
                 }
                 if asset.kinds.isEmpty {
+                    let inferredLabels = labelsForName(name)
+                    guard !inferredLabels.isEmpty || asset.lutScale != nil else {
+                        throw CalibrationImportError.invalidAsset(
+                            url.lastPathComponent,
+                            "Calibration type could not be inferred; use asset_type, asset_types, or a descriptive filename."
+                        )
+                    }
                     append(asset.values, named: name, spectral: &supportsSpectral, density: &supportsDensity, grain: &supportsGrain, spectralValues: &spectralValues, densityValues: &densityValues, grainValues: &grainValues)
-                    labels.append(contentsOf: labelsForName(name))
+                    labels.append(contentsOf: inferredLabels)
                 } else {
                     append(asset.values, kinds: asset.kinds, spectral: &supportsSpectral, density: &supportsDensity, grain: &supportsGrain, spectralValues: &spectralValues, densityValues: &densityValues, grainValues: &grainValues)
                 }
                 assetSummaries.append(assetSummary(name: url.lastPathComponent, labels: labels))
             case "csv", "txt":
                 let values = try parseDelimitedCalibration(url)
+                let labels = labelsForName(name)
+                guard !labels.isEmpty else {
+                    throw CalibrationImportError.invalidAsset(
+                        url.lastPathComponent,
+                        "Calibration type could not be inferred; use a descriptive filename."
+                    )
+                }
                 append(values, named: name, spectral: &supportsSpectral, density: &supportsDensity, grain: &supportsGrain, spectralValues: &spectralValues, densityValues: &densityValues, grainValues: &grainValues)
-                assetSummaries.append(assetSummary(name: url.lastPathComponent, labels: labelsForName(name)))
+                assetSummaries.append(assetSummary(name: url.lastPathComponent, labels: labels))
             default:
                 throw CalibrationImportError.unsupportedAsset(url.lastPathComponent)
             }
