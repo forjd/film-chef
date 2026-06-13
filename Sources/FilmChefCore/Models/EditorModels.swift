@@ -882,11 +882,31 @@ package struct CalibrationDataStatus: Codable, Equatable, Hashable {
         supportsThreeDimensionalLUTs = try container.decodeIfPresent(Bool.self, forKey: .supportsThreeDimensionalLUTs) ?? false
         importedAssetNames = try container.decodeIfPresent([String].self, forKey: .importedAssetNames) ?? []
         importedAssetSummaries = try container.decodeIfPresent([String].self, forKey: .importedAssetSummaries) ?? []
-        redScale = try container.decodeIfPresent(Double.self, forKey: .redScale) ?? 1.0
-        greenScale = try container.decodeIfPresent(Double.self, forKey: .greenScale) ?? 1.0
-        blueScale = try container.decodeIfPresent(Double.self, forKey: .blueScale) ?? 1.0
-        densityGamma = try container.decodeIfPresent(Double.self, forKey: .densityGamma) ?? 1.0
-        grainAmount = try container.decodeIfPresent(Double.self, forKey: .grainAmount) ?? 0.0
+        redScale = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .redScale) ?? 1.0,
+            lower: 0.5,
+            upper: 1.5
+        )
+        greenScale = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .greenScale) ?? 1.0,
+            lower: 0.5,
+            upper: 1.5
+        )
+        blueScale = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .blueScale) ?? 1.0,
+            lower: 0.5,
+            upper: 1.5
+        )
+        densityGamma = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .densityGamma) ?? 1.0,
+            lower: 0.75,
+            upper: 1.35
+        )
+        grainAmount = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .grainAmount) ?? 0.0,
+            lower: 0,
+            upper: 0.25
+        )
         note = try container.decodeIfPresent(String.self, forKey: .note) ?? CalibrationDataStatus.descriptiveOnly.note
     }
 
@@ -921,5 +941,9 @@ package struct CalibrationDataStatus: Codable, Equatable, Hashable {
         case densityGamma
         case grainAmount
         case note
+    }
+
+    private static func clamped(_ value: Double, lower: Double, upper: Double) -> Double {
+        min(max(value, lower), upper)
     }
 }
