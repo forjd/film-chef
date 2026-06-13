@@ -1151,10 +1151,31 @@ func testEditorPhotoImportPreviewControlsAndCache() throws {
         editor.setPreviewPan(x: 1_000, y: -1_000)
         try expect(editor.previewPanX == 220)
         try expect(editor.previewPanY == -220)
+        editor.previewZoom = 1.25
+        try expect(editor.previewPanX == 55)
+        try expect(editor.previewPanY == -55)
+        editor.previewZoom = -2
+        try expect(editor.previewZoom == 0.5)
+        try expect(editor.previewPanX == 0)
+        try expect(editor.previewPanY == 0)
+        editor.previewZoom = 9
+        try expect(editor.previewZoom == 4.0)
         editor.loupeEnabled = true
+        editor.loupeZoom = 0
+        try expect(editor.loupeZoom == 1.5)
+        editor.loupeZoom = 9
+        try expect(editor.loupeZoom == 5.0)
         editor.loupeZoom = 3.0
         editor.loupePlacement = .topRight
         try expect(editor.loupePlacement == .topRight)
+        editor.splitPosition = -1
+        try expect(editor.splitPosition == 0.1)
+        editor.splitPosition = 2
+        try expect(editor.splitPosition == 0.9)
+        editor.histogramClipWarningThreshold = 0
+        try expect(editor.histogramClipWarningThreshold == 0.005)
+        editor.histogramClipWarningThreshold = 1
+        try expect(editor.histogramClipWarningThreshold == 0.25)
         try expect(editor.canResetPreviewView)
         editor.resetPreviewView()
         try expect(editor.previewZoom == 1.0)
