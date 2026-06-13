@@ -1512,6 +1512,7 @@ public final class EditorStore: ObservableObject {
             return
         }
 
+        errorMessage = nil
         var firstImportedID: UUID?
         for url in urls {
             if let itemID = importProjectItem(from: url) {
@@ -1700,6 +1701,7 @@ public final class EditorStore: ObservableObject {
             project.items[itemIndex].updatedAt = Date()
             project.updatedAt = Date()
             projectItemNeedingRelinkID = nil
+            errorMessage = nil
             selectProjectItem(id: id)
         } catch {
             errorMessage = error.localizedDescription
@@ -1726,6 +1728,7 @@ public final class EditorStore: ObservableObject {
             }
             replaceRecipe(importedRecipe)
             editableRecipeIDs.insert(importedRecipe.id)
+            errorMessage = nil
             selectedRecipeID = importedRecipe.id
             recipeImportStatus = .imported(name: importedRecipe.name)
         } catch {
@@ -1836,6 +1839,7 @@ public final class EditorStore: ObservableObject {
             project.calibrationDataStatus = calibrationDataStatus
             project.updatedAt = Date()
             clearPreviewCache()
+            errorMessage = nil
             renderPreviewIfNeeded()
         } catch {
             errorMessage = error.localizedDescription
