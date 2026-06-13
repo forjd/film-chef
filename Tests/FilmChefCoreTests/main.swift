@@ -1374,11 +1374,11 @@ func testEditorCalibrationAssetImportVariants() throws {
         DOMAIN_MIN 0.0 0.0 0.0
         DOMAIN_MAX 1.0 1.0 1.0
         LUT_3D_SIZE 2
-        0.20 0.10 0.10
+        0.20 0.10 0.10 # shadow trim
         0.30 0.15 0.10
         0.40 0.20 0.15
         0.50 0.25 0.20
-        0.60 0.30 0.22
+        0.60 0.30 0.22 # midtone trim
         0.70 0.35 0.26
         0.80 0.40 0.30
         0.90 0.45 0.34

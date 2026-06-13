@@ -215,7 +215,9 @@ package struct CalibrationAssetParser {
         var rows: [[Double]] = []
 
         for line in text.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            let uncommented = line.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false).first
+                .map(String.init) ?? line
+            let trimmed = uncommented.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else {
                 continue
             }
