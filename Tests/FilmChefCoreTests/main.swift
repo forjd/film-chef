@@ -2955,6 +2955,43 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         try expect(reopened.editedPreviewImage == nil)
         try expect(reopened.histogramSummary == nil)
         try expect(reopened.previewRenderStatus == "Photo needs relinking")
+        try expect(reopened.errorMessage == ImageProcessor.ImageProcessorError.cannotLoadImage.errorDescription)
+
+        let mixedMissingItemID = UUID()
+        let mixedValidItemID = UUID()
+        let mixedProject = FilmProject(
+            items: [
+                FilmProjectItem(
+                    id: mixedMissingItemID,
+                    displayName: "Missing Then Valid.png",
+                    originalURLPath: directory.appendingPathComponent("missing-then-valid.png").path,
+                    selectedRecipeID: nil,
+                    adjustments: .defaults
+                ),
+                FilmProjectItem(
+                    id: mixedValidItemID,
+                    displayName: "Recovered Photo.png",
+                    originalURLPath: sourceURL.path,
+                    selectedRecipeID: try require(reopened.recipes.first?.id),
+                    adjustments: .defaults
+                )
+            ],
+            selectedItemID: mixedMissingItemID
+        )
+        let mixedProjectURL = directory.appendingPathComponent("Mixed Relink Project.filmchef")
+        try ProjectStore().writeProject(mixedProject, to: mixedProjectURL)
+
+        let mixedEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        mixedEditor.loadRecipesIfNeeded()
+        mixedEditor.openProjectForTesting(from: mixedProjectURL)
+        try expect(mixedEditor.projectItemNeedingRelinkID == mixedMissingItemID)
+        try expect(mixedEditor.errorMessage == ImageProcessor.ImageProcessorError.cannotLoadImage.errorDescription)
+        mixedEditor.selectProjectItem(id: mixedValidItemID)
+        try expect(mixedEditor.hasImportedImage)
+        try expect(mixedEditor.importedImageName == "Recovered Photo.png")
+        try expect(mixedEditor.editedPreviewImage != nil)
+        try expect(mixedEditor.errorMessage == nil)
+        try expect(mixedEditor.projectItemNeedingRelinkID == mixedMissingItemID)
 
         let relinkEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
         relinkEditor.loadRecipesIfNeeded()
