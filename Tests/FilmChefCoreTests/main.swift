@@ -2061,17 +2061,20 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     let duplicateVariantLayerID = UUID()
     let duplicateHistoryID = UUID()
     let duplicatePresetID = UUID()
+    let missingSelectedItemID = UUID()
     let partialProjectURL = directory.appendingPathComponent("Partial Legacy.filmchef")
     try """
     {
       "schemaVersion": 1,
       "id": "\(partialProjectID.uuidString)",
       "name": "Partial Legacy Project",
+      "selectedItemID": "\(missingSelectedItemID.uuidString)",
       "items": [
         {
           "id": "\(duplicateItemID.uuidString)",
           "displayName": "   ",
           "originalURLPath": "/tmp/Legacy Photo.png",
+          "variantIndex": 99,
           "adjustments": {
             "intensity": 9,
             "exposureTrim": -9,
@@ -2127,6 +2130,7 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
         {
           "id": "\(duplicateItemID.uuidString)",
           "originalURLPath": "/tmp/Second Legacy.png",
+          "variantIndex": 7,
           "adjustments": {}
         }
       ],
@@ -2140,6 +2144,7 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
           "note": "   "
         }
       ],
+      "editHistoryIndex": 99,
       "exportSettings": {
         "fileFormat": "png",
         "jpegQuality": 5,
@@ -2185,12 +2190,15 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     try expect(partialProject.id == partialProjectID)
     try expect(partialProject.items.count == 2)
     try expect(Set(partialProject.items.map(\.id)).count == partialProject.items.count)
+    try expect(partialProject.selectedItemID == duplicateItemID)
     let partialItem = try require(partialProject.items.first)
     try expect(partialItem.id == duplicateItemID)
     try expect(partialItem.displayName == "Legacy Photo.png")
     try expect(partialItem.originalURLPath == "/tmp/Legacy Photo.png")
+    try expect(partialItem.variantIndex == 1)
     try expect(partialProject.items.last?.id != duplicateItemID)
     try expect(partialProject.items.last?.displayName == "Second Legacy.png")
+    try expect(partialProject.items.last?.variantIndex == nil)
     try expect(partialItem.adjustments.intensity == 1.0)
     try expect(partialItem.adjustments.exposureTrim == -1.0)
     try expect(partialItem.adjustments.contrastTrim == 0.5)
@@ -2232,6 +2240,7 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     try expect(partialProject.editHistory[0].adjustments == .defaults)
     try expect(partialProject.editHistory[1].id != duplicateHistoryID)
     try expect(partialProject.editHistory[1].note == "Restored edit")
+    try expect(partialProject.editHistoryIndex == 1)
     try expect(partialProject.exportSettings.fileFormat == .png)
     try expect(partialProject.exportSettings.jpegQuality == 1.0)
     try expect(partialProject.exportSettings.scale == 0.25)
