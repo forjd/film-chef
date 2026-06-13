@@ -1524,6 +1524,7 @@ public final class EditorStore: ObservableObject {
             let loadedProject = try projectStore.loadProject(from: url)
             suppressSettingsUpdates = true
             project = loadedProject
+            errorMessage = nil
             discardProjectScopedRecipes()
             restoreCustomRecipes(loadedProject.customRecipes)
             editHistory = loadedProject.editHistory
@@ -1590,6 +1591,10 @@ public final class EditorStore: ObservableObject {
     }
 
     private func appendProjectRecipeWarning(_ messages: [String]) {
+        appendErrorMessages(messages)
+    }
+
+    private func appendErrorMessages(_ messages: [String]) {
         let nonEmptyMessages = messages.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         guard !nonEmptyMessages.isEmpty else {
             return
@@ -2551,7 +2556,7 @@ public final class EditorStore: ObservableObject {
                     status: item.selectedRecipeID == nil ? "Select a recipe" : "Missing recipe"
                 )
                 if item.selectedRecipeID != nil {
-                    errorMessage = EditorStoreError.missingRecipe(itemName: item.displayName).localizedDescription
+                    appendErrorMessages([EditorStoreError.missingRecipe(itemName: item.displayName).localizedDescription])
                 }
                 return
             }

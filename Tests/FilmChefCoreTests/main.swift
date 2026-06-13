@@ -2424,6 +2424,33 @@ func testProjectPersistsCustomRecipes() throws {
         try expect(invalidRecipeEditor.editedPreviewImage != nil)
         try expect(invalidRecipeEditor.errorMessage?.contains("output.bit_depth must be greater than 0.") == true)
 
+        let invalidSelectedItemID = UUID()
+        let invalidSelectedProject = FilmProject(
+            items: [
+                FilmProjectItem(
+                    id: invalidSelectedItemID,
+                    displayName: "photo.png",
+                    originalURLPath: photoURL.path,
+                    selectedRecipeID: invalidCustomRecipe.id,
+                    adjustments: .defaults
+                )
+            ],
+            selectedItemID: invalidSelectedItemID,
+            customRecipes: [invalidCustomRecipe]
+        )
+        let invalidSelectedProjectURL = directory.appendingPathComponent("invalid-selected-custom-recipe.filmchef")
+        try ProjectStore().writeProject(invalidSelectedProject, to: invalidSelectedProjectURL)
+
+        let invalidSelectedEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        invalidSelectedEditor.loadRecipesIfNeeded()
+        invalidSelectedEditor.errorMessage = "Stale error"
+        invalidSelectedEditor.openProjectForTesting(from: invalidSelectedProjectURL)
+        try expect(invalidSelectedEditor.selectedRecipeID == invalidCustomRecipe.id)
+        try expect(invalidSelectedEditor.selectedRecipe == nil)
+        try expect(invalidSelectedEditor.errorMessage?.contains("Stale error") == false)
+        try expect(invalidSelectedEditor.errorMessage?.contains("output.bit_depth must be greater than 0.") == true)
+        try expect(invalidSelectedEditor.errorMessage?.contains("No matching recipe is available to render photo.png.") == true)
+
         let bundledRecipe = try require(editor.recipes.first { $0.id != customRecipe.id })
         let conflictingCustomRecipe = try mutatedRecipe(from: customRecipe) { object in
             setJSONValue(bundledRecipe.id, path: ["profile_id"], object: &object)
