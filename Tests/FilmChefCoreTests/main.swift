@@ -1878,6 +1878,17 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
       "schemaVersion": 1,
       "id": "\(partialProjectID.uuidString)",
       "name": "Partial Legacy Project",
+      "items": [
+        {
+          "originalURLPath": "/tmp/Legacy Photo.png"
+        }
+      ],
+      "editHistory": [
+        {
+          "note": "Legacy edit"
+        },
+        {}
+      ],
       "exportSettings": {
         "fileFormat": "png",
         "jpegQuality": 5,
@@ -1911,6 +1922,17 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
 
     let partialProject = try ProjectStore().loadProject(from: partialProjectURL)
     try expect(partialProject.id == partialProjectID)
+    let partialItem = try require(partialProject.items.first)
+    try expect(partialItem.displayName == "Legacy Photo.png")
+    try expect(partialItem.originalURLPath == "/tmp/Legacy Photo.png")
+    try expect(partialItem.adjustments == .defaults)
+    try expect(partialItem.localAdjustments.isEmpty)
+    try expect(partialItem.variants.isEmpty)
+    try expect(partialItem.updatedAt == partialItem.createdAt)
+    try expect(partialProject.editHistory.count == 2)
+    try expect(partialProject.editHistory[0].note == "Legacy edit")
+    try expect(partialProject.editHistory[0].adjustments == .defaults)
+    try expect(partialProject.editHistory[1].note == "Restored edit")
     try expect(partialProject.exportSettings.fileFormat == .png)
     try expect(partialProject.exportSettings.jpegQuality == 1.0)
     try expect(partialProject.exportSettings.scale == 0.25)
