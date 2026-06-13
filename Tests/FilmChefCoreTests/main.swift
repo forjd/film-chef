@@ -468,6 +468,9 @@ func testRecipeDisplayMetadataAccessors() throws {
     try expect(ColorOutputProfile(rawProfileName: "extended_srgb") == .extendedSRGB)
     try expect(ColorOutputProfile(rawProfileName: "linear_srgb") == .linearSRGB)
     try expect(ColorOutputProfile(rawProfileName: "unknown") == .sRGB)
+
+    let colorSettings = ColorManagementSettings(outputColorSpace: "Extended Linear sRGB")
+    try expect(colorSettings.outputColorSpace == ColorOutputProfile.extendedLinearSRGB.rawValue)
 }
 
 func testEveryBundledRecipeRendersSmallImageWithoutChangingExtent() throws {
