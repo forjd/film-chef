@@ -1,6 +1,8 @@
 import Foundation
 
 package struct CalibrationAssetParser {
+    private static let maxAssetByteCount = 16 * 1024 * 1024
+
     private enum CalibrationAssetKind {
         case spectral
         case density
@@ -41,6 +43,7 @@ package struct CalibrationAssetParser {
         var assetSummaries: [String] = []
 
         for url in urls {
+            try validateAssetSize(url)
             let name = url.lastPathComponent.lowercased()
             switch url.pathExtension.lowercased() {
             case "cube":
@@ -94,6 +97,20 @@ package struct CalibrationAssetParser {
             densityGamma: supportsDensity ? 1.0 + (densitySignal * 0.08) : 1.0,
             grainAmount: supportsGrain ? 0.035 + (grainSignal * 0.045) : 0.0,
             note: "Imported \(names.count) validated calibration asset\(names.count == 1 ? "" : "s")."
+        )
+    }
+
+    private func validateAssetSize(_ url: URL) throws {
+        let values = try url.resourceValues(forKeys: [.fileSizeKey])
+        guard let fileSize = values.fileSize,
+              fileSize > Self.maxAssetByteCount
+        else {
+            return
+        }
+
+        throw CalibrationImportError.invalidAsset(
+            url.lastPathComponent,
+            "Calibration assets must be 16 MB or smaller."
         )
     }
 
