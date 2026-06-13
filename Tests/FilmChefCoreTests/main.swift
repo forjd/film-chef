@@ -1163,9 +1163,9 @@ func testEditorPhotoImportPreviewControlsAndCache() throws {
         try expect(editor.errorMessage == nil)
         editor.handleImportResults(.failure(ImportError()))
         try expect(editor.errorMessage == "Import failed.")
-        editor.errorMessage = nil
 
         editor.handleImportResult(.success(sourceURL))
+        try expect(editor.errorMessage == nil)
         editor.importPhotoForTesting(from: importedViaTestingURL)
         editor.handleImportResults(.success([sourceURL]))
         try expect(editor.hasImportedImage)
@@ -1315,6 +1315,12 @@ func testEditorImporterPresentationFlagsResetOnCompletion() throws {
         relinkEditor.handleProjectRelinkResults(.success([]))
         relinkEditor.handleProjectRelinkResults(.success([replacementURL]))
         try expect(relinkEditor.project.items.first?.originalURLPath == originalPath)
+
+        relinkEditor.beginRelinkProjectItem(id: item.id)
+        relinkEditor.errorMessage = "Stale relink error."
+        relinkEditor.handleProjectRelinkResults(.success([replacementURL]))
+        try expect(relinkEditor.errorMessage == nil)
+        try expect(relinkEditor.project.items.first?.originalURLPath == replacementURL.path)
     }
 }
 
@@ -1555,6 +1561,8 @@ func testEditorCalibrationAssetImportVariants() throws {
         editor.errorMessage = nil
         editor.importCalibrationAssetsForTesting(from: [oversizedCalibrationURL])
         try expect(editor.errorMessage?.contains("Calibration assets must be 16 MB or smaller.") == true)
+        editor.importCalibrationAssetsForTesting(from: [domainLUTURL])
+        try expect(editor.errorMessage == nil)
     }
 }
 
@@ -1762,6 +1770,9 @@ func testEditorRecipeImportExportRoundTripAndFailureInjection() throws {
         }
         editor.clearRecipeImportStatus()
         try expect(editor.recipeImportStatus == nil)
+        editor.importRecipeForTesting(from: recipeExportURL)
+        try expect(editor.errorMessage == nil)
+        try expect(editor.recipeImportStatus?.title == "Recipe imported")
 
         let fallbackEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
         try expect(fallbackEditor.suggestedExportFileNameForTesting() == fallbackEditor.exportFileNamePreview)
