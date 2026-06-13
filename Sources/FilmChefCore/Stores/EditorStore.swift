@@ -2105,6 +2105,7 @@ public final class EditorStore: ObservableObject {
             previewCacheHitCount += 1
             isRenderingPreview = false
             previewRenderProgress = 1.0
+            clearRecipeResolutionErrorIfNeeded()
             previewRenderStatus = "Loaded cached preview"
             return
         }
@@ -2157,6 +2158,7 @@ public final class EditorStore: ObservableObject {
                 self.storePreviewRenderResult(result, for: cacheKey)
                 self.isRenderingPreview = false
                 self.previewRenderProgress = 1.0
+                self.clearRecipeResolutionErrorIfNeeded()
                 self.previewRenderStatus = "Preview ready"
             } catch {
                 guard generation == self.previewRenderGeneration else {
@@ -2203,6 +2205,7 @@ public final class EditorStore: ObservableObject {
             if generation == previewRenderGeneration {
                 isRenderingPreview = false
                 previewRenderProgress = 1.0
+                clearRecipeResolutionErrorIfNeeded()
                 previewRenderStatus = "Preview ready"
             }
         } catch {
@@ -2545,6 +2548,20 @@ public final class EditorStore: ObservableObject {
         previewRenderProgress = 0
         previewRenderStatus = status
         clearPixelSample(cancelPendingTask: true)
+    }
+
+    private func clearRecipeResolutionErrorIfNeeded() {
+        if previewRenderStatus == "Missing recipe" || previewRenderStatus == "Select a recipe" {
+            errorMessage = nil
+            return
+        }
+
+        guard let importedImageName,
+              errorMessage == EditorStoreError.missingRecipe(itemName: importedImageName).localizedDescription
+        else {
+            return
+        }
+        errorMessage = nil
     }
 
     private func clearLoadedPhotoState(previewStatus: String) {
