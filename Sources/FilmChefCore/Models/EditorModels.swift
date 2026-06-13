@@ -872,7 +872,7 @@ package struct ColorManagementSettings: Codable, Equatable, Hashable {
     ) {
         self.inputIntent = inputIntent
         self.workingColorSpace = workingColorSpace
-        self.outputColorSpace = outputColorSpace
+        self.outputColorSpace = ColorOutputProfile(rawProfileName: outputColorSpace).rawValue
         self.rawDevelopmentEnabled = rawDevelopmentEnabled
         self.rawDevelopment = rawDevelopment
     }
