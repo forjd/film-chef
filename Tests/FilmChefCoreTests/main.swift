@@ -1206,6 +1206,9 @@ func testEditorPhotoImportPreviewControlsAndCache() throws {
 }
 
 func testEditorImporterPresentationFlagsResetOnCompletion() throws {
+    let directory = try makeTemporaryTestDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+
     try MainActor.assumeIsolated {
         let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
 
@@ -1242,6 +1245,17 @@ func testEditorImporterPresentationFlagsResetOnCompletion() throws {
         try expect(editor.isRelinkingProjectPhoto)
         editor.handleProjectRelinkResults(.success([]))
         try expect(!editor.isRelinkingProjectPhoto)
+
+        let relinkEditor = try makeEditorWithImportedPhoto(named: "Relink Original.png", in: directory)
+        let item = try require(relinkEditor.project.items.first)
+        let originalPath = try require(item.originalURLPath)
+        let replacementURL = directory.appendingPathComponent("Relink Replacement.png")
+        try writeTestPNG(to: replacementURL)
+
+        relinkEditor.beginRelinkProjectItem(id: item.id)
+        relinkEditor.handleProjectRelinkResults(.success([]))
+        relinkEditor.handleProjectRelinkResults(.success([replacementURL]))
+        try expect(relinkEditor.project.items.first?.originalURLPath == originalPath)
     }
 }
 
