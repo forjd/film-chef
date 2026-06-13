@@ -1409,6 +1409,18 @@ func testEditorCalibrationAssetImportVariants() throws {
         editor.importCalibrationAssetsForTesting(from: [booleanOnlyCalibrationURL])
         try expect(editor.errorMessage?.contains("No numeric calibration values found.") == true)
 
+        let untypedJSONURL = directory.appendingPathComponent("calibration.json")
+        try #"{"values":[0.1,0.2,0.3]}"#.data(using: .utf8)?.write(to: untypedJSONURL)
+        editor.errorMessage = nil
+        editor.importCalibrationAssetsForTesting(from: [untypedJSONURL])
+        try expect(editor.errorMessage?.contains("Calibration type could not be inferred; use asset_type, asset_types, or a descriptive filename.") == true)
+
+        let untypedCSVURL = directory.appendingPathComponent("calibration.csv")
+        try "0.1,0.2,0.3\n".data(using: .utf8)?.write(to: untypedCSVURL)
+        editor.errorMessage = nil
+        editor.importCalibrationAssetsForTesting(from: [untypedCSVURL])
+        try expect(editor.errorMessage?.contains("Calibration type could not be inferred; use a descriptive filename.") == true)
+
         let oversizedCalibrationURL = directory.appendingPathComponent("oversized-calibration.csv")
         try Data(repeating: 0, count: (16 * 1024 * 1024) + 1).write(to: oversizedCalibrationURL)
         editor.errorMessage = nil
