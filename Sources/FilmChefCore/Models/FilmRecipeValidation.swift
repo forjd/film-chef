@@ -28,6 +28,7 @@ package enum FilmRecipeValidationError: LocalizedError, Equatable {
 
 package enum FilmRecipeValidator {
     package static let supportedSchemaVersions: Set<String> = ["1.0"]
+    private static let profileIDAllowedCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789-_")
 
     package static func validate(_ recipe: FilmRecipe) throws {
         let issues = issues(for: recipe)
@@ -47,7 +48,8 @@ package enum FilmRecipeValidator {
             issues.append(contentsOf: self.issues(for: recipe))
 
             let profileID = recipe.profileId.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !profileID.isEmpty, !seenProfileIDs.insert(profileID).inserted {
+            let normalizedProfileID = profileID.lowercased()
+            if !profileID.isEmpty, !seenProfileIDs.insert(normalizedProfileID).inserted {
                 issues.append(RecipeValidationIssue("Duplicate profile_id '\(profileID)' is not allowed."))
             }
         }
@@ -69,6 +71,7 @@ package enum FilmRecipeValidator {
         }
 
         requireNonEmpty(recipe.profileId, field: "profile_id", issues: &issues)
+        validateProfileID(recipe.profileId, issues: &issues)
         requireNonEmpty(recipe.displayName, field: "display_name", issues: &issues)
         requireNonEmpty(recipe.manufacturer, field: "manufacturer", issues: &issues)
         requireNonEmpty(recipe.summary, field: "summary", issues: &issues)
@@ -181,6 +184,20 @@ package enum FilmRecipeValidator {
     ) {
         if value <= 0 {
             issues.append(RecipeValidationIssue("\(field) must be greater than 0."))
+        }
+    }
+
+    private static func validateProfileID(_ value: String, issues: inout [RecipeValidationIssue]) {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty else {
+            return
+        }
+
+        if value != trimmedValue {
+            issues.append(RecipeValidationIssue("profile_id must not contain leading or trailing whitespace."))
+        }
+        if trimmedValue.rangeOfCharacter(from: profileIDAllowedCharacters.inverted) != nil {
+            issues.append(RecipeValidationIssue("profile_id must use lowercase ASCII letters, numbers, hyphens, or underscores only."))
         }
     }
 
