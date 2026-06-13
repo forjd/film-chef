@@ -1524,6 +1524,7 @@ public final class EditorStore: ObservableObject {
             let loadedProject = try projectStore.loadProject(from: url)
             suppressSettingsUpdates = true
             project = loadedProject
+            discardProjectScopedRecipes()
             restoreCustomRecipes(loadedProject.customRecipes)
             editHistory = loadedProject.editHistory
             editHistoryIndex = loadedProject.editHistoryIndex
@@ -1546,6 +1547,17 @@ public final class EditorStore: ObservableObject {
             suppressSettingsUpdates = false
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func discardProjectScopedRecipes() {
+        guard !editableRecipeIDs.isEmpty else {
+            return
+        }
+
+        let projectRecipeIDs = editableRecipeIDs
+        recipes.removeAll { projectRecipeIDs.contains($0.id) }
+        editableRecipeIDs.removeAll()
+        invalidateRecipeValidationCache()
     }
 
     private func restoreCustomRecipes(_ customRecipes: [FilmRecipe]) {

@@ -2374,6 +2374,17 @@ func testProjectPersistsCustomRecipes() throws {
         try expect(coldEditor.recipes.contains { $0.id == customRecipe.id })
         try expect(coldEditor.recipes.count > 1, "Bundled recipes should still load after opening a project.")
 
+        let plainProjectURL = directory.appendingPathComponent("plain-project.filmchef")
+        try ProjectStore().writeProject(FilmProject(name: "Plain Project"), to: plainProjectURL)
+        editor.openProjectForTesting(from: plainProjectURL)
+        try expect(!editor.recipes.contains { $0.id == customRecipe.id })
+        try expect(!editor.editableRecipeIDs.contains(customRecipe.id))
+
+        let resavedPlainProjectURL = directory.appendingPathComponent("resaved-plain-project.filmchef")
+        editor.saveProjectForTesting(to: resavedPlainProjectURL)
+        let resavedPlainProject = try ProjectStore().loadProject(from: resavedPlainProjectURL)
+        try expect(resavedPlainProject.customRecipes.isEmpty, "Opening a plain project must not carry over stale custom recipes.")
+
         var projectWithInvalidRecipe = try ProjectStore().loadProject(from: projectURL)
         let invalidCustomRecipe = try mutatedRecipe(from: customRecipe) { object in
             setJSONValue("broken_custom_recipe", path: ["profile_id"], object: &object)
