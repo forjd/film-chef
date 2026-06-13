@@ -1907,6 +1907,11 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     try expect(unnamedProject.exportSettings == .defaults)
 
     let partialProjectID = UUID()
+    let duplicateItemID = UUID()
+    let duplicateLayerID = UUID()
+    let duplicateVariantID = UUID()
+    let duplicateVariantLayerID = UUID()
+    let duplicateHistoryID = UUID()
     let duplicatePresetID = UUID()
     let partialProjectURL = directory.appendingPathComponent("Partial Legacy.filmchef")
     try """
@@ -1916,6 +1921,8 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
       "name": "Partial Legacy Project",
       "items": [
         {
+          "id": "\(duplicateItemID.uuidString)",
+          "displayName": "   ",
           "originalURLPath": "/tmp/Legacy Photo.png",
           "adjustments": {
             "intensity": 9,
@@ -1925,6 +1932,8 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
           },
           "localAdjustments": [
             {
+              "id": "\(duplicateLayerID.uuidString)",
+              "name": "   ",
               "mask": "brush",
               "centerX": -1,
               "centerY": 2,
@@ -1937,25 +1946,51 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
               "exposureEV": 9,
               "contrast": -9,
               "saturation": 9
+            },
+            {
+              "id": "\(duplicateLayerID.uuidString)",
+              "name": "Second Layer"
             }
           ],
           "variants": [
             {
+              "id": "\(duplicateVariantID.uuidString)",
+              "note": "  Variant One  ",
               "adjustments": {
                 "grainEnabled": false
               },
               "localAdjustments": [
-                {}
+                {
+                  "id": "\(duplicateVariantLayerID.uuidString)",
+                  "name": "   "
+                },
+                {
+                  "id": "\(duplicateVariantLayerID.uuidString)",
+                  "name": "Variant Layer 2"
+                }
               ]
+            },
+            {
+              "id": "\(duplicateVariantID.uuidString)",
+              "note": "   "
             }
           ]
+        },
+        {
+          "id": "\(duplicateItemID.uuidString)",
+          "originalURLPath": "/tmp/Second Legacy.png",
+          "adjustments": {}
         }
       ],
       "editHistory": [
         {
-          "note": "Legacy edit"
+          "id": "\(duplicateHistoryID.uuidString)",
+          "note": "  Legacy edit  "
         },
-        {}
+        {
+          "id": "\(duplicateHistoryID.uuidString)",
+          "note": "   "
+        }
       ],
       "exportSettings": {
         "fileFormat": "png",
@@ -2000,15 +2035,24 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
 
     let partialProject = try ProjectStore().loadProject(from: partialProjectURL)
     try expect(partialProject.id == partialProjectID)
+    try expect(partialProject.items.count == 2)
+    try expect(Set(partialProject.items.map(\.id)).count == partialProject.items.count)
     let partialItem = try require(partialProject.items.first)
+    try expect(partialItem.id == duplicateItemID)
     try expect(partialItem.displayName == "Legacy Photo.png")
     try expect(partialItem.originalURLPath == "/tmp/Legacy Photo.png")
+    try expect(partialProject.items.last?.id != duplicateItemID)
+    try expect(partialProject.items.last?.displayName == "Second Legacy.png")
     try expect(partialItem.adjustments.intensity == 1.0)
     try expect(partialItem.adjustments.exposureTrim == -1.0)
     try expect(partialItem.adjustments.contrastTrim == 0.5)
     try expect(partialItem.adjustments.saturationTrim == -0.75)
     try expect(partialItem.adjustments.grainEnabled)
+    try expect(partialItem.localAdjustments.count == 2)
+    try expect(Set(partialItem.localAdjustments.map(\.id)).count == partialItem.localAdjustments.count)
     let restoredLayer = try require(partialItem.localAdjustments.first)
+    try expect(restoredLayer.id == duplicateLayerID)
+    try expect(partialItem.localAdjustments.last?.id != duplicateLayerID)
     try expect(restoredLayer.name == "Local Adjustment")
     try expect(restoredLayer.mask == .brush)
     try expect(restoredLayer.centerX == 0)
@@ -2020,13 +2064,25 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     try expect(restoredLayer.exposureEV == 1)
     try expect(restoredLayer.contrast == -0.5)
     try expect(restoredLayer.saturation == 0.75)
-    try expect(partialItem.variants.first?.localAdjustments.first?.name == "Local Adjustment")
-    try expect(partialItem.variants.first?.adjustments.intensity == RenderAdjustments.defaults.intensity)
-    try expect(partialItem.variants.first?.adjustments.grainEnabled == false)
+    try expect(partialItem.variants.count == 2)
+    try expect(Set(partialItem.variants.map(\.id)).count == partialItem.variants.count)
+    let partialVariant = try require(partialItem.variants.first)
+    try expect(partialVariant.id == duplicateVariantID)
+    try expect(partialVariant.note == "Variant One")
+    try expect(partialItem.variants.last?.id != duplicateVariantID)
+    try expect(partialItem.variants.last?.note == "Restored edit")
+    try expect(partialVariant.localAdjustments.first?.name == "Local Adjustment")
+    try expect(partialVariant.localAdjustments.first?.id == duplicateVariantLayerID)
+    try expect(Set(partialVariant.localAdjustments.map(\.id)).count == partialVariant.localAdjustments.count)
+    try expect(partialVariant.adjustments.intensity == RenderAdjustments.defaults.intensity)
+    try expect(partialVariant.adjustments.grainEnabled == false)
     try expect(partialItem.updatedAt == partialItem.createdAt)
     try expect(partialProject.editHistory.count == 2)
+    try expect(Set(partialProject.editHistory.map(\.id)).count == partialProject.editHistory.count)
+    try expect(partialProject.editHistory[0].id == duplicateHistoryID)
     try expect(partialProject.editHistory[0].note == "Legacy edit")
     try expect(partialProject.editHistory[0].adjustments == .defaults)
+    try expect(partialProject.editHistory[1].id != duplicateHistoryID)
     try expect(partialProject.editHistory[1].note == "Restored edit")
     try expect(partialProject.exportSettings.fileFormat == .png)
     try expect(partialProject.exportSettings.jpegQuality == 1.0)

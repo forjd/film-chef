@@ -1,5 +1,44 @@
 import Foundation
 
+private func valuesWithUniqueIDs<Value>(
+    _ values: [Value],
+    id: (Value) -> UUID,
+    replacingDuplicateWith makeFreshValue: (Value) -> Value
+) -> [Value] {
+    var seenIDs: Set<UUID> = []
+    return values.map { value in
+        guard !seenIDs.insert(id(value)).inserted else {
+            return value
+        }
+
+        var repairedValue = makeFreshValue(value)
+        while !seenIDs.insert(id(repairedValue)).inserted {
+            repairedValue = makeFreshValue(value)
+        }
+        return repairedValue
+    }
+}
+
+private func fallbackDisplayName(for originalURLPath: String?) -> String {
+    guard let originalURLPath,
+          !originalURLPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else {
+        return "Missing Photo"
+    }
+
+    let fallbackName = URL(fileURLWithPath: originalURLPath).lastPathComponent
+    return fallbackName.isEmpty ? "Missing Photo" : fallbackName
+}
+
+private func restoredName(_ decodedName: String?, fallback: String) -> String {
+    guard let decodedName else {
+        return fallback
+    }
+
+    let trimmedName = decodedName.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmedName.isEmpty ? fallback : trimmedName
+}
+
 package struct FilmProject: Codable, Equatable {
     package var schemaVersion: Int
     package var id: UUID
@@ -57,13 +96,17 @@ package struct FilmProject: Codable, Equatable {
         let decodedName = try container.decodeIfPresent(String.self, forKey: .name) ?? "Untitled Film Chef Project"
         let trimmedName = decodedName.trimmingCharacters(in: .whitespacesAndNewlines)
         name = trimmedName.isEmpty ? "Untitled Film Chef Project" : trimmedName
-        items = try container.decodeIfPresent([FilmProjectItem].self, forKey: .items) ?? []
+        items = Self.normalizedProjectItems(
+            try container.decodeIfPresent([FilmProjectItem].self, forKey: .items) ?? []
+        )
         selectedItemID = try container.decodeIfPresent(UUID.self, forKey: .selectedItemID)
-        editHistory = try container.decodeIfPresent([EditSnapshot].self, forKey: .editHistory) ?? []
+        editHistory = EditSnapshot.normalizedIDs(
+            try container.decodeIfPresent([EditSnapshot].self, forKey: .editHistory) ?? []
+        )
         editHistoryIndex = try container.decodeIfPresent(Int.self, forKey: .editHistoryIndex)
         customRecipes = try container.decodeIfPresent([FilmRecipe].self, forKey: .customRecipes) ?? []
         exportSettings = try container.decodeIfPresent(ExportSettings.self, forKey: .exportSettings) ?? .defaults
-        exportPresets = Self.normalizedExportPresets(
+        exportPresets = ExportPreset.normalizedIDs(
             try container.decodeIfPresent([ExportPreset].self, forKey: .exportPresets) ?? ExportPreset.defaults
         )
         colorManagementSettings = try container.decodeIfPresent(ColorManagementSettings.self, forKey: .colorManagementSettings) ?? .defaults
@@ -72,13 +115,11 @@ package struct FilmProject: Codable, Equatable {
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
     }
 
-    private static func normalizedExportPresets(_ presets: [ExportPreset]) -> [ExportPreset] {
-        var seenIDs: Set<UUID> = []
-        return presets.map { preset in
-            guard seenIDs.insert(preset.id).inserted else {
-                return ExportPreset(name: preset.name, settings: preset.settings)
-            }
-            return preset
+    private static func normalizedProjectItems(_ items: [FilmProjectItem]) -> [FilmProjectItem] {
+        valuesWithUniqueIDs(items, id: { $0.id }) { item in
+            var repairedItem = item
+            repairedItem.id = UUID()
+            return repairedItem
         }
     }
 }
@@ -126,14 +167,19 @@ package struct FilmProjectItem: Codable, Equatable, Identifiable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         originalURLPath = try container.decodeIfPresent(String.self, forKey: .originalURLPath)
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        displayName = try container.decodeIfPresent(String.self, forKey: .displayName) ??
-            originalURLPath.map { URL(fileURLWithPath: $0).lastPathComponent } ??
-            "Missing Photo"
+        displayName = restoredName(
+            try container.decodeIfPresent(String.self, forKey: .displayName),
+            fallback: fallbackDisplayName(for: originalURLPath)
+        )
         originalBookmarkData = try container.decodeIfPresent(Data.self, forKey: .originalBookmarkData)
         selectedRecipeID = try container.decodeIfPresent(String.self, forKey: .selectedRecipeID)
         adjustments = try container.decodeIfPresent(RenderAdjustments.self, forKey: .adjustments) ?? .defaults
-        localAdjustments = try container.decodeIfPresent([LocalAdjustmentLayer].self, forKey: .localAdjustments) ?? []
-        variants = try container.decodeIfPresent([EditSnapshot].self, forKey: .variants) ?? []
+        localAdjustments = LocalAdjustmentLayer.normalizedIDs(
+            try container.decodeIfPresent([LocalAdjustmentLayer].self, forKey: .localAdjustments) ?? []
+        )
+        variants = EditSnapshot.normalizedIDs(
+            try container.decodeIfPresent([EditSnapshot].self, forKey: .variants) ?? []
+        )
         variantIndex = try container.decodeIfPresent(Int.self, forKey: .variantIndex)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
@@ -174,10 +220,25 @@ package struct EditSnapshot: Codable, Equatable, Identifiable {
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         recipeID = try container.decodeIfPresent(String.self, forKey: .recipeID)
         adjustments = try container.decodeIfPresent(RenderAdjustments.self, forKey: .adjustments) ?? .defaults
-        localAdjustments = try container.decodeIfPresent([LocalAdjustmentLayer].self, forKey: .localAdjustments) ?? []
-        note = try container.decodeIfPresent(String.self, forKey: .note) ?? "Restored edit"
+        localAdjustments = LocalAdjustmentLayer.normalizedIDs(
+            try container.decodeIfPresent([LocalAdjustmentLayer].self, forKey: .localAdjustments) ?? []
+        )
+        note = restoredName(
+            try container.decodeIfPresent(String.self, forKey: .note),
+            fallback: "Restored edit"
+        )
         isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+    }
+}
+
+extension EditSnapshot {
+    fileprivate static func normalizedIDs(_ snapshots: [EditSnapshot]) -> [EditSnapshot] {
+        valuesWithUniqueIDs(snapshots, id: { $0.id }) { snapshot in
+            var repairedSnapshot = snapshot
+            repairedSnapshot.id = UUID()
+            return repairedSnapshot
+        }
     }
 }
 
@@ -261,7 +322,10 @@ package struct LocalAdjustmentLayer: Codable, Equatable, Hashable, Identifiable 
     package init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Local Adjustment"
+        name = restoredName(
+            try container.decodeIfPresent(String.self, forKey: .name),
+            fallback: "Local Adjustment"
+        )
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
         mask = (try? container.decodeIfPresent(LocalAdjustmentMask.self, forKey: .mask)) ?? .radial
         centerX = Self.clamped(
@@ -362,6 +426,16 @@ package struct LocalAdjustmentLayer: Codable, Equatable, Hashable, Identifiable 
 
     private static func clamped(_ value: Double, lower: Double, upper: Double) -> Double {
         min(max(value, lower), upper)
+    }
+}
+
+extension LocalAdjustmentLayer {
+    fileprivate static func normalizedIDs(_ layers: [LocalAdjustmentLayer]) -> [LocalAdjustmentLayer] {
+        valuesWithUniqueIDs(layers, id: { $0.id }) { layer in
+            var repairedLayer = layer
+            repairedLayer.id = UUID()
+            return repairedLayer
+        }
     }
 }
 
@@ -531,6 +605,16 @@ package struct ExportPreset: Codable, Equatable, Hashable, Identifiable {
         case id
         case name
         case settings
+    }
+}
+
+extension ExportPreset {
+    fileprivate static func normalizedIDs(_ presets: [ExportPreset]) -> [ExportPreset] {
+        valuesWithUniqueIDs(presets, id: { $0.id }) { preset in
+            var repairedPreset = preset
+            repairedPreset.id = UUID()
+            return repairedPreset
+        }
     }
 }
 
