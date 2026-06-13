@@ -1949,12 +1949,15 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
       },
       "exportPresets": [
         {
-          "name": "Legacy TIFF",
+          "name": "  Legacy TIFF  ",
           "settings": {
             "fileFormat": "tiff",
             "jpegQuality": -1,
             "scale": 9
           }
+        },
+        {
+          "name": "   "
         }
       ],
       "colorManagementSettings": {
@@ -2017,6 +2020,7 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     try expect(partialPreset.settings.fileFormat == .tiff)
     try expect(partialPreset.settings.jpegQuality == 0.1)
     try expect(partialPreset.settings.scale == 2.0)
+    try expect(partialProject.exportPresets.last?.name == "Custom Preset")
     try expect(partialProject.colorManagementSettings.inputIntent == ColorManagementSettings.defaults.inputIntent)
     try expect(partialProject.colorManagementSettings.outputColorSpace == "display_p3")
     try expect(partialProject.colorManagementSettings.rawDevelopment.exposureEV == 2.0)
