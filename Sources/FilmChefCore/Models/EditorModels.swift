@@ -501,7 +501,9 @@ package struct ExportPreset: Codable, Equatable, Hashable, Identifiable {
     package init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Custom Preset"
+        let decodedName = try container.decodeIfPresent(String.self, forKey: .name) ?? "Custom Preset"
+        let trimmedName = decodedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        name = trimmedName.isEmpty ? "Custom Preset" : trimmedName
         settings = try container.decodeIfPresent(ExportSettings.self, forKey: .settings) ?? .defaults
     }
 
