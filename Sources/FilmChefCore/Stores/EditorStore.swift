@@ -734,6 +734,7 @@ public final class EditorStore: ObservableObject {
     }
 
     package func handleImportResult(_ result: Result<URL, Error>) {
+        isImporting = false
         switch result {
         case .success(let url):
             importPhoto(from: url)
@@ -743,6 +744,7 @@ public final class EditorStore: ObservableObject {
     }
 
     package func handleImportResults(_ result: Result<[URL], Error>) {
+        isImporting = false
         switch result {
         case .success(let urls):
             importPhotos(from: urls)
@@ -752,6 +754,7 @@ public final class EditorStore: ObservableObject {
     }
 
     package func handleRecipeImportResults(_ result: Result<[URL], Error>) {
+        isImportingRecipe = false
         switch result {
         case .success(let urls):
             guard let url = urls.first else {
@@ -765,6 +768,7 @@ public final class EditorStore: ObservableObject {
     }
 
     package func handleCalibrationImportResults(_ result: Result<[URL], Error>) {
+        isImportingCalibration = false
         switch result {
         case .success(let urls):
             importCalibrationAssets(from: urls)
@@ -774,6 +778,7 @@ public final class EditorStore: ObservableObject {
     }
 
     package func handleProjectOpenResults(_ result: Result<[URL], Error>) {
+        isOpeningProject = false
         switch result {
         case .success(let urls):
             guard let url = urls.first else {
@@ -787,6 +792,7 @@ public final class EditorStore: ObservableObject {
     }
 
     package func handleProjectRelinkResults(_ result: Result<[URL], Error>) {
+        isRelinkingProjectPhoto = false
         switch result {
         case .success(let urls):
             guard let url = urls.first,

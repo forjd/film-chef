@@ -1177,6 +1177,46 @@ func testEditorPhotoImportPreviewControlsAndCache() throws {
     }
 }
 
+func testEditorImporterPresentationFlagsResetOnCompletion() throws {
+    try MainActor.assumeIsolated {
+        let editor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+
+        struct ImportError: LocalizedError {
+            var errorDescription: String? { "Import failed." }
+        }
+
+        editor.beginImport()
+        try expect(editor.isImporting)
+        editor.handleImportResults(.success([]))
+        try expect(!editor.isImporting)
+
+        editor.beginImport()
+        editor.handleImportResult(.failure(ImportError()))
+        try expect(!editor.isImporting)
+
+        editor.beginRecipeImport()
+        try expect(editor.isImportingRecipe)
+        editor.handleRecipeImportResults(.success([]))
+        try expect(!editor.isImportingRecipe)
+
+        editor.beginCalibrationImport()
+        try expect(editor.isImportingCalibration)
+        editor.handleCalibrationImportResults(.success([]))
+        try expect(!editor.isImportingCalibration)
+
+        editor.beginProjectOpen()
+        try expect(editor.isOpeningProject)
+        editor.handleProjectOpenResults(.success([]))
+        try expect(!editor.isOpeningProject)
+
+        let relinkID = UUID()
+        editor.beginRelinkProjectItem(id: relinkID)
+        try expect(editor.isRelinkingProjectPhoto)
+        editor.handleProjectRelinkResults(.success([]))
+        try expect(!editor.isRelinkingProjectPhoto)
+    }
+}
+
 func testEditorLocalAdjustmentMasksAndVariantLifecycle() throws {
     let directory = try makeTemporaryTestDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -2441,6 +2481,7 @@ let tests: [TestCase] = [
     TestCase(name: "write rendered image encodes PNG and JPEG", run: testWriteRenderedImageEncodesPngAndJpeg),
     TestCase(name: "editor recipe selection duplication and draft basics", run: testEditorRecipeSelectionDuplicationAndDraftBasics),
     TestCase(name: "editor photo import preview controls and cache", run: testEditorPhotoImportPreviewControlsAndCache),
+    TestCase(name: "editor importer presentation flags reset on completion", run: testEditorImporterPresentationFlagsResetOnCompletion),
     TestCase(name: "editor local adjustment masks and variant lifecycle", run: testEditorLocalAdjustmentMasksAndVariantLifecycle),
     TestCase(name: "editor pixel sampling and marker clamping", run: testEditorPixelSamplingAndMarkerClamping),
     TestCase(name: "editor calibration asset import variants", run: testEditorCalibrationAssetImportVariants),
