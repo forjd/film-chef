@@ -53,8 +53,10 @@ package struct FilmProject: Codable, Equatable {
     package init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
-        id = try container.decode(UUID.self, forKey: .id)
-        name = try container.decode(String.self, forKey: .name)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        let decodedName = try container.decodeIfPresent(String.self, forKey: .name) ?? "Untitled Film Chef Project"
+        let trimmedName = decodedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        name = trimmedName.isEmpty ? "Untitled Film Chef Project" : trimmedName
         items = try container.decodeIfPresent([FilmProjectItem].self, forKey: .items) ?? []
         selectedItemID = try container.decodeIfPresent(UUID.self, forKey: .selectedItemID)
         editHistory = try container.decodeIfPresent([EditSnapshot].self, forKey: .editHistory) ?? []

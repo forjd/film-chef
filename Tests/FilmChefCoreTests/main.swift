@@ -1892,6 +1892,20 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     try expect(project.calibrationDataStatus == .descriptiveOnly)
     try expect(project.updatedAt == project.createdAt)
 
+    let unnamedProjectURL = directory.appendingPathComponent("Unnamed Legacy.filmchef")
+    try """
+    {
+      "schemaVersion": 1,
+      "name": "   "
+    }
+    """.data(using: .utf8)?.write(to: unnamedProjectURL)
+
+    let unnamedProject = try ProjectStore().loadProject(from: unnamedProjectURL)
+    try expect(unnamedProject.schemaVersion == 1)
+    try expect(unnamedProject.name == "Untitled Film Chef Project")
+    try expect(unnamedProject.items.isEmpty)
+    try expect(unnamedProject.exportSettings == .defaults)
+
     let partialProjectID = UUID()
     let partialProjectURL = directory.appendingPathComponent("Partial Legacy.filmchef")
     try """
