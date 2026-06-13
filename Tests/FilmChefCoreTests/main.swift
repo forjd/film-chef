@@ -1190,6 +1190,15 @@ func testEditorPhotoImportPreviewControlsAndCache() throws {
         try expect(editor.currentAdjustments.intensity == 0.33)
         try expect(editor.project.items.first { $0.id == sourceItem.id }?.adjustments.intensity == 0.33)
 
+        editor.selectProjectItem(id: otherItem.id)
+        editor.intensity = 0.72
+        editor.importPhotoForTesting(from: sourceURL)
+        try expect(editor.project.items.count == 2)
+        try expect(editor.project.selectedItemID == sourceItem.id)
+        try expect(editor.currentAdjustments.intensity == 0.33)
+        try expect(editor.project.items.first { $0.id == sourceItem.id }?.adjustments.intensity == 0.33)
+        try expect(editor.project.items.first { $0.id == otherItem.id }?.adjustments.intensity == 0.72)
+
         editor.showOriginal = true
         try expect(editor.displayedPreviewImage === editor.originalPreviewImage)
         editor.comparisonMode = .split
