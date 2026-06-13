@@ -2260,6 +2260,52 @@ func testRendererAdjustmentInvariants() throws {
     let source = CIImage(color: CIColor(red: 0.45, green: 0.42, blue: 0.40, alpha: 1.0))
         .cropped(to: CGRect(x: 0, y: 0, width: 16, height: 12))
 
+    let boundedAdjustments = RenderAdjustments(
+        intensity: 9,
+        exposureTrim: -9,
+        contrastTrim: 9,
+        saturationTrim: -9,
+        grainEnabled: false
+    )
+    try expect(boundedAdjustments.intensity == 1)
+    try expect(boundedAdjustments.exposureTrim == -1)
+    try expect(boundedAdjustments.contrastTrim == 0.5)
+    try expect(boundedAdjustments.saturationTrim == -0.75)
+    try expect(!boundedAdjustments.grainEnabled)
+
+    let boundedLayer = LocalAdjustmentLayer(
+        name: "Bounds",
+        centerX: -1,
+        centerY: 2,
+        radius: 9,
+        feather: -4,
+        brushSize: 9,
+        pathPoints: [NormalizedMaskPoint(x: -0.5, y: 1.5)],
+        exposureEV: 9,
+        contrast: -9,
+        saturation: 9
+    )
+    try expect(boundedLayer.centerX == 0)
+    try expect(boundedLayer.centerY == 1)
+    try expect(boundedLayer.radius == 1)
+    try expect(boundedLayer.feather == 0)
+    try expect(boundedLayer.brushSize == 0.5)
+    try expect(boundedLayer.pathPoints == [NormalizedMaskPoint(x: 0, y: 1)])
+    try expect(boundedLayer.exposureEV == 1)
+    try expect(boundedLayer.contrast == -0.5)
+    try expect(boundedLayer.saturation == 0.75)
+
+    let boundedRaw = RawDevelopmentSettings(
+        exposureEV: 9,
+        temperatureK: 99_999,
+        tint: -5,
+        highlightRecovery: 4
+    )
+    try expect(boundedRaw.exposureEV == 2)
+    try expect(boundedRaw.temperatureK == 9_000)
+    try expect(boundedRaw.tint == -1)
+    try expect(boundedRaw.highlightRecovery == 1)
+
     func averageChannels(_ adjustments: RenderAdjustments) -> (red: Double, green: Double, blue: Double) {
         let bytes = renderBytes(
             renderer.render(source: source, recipe: recipe, adjustments: adjustments),
