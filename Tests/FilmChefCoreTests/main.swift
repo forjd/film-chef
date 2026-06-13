@@ -2356,20 +2356,53 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         try expect(batchFiles.count == 2)
 
         let missingItemID = UUID()
+        let missingAdjustments = RenderAdjustments(
+            intensity: 0.65,
+            exposureTrim: -0.2,
+            contrastTrim: 0.15,
+            saturationTrim: 0.25,
+            grainEnabled: false
+        )
+        let missingLocalAdjustment = LocalAdjustmentLayer(
+            name: "Missing Photo Dodge",
+            exposureEV: 0.2
+        )
         let missingProject = FilmProject(
             items: [
                 FilmProjectItem(
                     id: missingItemID,
                     displayName: "Missing Photo.png",
                     originalURLPath: directory.appendingPathComponent("missing-photo.png").path,
-                    selectedRecipeID: reopened.selectedRecipeID,
-                    adjustments: RenderAdjustments.defaults
+                    selectedRecipeID: nil,
+                    adjustments: missingAdjustments,
+                    localAdjustments: [missingLocalAdjustment],
+                    variants: [
+                        EditSnapshot(
+                            recipeID: nil,
+                            adjustments: missingAdjustments,
+                            localAdjustments: [missingLocalAdjustment],
+                            note: "Missing edit"
+                        )
+                    ],
+                    variantIndex: 0
                 )
             ],
             selectedItemID: missingItemID
         )
         let missingProjectURL = directory.appendingPathComponent("Missing Project.filmchef")
         try ProjectStore().writeProject(missingProject, to: missingProjectURL)
+
+        reopened.openProjectForTesting(from: missingProjectURL)
+        try expect(!reopened.hasImportedImage)
+        try expect(reopened.projectItemNeedingRelinkID == missingItemID)
+        try expect(reopened.selectedRecipeID == nil)
+        try expect(reopened.currentAdjustments == missingAdjustments)
+        try expect(reopened.localAdjustments == [missingLocalAdjustment])
+        try expect(reopened.editHistory.count == 1)
+        try expect(reopened.editHistoryIndex == 0)
+        try expect(reopened.editedPreviewImage == nil)
+        try expect(reopened.histogramSummary == nil)
+        try expect(reopened.previewRenderStatus == "Photo needs relinking")
 
         let relinkEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
         relinkEditor.loadRecipesIfNeeded()

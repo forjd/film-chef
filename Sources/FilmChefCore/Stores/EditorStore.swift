@@ -2454,6 +2454,8 @@ public final class EditorStore: ObservableObject {
     }
 
     private func applyProjectItem(_ item: FilmProjectItem) {
+        applyProjectItemEditState(item)
+
         do {
             let url = try resolveAndRefreshPhotoURL(for: item)
             let didStartAccessing = url.startAccessingSecurityScopedResource()
@@ -2468,20 +2470,8 @@ public final class EditorStore: ObservableObject {
             sourceURL = url
             importedImageName = item.displayName
             originalPreviewImage = try imageProcessor.makePreviewImage(from: loadedImage)
-
-            suppressPreviewUpdates = true
-            selectedRecipeID = item.selectedRecipeID
-            intensity = item.adjustments.intensity
-            exposureTrim = item.adjustments.exposureTrim
-            contrastTrim = item.adjustments.contrastTrim
-            saturationTrim = item.adjustments.saturationTrim
-            grainEnabled = item.adjustments.grainEnabled
-            localAdjustments = item.localAdjustments
-            selectedLocalAdjustmentID = localAdjustments.first?.id
-            suppressPreviewUpdates = false
             comparisonMode = .edited
 
-            restoreEditHistory(for: item)
             if projectItemNeedingRelinkID == item.id {
                 projectItemNeedingRelinkID = nil
             }
@@ -2496,10 +2486,31 @@ public final class EditorStore: ObservableObject {
             originalPreviewImage = nil
             editedPreviewImage = nil
             histogramSummary = nil
+            previewRenderTask?.cancel()
+            previewRenderGeneration += 1
+            isRenderingPreview = false
+            previewRenderProgress = 0
+            previewRenderStatus = "Photo needs relinking"
+            localMaskEditingEnabled = false
             clearPixelSample(cancelPendingTask: true)
+            clearPreviewCache()
             projectItemNeedingRelinkID = item.id
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func applyProjectItemEditState(_ item: FilmProjectItem) {
+        suppressPreviewUpdates = true
+        selectedRecipeID = item.selectedRecipeID
+        intensity = item.adjustments.intensity
+        exposureTrim = item.adjustments.exposureTrim
+        contrastTrim = item.adjustments.contrastTrim
+        saturationTrim = item.adjustments.saturationTrim
+        grainEnabled = item.adjustments.grainEnabled
+        localAdjustments = item.localAdjustments
+        selectedLocalAdjustmentID = localAdjustments.first?.id
+        suppressPreviewUpdates = false
+        restoreEditHistory(for: item)
     }
 
     private func resolveAndRefreshPhotoURL(for item: FilmProjectItem) throws -> URL {
