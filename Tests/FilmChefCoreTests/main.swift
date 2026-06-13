@@ -1405,6 +1405,55 @@ func testEditorExportPresetsNamingTemplatesAndBatchExport() throws {
     }
 }
 
+func testExportNamingBoundsLongFileComponentsAndCollisions() throws {
+    let directory = try makeTemporaryTestDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let recipes = try loadTestRecipes()
+    let recipe = try require(recipes.first).replacingMetadata(
+        displayName: String(repeating: "Very Long Recipe Name ", count: 20)
+    )
+    let item = FilmProjectItem(
+        displayName: "\(String(repeating: "Long Photo Name ", count: 20)).png",
+        originalURLPath: nil,
+        selectedRecipeID: recipe.id,
+        adjustments: .defaults
+    )
+    let settings = ExportSettings(
+        fileFormat: .jpeg,
+        namingTemplate: "{photo}-{recipe}"
+    )
+
+    let fileName = EditorStore.exportFileName(
+        item: item,
+        recipe: recipe,
+        settings: settings
+    )
+    let baseName = URL(fileURLWithPath: fileName)
+        .deletingPathExtension()
+        .lastPathComponent
+    try expect(fileName.hasSuffix(".jpg"))
+    try expect(baseName.utf8.count <= 180, "Export base names should leave room for suffixes and extensions.")
+
+    let firstURL = EditorStore.uniqueExportURL(
+        in: directory,
+        item: item,
+        recipe: recipe,
+        settings: settings
+    )
+    try expect(firstURL.lastPathComponent == fileName)
+    try Data().write(to: firstURL)
+
+    let secondURL = EditorStore.uniqueExportURL(
+        in: directory,
+        item: item,
+        recipe: recipe,
+        settings: settings
+    )
+    try expect(secondURL.lastPathComponent.hasSuffix("-2.jpg"))
+    try expect(secondURL.lastPathComponent.utf8.count <= 255)
+}
+
 func testEditorRecipeImportExportRoundTripAndFailureInjection() throws {
     let directory = try makeTemporaryTestDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -2284,6 +2333,7 @@ let tests: [TestCase] = [
     TestCase(name: "editor pixel sampling and marker clamping", run: testEditorPixelSamplingAndMarkerClamping),
     TestCase(name: "editor calibration asset import variants", run: testEditorCalibrationAssetImportVariants),
     TestCase(name: "editor export presets naming templates and batch export", run: testEditorExportPresetsNamingTemplatesAndBatchExport),
+    TestCase(name: "export naming bounds long file components and collisions", run: testExportNamingBoundsLongFileComponentsAndCollisions),
     TestCase(name: "editor recipe import export round trip and failure injection", run: testEditorRecipeImportExportRoundTripAndFailureInjection),
     TestCase(name: "editor split sampler uses visible image side", run: testEditorSplitSamplerUsesVisibleImageSide),
     TestCase(name: "editor recipe draft editing flow", run: testEditorRecipeDraftEditingFlow),

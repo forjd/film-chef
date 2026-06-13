@@ -1,5 +1,9 @@
 import Foundation
 
+private enum ExportNamingLimits {
+    static let maxBaseNameByteCount = 180
+}
+
 extension EditorStore {
     package static func exportNamingTemplateIssues(for template: String) -> [String] {
         let trimmed = template.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -92,6 +96,33 @@ extension EditorStore {
             .replacingOccurrences(of: " ", with: "-")
             .lowercased()
 
-        return cleaned.isEmpty ? "photo" : cleaned
+        return truncatedFileComponent(
+            cleaned.isEmpty ? "photo" : cleaned,
+            maxByteCount: ExportNamingLimits.maxBaseNameByteCount
+        )
+    }
+
+    nonisolated private static func truncatedFileComponent(
+        _ value: String,
+        maxByteCount: Int
+    ) -> String {
+        guard value.utf8.count > maxByteCount else {
+            return value
+        }
+
+        var output = ""
+        var byteCount = 0
+
+        for scalar in value.unicodeScalars {
+            let scalarByteCount = String(scalar).utf8.count
+            guard byteCount + scalarByteCount <= maxByteCount else {
+                break
+            }
+            output.unicodeScalars.append(scalar)
+            byteCount += scalarByteCount
+        }
+
+        let trimmed = output.trimmingCharacters(in: CharacterSet(charactersIn: "-_ "))
+        return trimmed.isEmpty ? "photo" : trimmed
     }
 }
