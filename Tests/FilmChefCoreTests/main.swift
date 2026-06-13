@@ -2388,6 +2388,35 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         try expect(emptyEditor.histogramSummary == nil)
         try expect(emptyEditor.previewRenderStatus == "Idle")
 
+        let missingRecipeItemID = UUID()
+        let missingRecipeProject = FilmProject(
+            items: [
+                FilmProjectItem(
+                    id: missingRecipeItemID,
+                    displayName: "Missing Recipe Photo.png",
+                    originalURLPath: sourceURL.path,
+                    selectedRecipeID: "missing_recipe",
+                    adjustments: RenderAdjustments.defaults
+                )
+            ],
+            selectedItemID: missingRecipeItemID
+        )
+        let missingRecipeProjectURL = directory.appendingPathComponent("Missing Recipe Project.filmchef")
+        try ProjectStore().writeProject(missingRecipeProject, to: missingRecipeProjectURL)
+        let missingRecipeEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        missingRecipeEditor.loadRecipesIfNeeded()
+        missingRecipeEditor.importPhotoForTesting(from: sourceURL)
+        try expect(missingRecipeEditor.editedPreviewImage != nil)
+        missingRecipeEditor.openProjectForTesting(from: missingRecipeProjectURL)
+        try expect(missingRecipeEditor.hasImportedImage)
+        try expect(missingRecipeEditor.originalPreviewImage != nil)
+        try expect(missingRecipeEditor.selectedRecipeID == "missing_recipe")
+        try expect(missingRecipeEditor.selectedRecipe == nil)
+        try expect(missingRecipeEditor.editedPreviewImage == nil)
+        try expect(missingRecipeEditor.histogramSummary == nil)
+        try expect(missingRecipeEditor.previewRenderStatus == "Missing recipe")
+        try expect(missingRecipeEditor.errorMessage == "No matching recipe is available to render Missing Recipe Photo.png.")
+
         let missingItemID = UUID()
         let missingAdjustments = RenderAdjustments(
             intensity: 0.65,

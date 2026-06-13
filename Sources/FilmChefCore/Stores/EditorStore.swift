@@ -2479,6 +2479,16 @@ public final class EditorStore: ObservableObject {
                 projectItemNeedingRelinkID = nil
             }
 
+            guard selectedRecipe != nil else {
+                clearRenderedPreviewState(
+                    status: item.selectedRecipeID == nil ? "Select a recipe" : "Missing recipe"
+                )
+                if item.selectedRecipeID != nil {
+                    errorMessage = EditorStoreError.missingRecipe(itemName: item.displayName).localizedDescription
+                }
+                return
+            }
+
             renderPreviewIfNeeded()
         } catch {
             // Clear the previous photo's state so exports and previews cannot
@@ -2526,18 +2536,22 @@ public final class EditorStore: ObservableObject {
         clearLoadedPhotoState(previewStatus: "Idle")
     }
 
-    private func clearLoadedPhotoState(previewStatus: String) {
-        originalPreviewImage = nil
+    private func clearRenderedPreviewState(status: String) {
         editedPreviewImage = nil
         histogramSummary = nil
         previewRenderTask?.cancel()
         previewRenderGeneration += 1
         isRenderingPreview = false
         previewRenderProgress = 0
-        previewRenderStatus = previewStatus
+        previewRenderStatus = status
+        clearPixelSample(cancelPendingTask: true)
+    }
+
+    private func clearLoadedPhotoState(previewStatus: String) {
+        originalPreviewImage = nil
+        clearRenderedPreviewState(status: previewStatus)
         localMaskEditingEnabled = false
         activeLocalMaskPointIndex = nil
-        clearPixelSample(cancelPendingTask: true)
         clearPreviewCache()
         resetPreviewView()
     }
