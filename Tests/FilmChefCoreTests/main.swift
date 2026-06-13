@@ -2328,6 +2328,17 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         try expect(loadedProject.calibrationDataStatus.redScale > loadedProject.calibrationDataStatus.blueScale)
         try expect(loadedProject.calibrationDataStatus.importedAssetSummaries == ["project-lut.cube: 3D LUT"])
 
+        let coldBundledEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        coldBundledEditor.openProjectForTesting(from: projectURL)
+        try expect(coldBundledEditor.previewRenderStatus == "Missing recipe")
+        try expect(coldBundledEditor.errorMessage?.contains("No matching recipe") == true)
+        coldBundledEditor.loadRecipesIfNeeded()
+        try expect(coldBundledEditor.selectedRecipe != nil)
+        try expect(coldBundledEditor.editedPreviewImage != nil)
+        try expect(coldBundledEditor.histogramSummary != nil)
+        try expect(coldBundledEditor.errorMessage == nil)
+        try expect(coldBundledEditor.previewRenderStatus == "Preview ready")
+
         let reopened = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
         reopened.loadRecipesIfNeeded()
         reopened.openProjectForTesting(from: projectURL)
