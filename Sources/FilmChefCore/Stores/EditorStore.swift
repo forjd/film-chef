@@ -1539,18 +1539,20 @@ public final class EditorStore: ObservableObject {
             return
         }
 
+        var validationMessages: [String] = []
         for recipe in customRecipes {
-            editableRecipeIDs.insert(recipe.id)
-            if let index = recipes.firstIndex(where: { $0.id == recipe.id }) {
-                recipes[index] = recipe
-            } else {
-                recipes.append(recipe)
+            do {
+                try FilmRecipeValidator.validate(recipe)
+                editableRecipeIDs.insert(recipe.id)
+                replaceRecipe(recipe)
+            } catch {
+                validationMessages.append(error.localizedDescription)
             }
         }
-        recipes.sort {
-            $0.name.localizedStandardCompare($1.name) == .orderedAscending
+
+        if !validationMessages.isEmpty {
+            errorMessage = validationMessages.joined(separator: "\n")
         }
-        invalidateRecipeValidationCache()
     }
 
     private func writeProject(to url: URL) {
