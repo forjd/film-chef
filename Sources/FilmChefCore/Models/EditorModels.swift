@@ -530,8 +530,8 @@ package struct ExportSettings: Codable, Equatable, Hashable {
         namingTemplate: String = "{photo}-{recipe}"
     ) {
         self.fileFormat = fileFormat
-        self.jpegQuality = jpegQuality
-        self.scale = scale
+        self.jpegQuality = Self.clamped(jpegQuality, lower: 0.1, upper: 1.0)
+        self.scale = Self.clamped(scale, lower: 0.25, upper: 2.0)
         self.preserveMetadata = preserveMetadata
         self.embedColorProfile = embedColorProfile
         self.namingTemplate = namingTemplate
