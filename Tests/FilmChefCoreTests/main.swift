@@ -1881,11 +1881,20 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
       "items": [
         {
           "originalURLPath": "/tmp/Legacy Photo.png",
+          "adjustments": {
+            "intensity": 9,
+            "exposureTrim": -9,
+            "contrastTrim": 2,
+            "saturationTrim": -2
+          },
           "localAdjustments": [
             {}
           ],
           "variants": [
             {
+              "adjustments": {
+                "grainEnabled": false
+              },
               "localAdjustments": [
                 {}
               ]
@@ -1935,13 +1944,19 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     let partialItem = try require(partialProject.items.first)
     try expect(partialItem.displayName == "Legacy Photo.png")
     try expect(partialItem.originalURLPath == "/tmp/Legacy Photo.png")
-    try expect(partialItem.adjustments == .defaults)
+    try expect(partialItem.adjustments.intensity == 1.0)
+    try expect(partialItem.adjustments.exposureTrim == -1.0)
+    try expect(partialItem.adjustments.contrastTrim == 0.5)
+    try expect(partialItem.adjustments.saturationTrim == -0.75)
+    try expect(partialItem.adjustments.grainEnabled)
     let restoredLayer = try require(partialItem.localAdjustments.first)
     try expect(restoredLayer.name == "Local Adjustment")
     try expect(restoredLayer.mask == .radial)
     try expect(restoredLayer.centerX == 0.5)
     try expect(restoredLayer.exposureEV == 0)
     try expect(partialItem.variants.first?.localAdjustments.first?.name == "Local Adjustment")
+    try expect(partialItem.variants.first?.adjustments.intensity == RenderAdjustments.defaults.intensity)
+    try expect(partialItem.variants.first?.adjustments.grainEnabled == false)
     try expect(partialItem.updatedAt == partialItem.createdAt)
     try expect(partialProject.editHistory.count == 2)
     try expect(partialProject.editHistory[0].note == "Legacy edit")
