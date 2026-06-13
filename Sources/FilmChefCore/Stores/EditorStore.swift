@@ -1106,17 +1106,21 @@ public final class EditorStore: ObservableObject {
 
         let trimmedName = exportPresetDraftName.trimmingCharacters(in: .whitespacesAndNewlines)
         let name = trimmedName.isEmpty ? "Custom Preset" : trimmedName
+        let savedName: String
 
         if let selectedExportPresetID,
            let index = exportPresets.firstIndex(where: { $0.id == selectedExportPresetID }) {
             exportPresets[index].name = name
             exportPresets[index].settings = exportSettings
+            savedName = name
         } else {
-            let preset = ExportPreset(name: uniqueExportPresetName(base: name), settings: exportSettings)
+            savedName = uniqueExportPresetName(base: name)
+            let preset = ExportPreset(name: savedName, settings: exportSettings)
             exportPresets.append(preset)
             selectedExportPresetID = preset.id
         }
 
+        exportPresetDraftName = savedName
         syncExportPresetsToProject()
     }
 
