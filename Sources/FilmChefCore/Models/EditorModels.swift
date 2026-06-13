@@ -776,7 +776,8 @@ package struct ColorManagementSettings: Codable, Equatable, Hashable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         inputIntent = try container.decodeIfPresent(String.self, forKey: .inputIntent) ?? "embedded_or_camera_profile"
         workingColorSpace = try container.decodeIfPresent(String.self, forKey: .workingColorSpace) ?? "extended_linear_srgb"
-        outputColorSpace = try container.decodeIfPresent(String.self, forKey: .outputColorSpace) ?? "srgb"
+        let decodedOutputColorSpace = try container.decodeIfPresent(String.self, forKey: .outputColorSpace) ?? "srgb"
+        outputColorSpace = ColorOutputProfile(rawProfileName: decodedOutputColorSpace).rawValue
         rawDevelopmentEnabled = try container.decodeIfPresent(Bool.self, forKey: .rawDevelopmentEnabled) ?? true
         rawDevelopment = try container.decodeIfPresent(RawDevelopmentSettings.self, forKey: .rawDevelopment) ?? .defaults
     }
