@@ -1325,6 +1325,17 @@ func testEditorCalibrationAssetImportVariants() throws {
         try expect(typedCalibrationEditor.calibrationDataStatus.supportsThreeDimensionalLUTs)
         try expect(typedCalibrationEditor.calibrationDataStatus.redScale > typedCalibrationEditor.calibrationDataStatus.blueScale)
         try expect(typedCalibrationEditor.calibrationDataStatus.importedAssetSummaries == ["measured-curves.json: density curves, grain spectra, RGB scale, spectral curves"])
+
+        let booleanOnlyCalibrationURL = directory.appendingPathComponent("boolean-only.json")
+        try """
+        {
+          "asset_type": "spectral_curves",
+          "enabled": true
+        }
+        """.data(using: .utf8)?.write(to: booleanOnlyCalibrationURL)
+        editor.errorMessage = nil
+        editor.importCalibrationAssetsForTesting(from: [booleanOnlyCalibrationURL])
+        try expect(editor.errorMessage?.contains("No numeric calibration values found.") == true)
     }
 }
 
