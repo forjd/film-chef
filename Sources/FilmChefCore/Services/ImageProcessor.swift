@@ -224,7 +224,7 @@ package final class ImageProcessor {
                 throw ImageProcessorError.cannotEncodeImage
             }
 
-            try data.write(to: url)
+            try data.write(to: url, options: [.atomic])
             return
         }
 
@@ -235,7 +235,7 @@ package final class ImageProcessor {
             profileName: outputProfileName(for: colorSettings.outputColorSpace),
             sourceMetadataURL: sourceMetadataURL
         )
-        try data.write(to: url)
+        try data.write(to: url, options: [.atomic])
     }
 
     package func makeHistogramSummary(
