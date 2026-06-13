@@ -360,6 +360,9 @@ package struct CalibrationAssetParser {
     private func number(in dictionary: [String: Any], keys: [String]) -> Double? {
         for key in keys {
             if let number = dictionary[key] as? NSNumber {
+                guard CFGetTypeID(number) != CFBooleanGetTypeID() else {
+                    continue
+                }
                 return number.doubleValue
             }
             if let string = dictionary[key] as? String,
