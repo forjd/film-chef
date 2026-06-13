@@ -2262,6 +2262,25 @@ func testProjectPersistsCustomRecipes() throws {
         coldEditor.loadRecipesIfNeeded()
         try expect(coldEditor.recipes.contains { $0.id == customRecipe.id })
         try expect(coldEditor.recipes.count > 1, "Bundled recipes should still load after opening a project.")
+
+        var projectWithInvalidRecipe = try ProjectStore().loadProject(from: projectURL)
+        let invalidCustomRecipe = try mutatedRecipe(from: customRecipe) { object in
+            setJSONValue("broken_custom_recipe", path: ["profile_id"], object: &object)
+            setJSONValue("Broken Custom Recipe", path: ["display_name"], object: &object)
+            setJSONValue(0, path: ["output", "bit_depth"], object: &object)
+        }
+        projectWithInvalidRecipe.customRecipes.append(invalidCustomRecipe)
+        let invalidProjectURL = directory.appendingPathComponent("invalid-custom-recipe.filmchef")
+        try ProjectStore().writeProject(projectWithInvalidRecipe, to: invalidProjectURL)
+
+        let invalidRecipeEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        invalidRecipeEditor.loadRecipesIfNeeded()
+        invalidRecipeEditor.openProjectForTesting(from: invalidProjectURL)
+        try expect(invalidRecipeEditor.recipes.contains { $0.id == customRecipe.id })
+        try expect(!invalidRecipeEditor.recipes.contains { $0.id == invalidCustomRecipe.id })
+        try expect(invalidRecipeEditor.selectedRecipe?.id == customRecipe.id)
+        try expect(invalidRecipeEditor.editedPreviewImage != nil)
+        try expect(invalidRecipeEditor.errorMessage?.contains("output.bit_depth must be greater than 0.") == true)
     }
 }
 
