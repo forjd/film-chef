@@ -1405,6 +1405,20 @@ func testEditorCalibrationAssetImportVariants() throws {
         try expect(typedCalibrationEditor.calibrationDataStatus.redScale > typedCalibrationEditor.calibrationDataStatus.blueScale)
         try expect(typedCalibrationEditor.calibrationDataStatus.importedAssetSummaries == ["measured-curves.json: density curves, grain spectra, RGB scale, spectral curves"])
 
+        let extremeScaleURL = directory.appendingPathComponent("extreme-rgb-scale.json")
+        try """
+        {
+          "asset_type": "spectral_curves",
+          "values": [0.2, 0.4],
+          "rgb_scale": { "red": 25.0, "green": 1.0, "blue": 0.01 }
+        }
+        """.data(using: .utf8)?.write(to: extremeScaleURL)
+        let extremeScaleEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        extremeScaleEditor.importCalibrationAssetsForTesting(from: [extremeScaleURL])
+        try expect(extremeScaleEditor.calibrationDataStatus.supportsThreeDimensionalLUTs)
+        try expect(extremeScaleEditor.calibrationDataStatus.redScale == 1.5)
+        try expect(extremeScaleEditor.calibrationDataStatus.blueScale == 0.5)
+
         let booleanScaleURL = directory.appendingPathComponent("boolean-rgb-scale.json")
         try """
         {
