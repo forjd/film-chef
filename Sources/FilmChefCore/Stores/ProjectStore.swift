@@ -94,7 +94,8 @@ package final class ProjectStore {
             }
         }
 
-        if let path = item.originalURLPath, !path.isEmpty {
+        if let path = item.originalURLPath,
+           !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let url = URL(fileURLWithPath: path)
             return (url, bookmarkData(for: url))
         }
