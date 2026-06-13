@@ -264,6 +264,9 @@ package struct CalibrationAssetParser {
 
     private func numericValues(in object: Any) -> [Double] {
         if let number = object as? NSNumber {
+            guard CFGetTypeID(number) != CFBooleanGetTypeID() else {
+                return []
+            }
             return [number.doubleValue].filter(\.isFinite)
         }
         if let array = object as? [Any] {
