@@ -394,11 +394,14 @@ public final class EditorStore: ObservableObject {
 
     package enum EditorStoreError: LocalizedError {
         case missingRecipe(itemName: String)
+        case bundledRecipeConflict(recipeID: String)
 
         package var errorDescription: String? {
             switch self {
             case .missingRecipe(let itemName):
                 return "No matching recipe is available to render \(itemName)."
+            case .bundledRecipeConflict(let recipeID):
+                return "Recipe profile_id '\(recipeID)' conflicts with a bundled recipe."
             }
         }
     }
@@ -670,7 +673,7 @@ public final class EditorStore: ObservableObject {
             if !conflictingCustomIDs.isEmpty {
                 editableRecipeIDs.subtract(conflictingCustomIDs)
                 appendProjectRecipeWarning(conflictingCustomIDs.sorted().map { id in
-                    "Project custom recipe '\(id)' conflicts with a bundled recipe and was ignored."
+                    projectRecipeConflictMessage(id)
                 })
             }
 
@@ -1559,8 +1562,8 @@ public final class EditorStore: ObservableObject {
                     validationMessages.append("Duplicate project custom recipe '\(recipe.id)' was ignored.")
                     continue
                 }
-                guard !recipes.contains(where: { $0.id == recipe.id }) || editableRecipeIDs.contains(recipe.id) else {
-                    validationMessages.append("Project custom recipe '\(recipe.id)' conflicts with a bundled recipe and was ignored.")
+                guard !customRecipeConflictsWithBundledProfile(recipe) else {
+                    validationMessages.append(projectRecipeConflictMessage(recipe.id))
                     continue
                 }
                 restoredCustomIDs.insert(recipe.id)
@@ -1585,6 +1588,14 @@ public final class EditorStore: ObservableObject {
         } else {
             errorMessage = nonEmptyMessages.joined(separator: "\n")
         }
+    }
+
+    private func customRecipeConflictsWithBundledProfile(_ recipe: FilmRecipe) -> Bool {
+        recipes.contains { $0.id == recipe.id } && !editableRecipeIDs.contains(recipe.id)
+    }
+
+    private func projectRecipeConflictMessage(_ recipeID: String) -> String {
+        "Project custom recipe '\(recipeID)' conflicts with a bundled recipe and was ignored."
     }
 
     private func writeProject(to url: URL) {
@@ -1642,6 +1653,13 @@ public final class EditorStore: ObservableObject {
 
         do {
             let importedRecipe = try recipeStore.loadRecipe(from: url)
+            guard !customRecipeConflictsWithBundledProfile(importedRecipe) else {
+                let error = EditorStoreError.bundledRecipeConflict(recipeID: importedRecipe.id)
+                let issue = RecipeValidationIssue(error.localizedDescription)
+                recipeImportStatus = .failed(name: url.lastPathComponent, issues: [issue])
+                errorMessage = error.localizedDescription
+                return
+            }
             replaceRecipe(importedRecipe)
             editableRecipeIDs.insert(importedRecipe.id)
             selectedRecipeID = importedRecipe.id
