@@ -2690,11 +2690,6 @@ public final class EditorStore: ObservableObject {
     }
 
     private func clearRecipeResolutionErrorIfNeeded() {
-        if previewRenderStatus == "Missing recipe" || previewRenderStatus == "Select a recipe" {
-            errorMessage = nil
-            return
-        }
-
         guard let importedImageName,
               errorMessage == EditorStoreError.missingRecipe(itemName: importedImageName).localizedDescription
         else {

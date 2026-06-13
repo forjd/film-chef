@@ -116,12 +116,19 @@ package struct CalibrationAssetParser {
 
     private func validateAssetSize(_ url: URL) throws {
         let values = try url.resourceValues(forKeys: [.fileSizeKey])
-        guard let fileSize = values.fileSize,
-              fileSize > Self.maxAssetByteCount
-        else {
+        if let fileSize = values.fileSize {
+            if fileSize > Self.maxAssetByteCount {
+                try throwOversizedAsset(url)
+            }
             return
         }
 
+        if try Data(contentsOf: url).count > Self.maxAssetByteCount {
+            try throwOversizedAsset(url)
+        }
+    }
+
+    private func throwOversizedAsset(_ url: URL) throws -> Never {
         throw CalibrationImportError.invalidAsset(
             url.lastPathComponent,
             "Calibration assets must be 16 MB or smaller."
