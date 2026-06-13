@@ -99,11 +99,17 @@ package struct FilmProject: Codable, Equatable {
         items = Self.normalizedProjectItems(
             try container.decodeIfPresent([FilmProjectItem].self, forKey: .items) ?? []
         )
-        selectedItemID = try container.decodeIfPresent(UUID.self, forKey: .selectedItemID)
+        selectedItemID = Self.normalizedSelectedItemID(
+            try container.decodeIfPresent(UUID.self, forKey: .selectedItemID),
+            items: items
+        )
         editHistory = EditSnapshot.normalizedIDs(
             try container.decodeIfPresent([EditSnapshot].self, forKey: .editHistory) ?? []
         )
-        editHistoryIndex = try container.decodeIfPresent(Int.self, forKey: .editHistoryIndex)
+        editHistoryIndex = Self.normalizedHistoryIndex(
+            try container.decodeIfPresent(Int.self, forKey: .editHistoryIndex),
+            snapshots: editHistory
+        )
         customRecipes = try container.decodeIfPresent([FilmRecipe].self, forKey: .customRecipes) ?? []
         exportSettings = try container.decodeIfPresent(ExportSettings.self, forKey: .exportSettings) ?? .defaults
         exportPresets = ExportPreset.normalizedIDs(
@@ -121,6 +127,23 @@ package struct FilmProject: Codable, Equatable {
             repairedItem.id = UUID()
             return repairedItem
         }
+    }
+
+    private static func normalizedSelectedItemID(_ selectedItemID: UUID?, items: [FilmProjectItem]) -> UUID? {
+        guard let selectedItemID else {
+            return items.first?.id
+        }
+        return items.contains { $0.id == selectedItemID } ? selectedItemID : items.first?.id
+    }
+
+    private static func normalizedHistoryIndex(_ index: Int?, snapshots: [EditSnapshot]) -> Int? {
+        guard !snapshots.isEmpty else {
+            return nil
+        }
+        guard let index, snapshots.indices.contains(index) else {
+            return snapshots.count - 1
+        }
+        return index
     }
 }
 
@@ -180,9 +203,22 @@ package struct FilmProjectItem: Codable, Equatable, Identifiable {
         variants = EditSnapshot.normalizedIDs(
             try container.decodeIfPresent([EditSnapshot].self, forKey: .variants) ?? []
         )
-        variantIndex = try container.decodeIfPresent(Int.self, forKey: .variantIndex)
+        variantIndex = Self.normalizedVariantIndex(
+            try container.decodeIfPresent(Int.self, forKey: .variantIndex),
+            variants: variants
+        )
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
+    }
+
+    private static func normalizedVariantIndex(_ index: Int?, variants: [EditSnapshot]) -> Int? {
+        guard !variants.isEmpty else {
+            return nil
+        }
+        guard let index, variants.indices.contains(index) else {
+            return variants.count - 1
+        }
+        return index
     }
 }
 
