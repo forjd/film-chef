@@ -840,6 +840,10 @@ public final class EditorStore: ObservableObject {
 
     package func handleProjectRelinkResults(_ result: Result<[URL], Error>) {
         isRelinkingProjectPhoto = false
+        defer {
+            pendingRelinkProjectItemID = nil
+        }
+
         switch result {
         case .success(let urls):
             guard let url = urls.first,
@@ -852,7 +856,6 @@ public final class EditorStore: ObservableObject {
         case .failure(let error):
             errorMessage = error.localizedDescription
         }
-        pendingRelinkProjectItemID = nil
     }
 
     public func resetControls() {
