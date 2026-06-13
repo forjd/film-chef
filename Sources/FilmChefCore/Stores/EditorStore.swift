@@ -1534,14 +1534,23 @@ public final class EditorStore: ObservableObject {
 
         do {
             try imageProcessor.validateReadableImage(at: url)
-            let item = makeProjectItem(for: url)
-            project.items.removeAll { $0.originalURLPath == url.path }
-            project.items.append(item)
+            let itemID: UUID
+            if let existingIndex = project.items.firstIndex(where: { $0.originalURLPath == url.path }) {
+                itemID = project.items[existingIndex].id
+                project.items[existingIndex].displayName = url.lastPathComponent
+                project.items[existingIndex].originalBookmarkData = projectStore.bookmarkData(for: url)
+                project.items[existingIndex].updatedAt = Date()
+                clearPreviewCache()
+            } else {
+                let item = makeProjectItem(for: url)
+                itemID = item.id
+                project.items.append(item)
+            }
             project.items.sort {
                 $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
             }
             project.updatedAt = Date()
-            return item.id
+            return itemID
         } catch {
             errorMessage = error.localizedDescription
             return nil
