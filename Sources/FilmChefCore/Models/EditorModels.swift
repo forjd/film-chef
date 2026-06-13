@@ -63,11 +63,23 @@ package struct FilmProject: Codable, Equatable {
         editHistoryIndex = try container.decodeIfPresent(Int.self, forKey: .editHistoryIndex)
         customRecipes = try container.decodeIfPresent([FilmRecipe].self, forKey: .customRecipes) ?? []
         exportSettings = try container.decodeIfPresent(ExportSettings.self, forKey: .exportSettings) ?? .defaults
-        exportPresets = try container.decodeIfPresent([ExportPreset].self, forKey: .exportPresets) ?? ExportPreset.defaults
+        exportPresets = Self.normalizedExportPresets(
+            try container.decodeIfPresent([ExportPreset].self, forKey: .exportPresets) ?? ExportPreset.defaults
+        )
         colorManagementSettings = try container.decodeIfPresent(ColorManagementSettings.self, forKey: .colorManagementSettings) ?? .defaults
         calibrationDataStatus = try container.decodeIfPresent(CalibrationDataStatus.self, forKey: .calibrationDataStatus) ?? .descriptiveOnly
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
+    }
+
+    private static func normalizedExportPresets(_ presets: [ExportPreset]) -> [ExportPreset] {
+        var seenIDs: Set<UUID> = []
+        return presets.map { preset in
+            guard seenIDs.insert(preset.id).inserted else {
+                return ExportPreset(name: preset.name, settings: preset.settings)
+            }
+            return preset
+        }
     }
 }
 
