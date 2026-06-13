@@ -1486,6 +1486,12 @@ func testEditorExportPresetsNamingTemplatesAndBatchExport() throws {
         try expect(editor.exportPresets.count >= 3)
         try expect(editor.exportNamingTemplateIssues.isEmpty)
         try expect(editor.exportFileNamePreview.hasSuffix(".jpg"))
+        let highExportSettings = ExportSettings(jpegQuality: 5.0, scale: 99.0)
+        try expect(highExportSettings.jpegQuality == 1.0)
+        try expect(highExportSettings.scale == 2.0)
+        let lowExportSettings = ExportSettings(jpegQuality: -1.0, scale: 0.01)
+        try expect(lowExportSettings.jpegQuality == 0.1)
+        try expect(lowExportSettings.scale == 0.25)
         editor.exportSettings.namingTemplate = "{photo}-{bad}"
         try expect(editor.exportNamingTemplateIssues.contains("Unsupported naming token {bad}. Use {photo}, {recipe}, or {format}."))
         try expect(!editor.canSaveExportPreset)
