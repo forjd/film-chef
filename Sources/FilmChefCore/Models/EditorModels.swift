@@ -250,15 +250,54 @@ package struct LocalAdjustmentLayer: Codable, Equatable, Hashable, Identifiable 
         name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Local Adjustment"
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
         mask = (try? container.decodeIfPresent(LocalAdjustmentMask.self, forKey: .mask)) ?? .radial
-        centerX = try container.decodeIfPresent(Double.self, forKey: .centerX) ?? 0.5
-        centerY = try container.decodeIfPresent(Double.self, forKey: .centerY) ?? 0.5
-        radius = try container.decodeIfPresent(Double.self, forKey: .radius) ?? 0.35
-        feather = try container.decodeIfPresent(Double.self, forKey: .feather) ?? 0.25
-        brushSize = try container.decodeIfPresent(Double.self, forKey: .brushSize) ?? 0.12
-        pathPoints = try container.decodeIfPresent([NormalizedMaskPoint].self, forKey: .pathPoints) ?? Self.defaultPathPoints
-        exposureEV = try container.decodeIfPresent(Double.self, forKey: .exposureEV) ?? 0
-        contrast = try container.decodeIfPresent(Double.self, forKey: .contrast) ?? 0
-        saturation = try container.decodeIfPresent(Double.self, forKey: .saturation) ?? 0
+        centerX = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .centerX) ?? 0.5,
+            lower: 0,
+            upper: 1
+        )
+        centerY = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .centerY) ?? 0.5,
+            lower: 0,
+            upper: 1
+        )
+        radius = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .radius) ?? 0.35,
+            lower: 0.05,
+            upper: 1
+        )
+        feather = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .feather) ?? 0.25,
+            lower: 0,
+            upper: 1
+        )
+        brushSize = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .brushSize) ?? 0.12,
+            lower: 0.02,
+            upper: 0.5
+        )
+        let decodedPathPoints = try container.decodeIfPresent([NormalizedMaskPoint].self, forKey: .pathPoints)
+            ?? Self.defaultPathPoints
+        pathPoints = decodedPathPoints.map { point in
+            NormalizedMaskPoint(
+                x: Self.clamped(point.x, lower: 0, upper: 1),
+                y: Self.clamped(point.y, lower: 0, upper: 1)
+            )
+        }
+        exposureEV = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .exposureEV) ?? 0,
+            lower: -1,
+            upper: 1
+        )
+        contrast = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .contrast) ?? 0,
+            lower: -0.5,
+            upper: 0.5
+        )
+        saturation = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .saturation) ?? 0,
+            lower: -0.75,
+            upper: 0.75
+        )
     }
 
     package func encode(to encoder: Encoder) throws {
@@ -305,6 +344,10 @@ package struct LocalAdjustmentLayer: Codable, Equatable, Hashable, Identifiable 
         case exposureEV
         case contrast
         case saturation
+    }
+
+    private static func clamped(_ value: Double, lower: Double, upper: Double) -> Double {
+        min(max(value, lower), upper)
     }
 }
 
