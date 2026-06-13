@@ -665,9 +665,20 @@ public final class EditorStore: ObservableObject {
         do {
             let bundled = try recipeStore.loadRecipes()
             hasLoadedBundledRecipes = true
-            // Keep custom recipes already restored from an opened project.
-            var merged = recipes
-            for recipe in bundled where !merged.contains(where: { $0.id == recipe.id }) {
+            let bundledIDs = Set(bundled.map(\.id))
+            let conflictingCustomIDs = editableRecipeIDs.intersection(bundledIDs)
+            if !conflictingCustomIDs.isEmpty {
+                editableRecipeIDs.subtract(conflictingCustomIDs)
+                appendProjectRecipeWarning(conflictingCustomIDs.sorted().map { id in
+                    "Project custom recipe '\(id)' conflicts with a bundled recipe and was ignored."
+                })
+            }
+
+            // Bundled recipes are canonical for their profile IDs. Keep only
+            // project custom recipes that do not shadow bundled profiles.
+            let restoredCustomRecipes = recipes.filter { !bundledIDs.contains($0.id) }
+            var merged = bundled
+            for recipe in restoredCustomRecipes where !merged.contains(where: { $0.id == recipe.id }) {
                 merged.append(recipe)
             }
             recipes = merged.sorted {
@@ -1540,9 +1551,19 @@ public final class EditorStore: ObservableObject {
         }
 
         var validationMessages: [String] = []
+        var restoredCustomIDs: Set<String> = []
         for recipe in customRecipes {
             do {
                 try FilmRecipeValidator.validate(recipe)
+                guard !restoredCustomIDs.contains(recipe.id) else {
+                    validationMessages.append("Duplicate project custom recipe '\(recipe.id)' was ignored.")
+                    continue
+                }
+                guard !recipes.contains(where: { $0.id == recipe.id }) || editableRecipeIDs.contains(recipe.id) else {
+                    validationMessages.append("Project custom recipe '\(recipe.id)' conflicts with a bundled recipe and was ignored.")
+                    continue
+                }
+                restoredCustomIDs.insert(recipe.id)
                 editableRecipeIDs.insert(recipe.id)
                 replaceRecipe(recipe)
             } catch {
@@ -1550,8 +1571,19 @@ public final class EditorStore: ObservableObject {
             }
         }
 
-        if !validationMessages.isEmpty {
-            errorMessage = validationMessages.joined(separator: "\n")
+        appendProjectRecipeWarning(validationMessages)
+    }
+
+    private func appendProjectRecipeWarning(_ messages: [String]) {
+        let nonEmptyMessages = messages.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard !nonEmptyMessages.isEmpty else {
+            return
+        }
+
+        if let errorMessage, !errorMessage.isEmpty {
+            self.errorMessage = ([errorMessage] + nonEmptyMessages).joined(separator: "\n")
+        } else {
+            errorMessage = nonEmptyMessages.joined(separator: "\n")
         }
     }
 
