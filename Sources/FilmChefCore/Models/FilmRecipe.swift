@@ -534,6 +534,31 @@ package struct RenderAdjustments: Codable, Equatable, Hashable {
         self.grainEnabled = grainEnabled
     }
 
+    package init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        intensity = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .intensity) ?? Self.defaults.intensity,
+            lower: 0,
+            upper: 1
+        )
+        exposureTrim = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .exposureTrim) ?? Self.defaults.exposureTrim,
+            lower: -1,
+            upper: 1
+        )
+        contrastTrim = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .contrastTrim) ?? Self.defaults.contrastTrim,
+            lower: -0.5,
+            upper: 0.5
+        )
+        saturationTrim = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .saturationTrim) ?? Self.defaults.saturationTrim,
+            lower: -0.75,
+            upper: 0.75
+        )
+        grainEnabled = try container.decodeIfPresent(Bool.self, forKey: .grainEnabled) ?? Self.defaults.grainEnabled
+    }
+
     package static let defaults = RenderAdjustments(
         intensity: 1.0,
         exposureTrim: 0.0,
@@ -541,4 +566,16 @@ package struct RenderAdjustments: Codable, Equatable, Hashable {
         saturationTrim: 0.0,
         grainEnabled: true
     )
+
+    private enum CodingKeys: String, CodingKey {
+        case intensity
+        case exposureTrim
+        case contrastTrim
+        case saturationTrim
+        case grainEnabled
+    }
+
+    private static func clamped(_ value: Double, lower: Double, upper: Double) -> Double {
+        min(max(value, lower), upper)
+    }
 }
