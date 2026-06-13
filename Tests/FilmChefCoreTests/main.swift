@@ -1937,7 +1937,7 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
         }
       ],
       "colorManagementSettings": {
-        "outputColorSpace": "display_p3",
+        "outputColorSpace": "Display P3",
         "rawDevelopment": {
           "exposureEV": 9,
           "temperatureK": 99999,
