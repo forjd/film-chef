@@ -1786,6 +1786,56 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     try expect(project.colorManagementSettings == .defaults)
     try expect(project.calibrationDataStatus == .descriptiveOnly)
     try expect(project.updatedAt == project.createdAt)
+
+    let partialProjectID = UUID()
+    let partialProjectURL = directory.appendingPathComponent("Partial Legacy.filmchef")
+    try """
+    {
+      "schemaVersion": 1,
+      "id": "\(partialProjectID.uuidString)",
+      "name": "Partial Legacy Project",
+      "exportSettings": {
+        "fileFormat": "png"
+      },
+      "exportPresets": [
+        {
+          "name": "Legacy TIFF",
+          "settings": {
+            "fileFormat": "tiff"
+          }
+        }
+      ],
+      "colorManagementSettings": {
+        "outputColorSpace": "display_p3",
+        "rawDevelopment": {
+          "exposureEV": 0.5
+        }
+      },
+      "calibrationDataStatus": {
+        "supportsSpectralCurves": true,
+        "importedAssetNames": ["curves.json"]
+      }
+    }
+    """.data(using: .utf8)?.write(to: partialProjectURL)
+
+    let partialProject = try ProjectStore().loadProject(from: partialProjectURL)
+    try expect(partialProject.id == partialProjectID)
+    try expect(partialProject.exportSettings.fileFormat == .png)
+    try expect(partialProject.exportSettings.jpegQuality == ExportSettings.defaults.jpegQuality)
+    try expect(partialProject.exportSettings.namingTemplate == ExportSettings.defaults.namingTemplate)
+    let partialPreset = try require(partialProject.exportPresets.first)
+    try expect(partialPreset.name == "Legacy TIFF")
+    try expect(partialPreset.settings.fileFormat == .tiff)
+    try expect(partialPreset.settings.scale == ExportSettings.defaults.scale)
+    try expect(partialProject.colorManagementSettings.inputIntent == ColorManagementSettings.defaults.inputIntent)
+    try expect(partialProject.colorManagementSettings.outputColorSpace == "display_p3")
+    try expect(partialProject.colorManagementSettings.rawDevelopment.exposureEV == 0.5)
+    try expect(partialProject.colorManagementSettings.rawDevelopment.highlightRecovery == RawDevelopmentSettings.defaults.highlightRecovery)
+    try expect(partialProject.calibrationDataStatus.supportsSpectralCurves)
+    try expect(!partialProject.calibrationDataStatus.supportsMeasuredDensityCurves)
+    try expect(partialProject.calibrationDataStatus.importedAssetNames == ["curves.json"])
+    try expect(partialProject.calibrationDataStatus.redScale == 1.0)
+    try expect(partialProject.calibrationDataStatus.note == CalibrationDataStatus.descriptiveOnly.note)
 }
 
 @MainActor
