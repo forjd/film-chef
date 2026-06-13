@@ -246,19 +246,19 @@ package struct LocalAdjustmentLayer: Codable, Equatable, Hashable, Identifiable 
 
     package init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
-        name = try container.decode(String.self, forKey: .name)
-        isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
-        mask = try container.decode(LocalAdjustmentMask.self, forKey: .mask)
-        centerX = try container.decode(Double.self, forKey: .centerX)
-        centerY = try container.decode(Double.self, forKey: .centerY)
-        radius = try container.decode(Double.self, forKey: .radius)
-        feather = try container.decode(Double.self, forKey: .feather)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Local Adjustment"
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+        mask = (try? container.decodeIfPresent(LocalAdjustmentMask.self, forKey: .mask)) ?? .radial
+        centerX = try container.decodeIfPresent(Double.self, forKey: .centerX) ?? 0.5
+        centerY = try container.decodeIfPresent(Double.self, forKey: .centerY) ?? 0.5
+        radius = try container.decodeIfPresent(Double.self, forKey: .radius) ?? 0.35
+        feather = try container.decodeIfPresent(Double.self, forKey: .feather) ?? 0.25
         brushSize = try container.decodeIfPresent(Double.self, forKey: .brushSize) ?? 0.12
         pathPoints = try container.decodeIfPresent([NormalizedMaskPoint].self, forKey: .pathPoints) ?? Self.defaultPathPoints
-        exposureEV = try container.decode(Double.self, forKey: .exposureEV)
-        contrast = try container.decode(Double.self, forKey: .contrast)
-        saturation = try container.decode(Double.self, forKey: .saturation)
+        exposureEV = try container.decodeIfPresent(Double.self, forKey: .exposureEV) ?? 0
+        contrast = try container.decodeIfPresent(Double.self, forKey: .contrast) ?? 0
+        saturation = try container.decodeIfPresent(Double.self, forKey: .saturation) ?? 0
     }
 
     package func encode(to encoder: Encoder) throws {
