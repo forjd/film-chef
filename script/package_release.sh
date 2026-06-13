@@ -35,7 +35,7 @@ mkdir -p "$APP_RESOURCES"
 cp "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
 
-for RESOURCE_BUNDLE in "$BUILD_DIR"/${APP_NAME}_*.bundle; do
+for RESOURCE_BUNDLE in "$BUILD_DIR"/"$APP_NAME"_*.bundle; do
   [[ -d "$RESOURCE_BUNDLE" ]] || continue
   cp -R "$RESOURCE_BUNDLE" "$APP_RESOURCES/"
 done
