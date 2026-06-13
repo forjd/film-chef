@@ -1880,7 +1880,17 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
       "name": "Partial Legacy Project",
       "items": [
         {
-          "originalURLPath": "/tmp/Legacy Photo.png"
+          "originalURLPath": "/tmp/Legacy Photo.png",
+          "localAdjustments": [
+            {}
+          ],
+          "variants": [
+            {
+              "localAdjustments": [
+                {}
+              ]
+            }
+          ]
         }
       ],
       "editHistory": [
@@ -1926,8 +1936,12 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     try expect(partialItem.displayName == "Legacy Photo.png")
     try expect(partialItem.originalURLPath == "/tmp/Legacy Photo.png")
     try expect(partialItem.adjustments == .defaults)
-    try expect(partialItem.localAdjustments.isEmpty)
-    try expect(partialItem.variants.isEmpty)
+    let restoredLayer = try require(partialItem.localAdjustments.first)
+    try expect(restoredLayer.name == "Local Adjustment")
+    try expect(restoredLayer.mask == .radial)
+    try expect(restoredLayer.centerX == 0.5)
+    try expect(restoredLayer.exposureEV == 0)
+    try expect(partialItem.variants.first?.localAdjustments.first?.name == "Local Adjustment")
     try expect(partialItem.updatedAt == partialItem.createdAt)
     try expect(partialProject.editHistory.count == 2)
     try expect(partialProject.editHistory[0].note == "Legacy edit")
