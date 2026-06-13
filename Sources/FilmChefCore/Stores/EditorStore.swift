@@ -275,6 +275,7 @@ public final class EditorStore: ObservableObject {
     @Published package var errorMessage: String?
     @Published package private(set) var projectItemNeedingRelinkID: UUID?
     private var pendingRelinkProjectItemID: UUID?
+    private var projectItemLoadErrorMessage: String?
 
     @Published package var comparisonMode = PreviewComparisonMode.edited {
         didSet {
@@ -1584,6 +1585,7 @@ public final class EditorStore: ObservableObject {
             suppressSettingsUpdates = true
             project = loadedProject
             errorMessage = nil
+            projectItemLoadErrorMessage = nil
             discardProjectScopedRecipes()
             restoreCustomRecipes(loadedProject.customRecipes)
             editHistory = loadedProject.editHistory
@@ -1714,6 +1716,7 @@ public final class EditorStore: ObservableObject {
             project.items[itemIndex].updatedAt = Date()
             project.updatedAt = Date()
             projectItemNeedingRelinkID = nil
+            projectItemLoadErrorMessage = nil
             errorMessage = nil
             selectProjectItem(id: id)
         } catch {
@@ -2610,9 +2613,11 @@ public final class EditorStore: ObservableObject {
             importedImageName = item.displayName
             originalPreviewImage = try imageProcessor.makePreviewImage(from: loadedImage)
             comparisonMode = .edited
+            clearProjectItemLoadErrorIfNeeded()
 
             if projectItemNeedingRelinkID == item.id {
                 projectItemNeedingRelinkID = nil
+                projectItemLoadErrorMessage = nil
             }
 
             guard selectedRecipe != nil else {
@@ -2634,7 +2639,8 @@ public final class EditorStore: ObservableObject {
             importedImageName = nil
             clearLoadedPhotoState(previewStatus: "Photo needs relinking")
             projectItemNeedingRelinkID = item.id
-            errorMessage = error.localizedDescription
+            projectItemLoadErrorMessage = error.localizedDescription
+            errorMessage = projectItemLoadErrorMessage
         }
     }
 
@@ -2695,6 +2701,17 @@ public final class EditorStore: ObservableObject {
             return
         }
         errorMessage = nil
+    }
+
+    private func clearProjectItemLoadErrorIfNeeded() {
+        guard let projectItemLoadErrorMessage else {
+            return
+        }
+
+        if errorMessage == projectItemLoadErrorMessage {
+            errorMessage = nil
+        }
+        self.projectItemLoadErrorMessage = nil
     }
 
     private func clearLoadedPhotoState(previewStatus: String) {
