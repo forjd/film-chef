@@ -1888,7 +1888,20 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
             "saturationTrim": -2
           },
           "localAdjustments": [
-            {}
+            {
+              "mask": "brush",
+              "centerX": -1,
+              "centerY": 2,
+              "radius": 9,
+              "feather": -4,
+              "brushSize": 9,
+              "pathPoints": [
+                { "x": -0.25, "y": 1.25 }
+              ],
+              "exposureEV": 9,
+              "contrast": -9,
+              "saturation": 9
+            }
           ],
           "variants": [
             {
@@ -1951,9 +1964,16 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     try expect(partialItem.adjustments.grainEnabled)
     let restoredLayer = try require(partialItem.localAdjustments.first)
     try expect(restoredLayer.name == "Local Adjustment")
-    try expect(restoredLayer.mask == .radial)
-    try expect(restoredLayer.centerX == 0.5)
-    try expect(restoredLayer.exposureEV == 0)
+    try expect(restoredLayer.mask == .brush)
+    try expect(restoredLayer.centerX == 0)
+    try expect(restoredLayer.centerY == 1)
+    try expect(restoredLayer.radius == 1)
+    try expect(restoredLayer.feather == 0)
+    try expect(restoredLayer.brushSize == 0.5)
+    try expect(restoredLayer.pathPoints == [NormalizedMaskPoint(x: 0, y: 1)])
+    try expect(restoredLayer.exposureEV == 1)
+    try expect(restoredLayer.contrast == -0.5)
+    try expect(restoredLayer.saturation == 0.75)
     try expect(partialItem.variants.first?.localAdjustments.first?.name == "Local Adjustment")
     try expect(partialItem.variants.first?.adjustments.intensity == RenderAdjustments.defaults.intensity)
     try expect(partialItem.variants.first?.adjustments.grainEnabled == false)
