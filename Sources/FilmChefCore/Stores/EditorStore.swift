@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 @MainActor
 public final class EditorStore: ObservableObject {
     private struct PreviewRenderCacheKey: Hashable {
+        var projectItemID: UUID?
         var sourceIdentifier: String
         var sourceWidth: Int
         var sourceHeight: Int
@@ -2211,6 +2212,7 @@ public final class EditorStore: ObservableObject {
         calibration: CalibrationDataStatus
     ) -> PreviewRenderCacheKey {
         PreviewRenderCacheKey(
+            projectItemID: project.selectedItemID,
             sourceIdentifier: sourceURL?.path ?? importedImageName ?? "memory-source",
             sourceWidth: Int(sourceImage.extent.width.rounded()),
             sourceHeight: Int(sourceImage.extent.height.rounded()),
