@@ -392,8 +392,16 @@ package struct ExportSettings: Codable, Equatable, Hashable {
     package init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         fileFormat = try container.decodeIfPresent(ExportFileFormat.self, forKey: .fileFormat) ?? .jpeg
-        jpegQuality = try container.decodeIfPresent(Double.self, forKey: .jpegQuality) ?? 0.92
-        scale = try container.decodeIfPresent(Double.self, forKey: .scale) ?? 1.0
+        jpegQuality = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .jpegQuality) ?? 0.92,
+            lower: 0.1,
+            upper: 1.0
+        )
+        scale = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .scale) ?? 1.0,
+            lower: 0.25,
+            upper: 2.0
+        )
         preserveMetadata = try container.decodeIfPresent(Bool.self, forKey: .preserveMetadata) ?? true
         embedColorProfile = try container.decodeIfPresent(Bool.self, forKey: .embedColorProfile) ?? true
         namingTemplate = try container.decodeIfPresent(String.self, forKey: .namingTemplate) ?? "{photo}-{recipe}"
@@ -408,6 +416,10 @@ package struct ExportSettings: Codable, Equatable, Hashable {
         case preserveMetadata
         case embedColorProfile
         case namingTemplate
+    }
+
+    private static func clamped(_ value: Double, lower: Double, upper: Double) -> Double {
+        min(max(value, lower), upper)
     }
 }
 
@@ -642,10 +654,26 @@ package struct RawDevelopmentSettings: Codable, Equatable, Hashable {
     package init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
-        exposureEV = try container.decodeIfPresent(Double.self, forKey: .exposureEV) ?? 0
-        temperatureK = try container.decodeIfPresent(Double.self, forKey: .temperatureK) ?? 5500
-        tint = try container.decodeIfPresent(Double.self, forKey: .tint) ?? 0
-        highlightRecovery = try container.decodeIfPresent(Double.self, forKey: .highlightRecovery) ?? 0.25
+        exposureEV = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .exposureEV) ?? 0,
+            lower: -2,
+            upper: 2
+        )
+        temperatureK = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .temperatureK) ?? 5500,
+            lower: 2500,
+            upper: 9000
+        )
+        tint = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .tint) ?? 0,
+            lower: -1,
+            upper: 1
+        )
+        highlightRecovery = Self.clamped(
+            try container.decodeIfPresent(Double.self, forKey: .highlightRecovery) ?? 0.25,
+            lower: 0,
+            upper: 1
+        )
     }
 
     package static let defaults = RawDevelopmentSettings()
@@ -656,6 +684,10 @@ package struct RawDevelopmentSettings: Codable, Equatable, Hashable {
         case temperatureK
         case tint
         case highlightRecovery
+    }
+
+    private static func clamped(_ value: Double, lower: Double, upper: Double) -> Double {
+        min(max(value, lower), upper)
     }
 }
 
