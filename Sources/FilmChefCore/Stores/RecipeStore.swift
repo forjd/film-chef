@@ -1,13 +1,18 @@
 import Foundation
 
 public final class RecipeStore {
+    private static let maxRecipeByteCount = 2 * 1024 * 1024
+
     package enum RecipeStoreError: LocalizedError {
         case missingResource
+        case oversizedRecipe(String)
 
         package var errorDescription: String? {
             switch self {
             case .missingResource:
                 return "No film recipe JSON files could be found."
+            case .oversizedRecipe(let name):
+                return "\(name) is too large to import as a film recipe."
             }
         }
     }
@@ -33,7 +38,7 @@ public final class RecipeStore {
         decoder.keyDecodingStrategy = .convertFromSnakeCase
 
         let recipes = try urls.map { url in
-            let data = try Data(contentsOf: url)
+            let data = try recipeData(from: url)
             return try decoder.decode(FilmRecipe.self, from: data)
         }
 
@@ -47,7 +52,7 @@ public final class RecipeStore {
     package func loadRecipe(from url: URL) throws -> FilmRecipe {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        let data = try Data(contentsOf: url)
+        let data = try recipeData(from: url)
         let recipe = try decoder.decode(FilmRecipe.self, from: data)
         try FilmRecipeValidator.validate(recipe)
         return recipe
@@ -59,6 +64,14 @@ public final class RecipeStore {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(recipe)
         try data.write(to: url, options: [.atomic])
+    }
+
+    private func recipeData(from url: URL) throws -> Data {
+        let values = try url.resourceValues(forKeys: [.fileSizeKey])
+        if let fileSize = values.fileSize, fileSize > Self.maxRecipeByteCount {
+            throw RecipeStoreError.oversizedRecipe(url.lastPathComponent)
+        }
+        return try Data(contentsOf: url)
     }
 
     private static func bundledRecipeURLs() -> [URL] {

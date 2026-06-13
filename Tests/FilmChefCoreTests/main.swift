@@ -324,6 +324,7 @@ func testRecipeStoreRejectsInvalidAndDuplicateRecipes() throws {
     let validURL = directory.appendingPathComponent("valid.json")
     let duplicateURL = directory.appendingPathComponent("duplicate.json")
     let invalidURL = directory.appendingPathComponent("invalid.json")
+    let oversizedURL = directory.appendingPathComponent("oversized.json")
 
     try writeRecipeJSON(from: recipe, to: validURL)
     try writeRecipeJSON(from: recipe, to: duplicateURL)
@@ -331,6 +332,7 @@ func testRecipeStoreRejectsInvalidAndDuplicateRecipes() throws {
         object["schema_version"] = "99.0"
         setJSONValue(-400, path: ["exposure", "exposed_at_iso"], object: &object)
     }
+    try Data(repeating: 0, count: (2 * 1024 * 1024) + 1).write(to: oversizedURL)
 
     do {
         _ = try RecipeStore(recipeURLProvider: { [invalidURL] }).loadRecipe(from: invalidURL)
@@ -348,6 +350,14 @@ func testRecipeStoreRejectsInvalidAndDuplicateRecipes() throws {
     } catch let error as FilmRecipeValidationError {
         let description = try require(error.errorDescription)
         try expect(description.contains("Duplicate profile_id '\(recipe.profileId)' is not allowed."))
+    }
+
+    do {
+        _ = try RecipeStore(recipeURLProvider: { [oversizedURL] }).loadRecipe(from: oversizedURL)
+        try expect(false, "Expected oversized imported recipe to fail before decode.")
+    } catch let error as RecipeStore.RecipeStoreError {
+        let description = try require(error.errorDescription)
+        try expect(description == "oversized.json is too large to import as a film recipe.")
     }
 }
 
