@@ -33,7 +33,7 @@ chmod +x "$APP_BINARY"
 
 # Stage resources in Contents/Resources to match the release layout; items at
 # the .app root make the bundle structure invalid for code signing.
-for RESOURCE_BUNDLE in "$BUILD_DIR"/${APP_NAME}_*.bundle; do
+for RESOURCE_BUNDLE in "$BUILD_DIR"/"$APP_NAME"_*.bundle; do
   [[ -d "$RESOURCE_BUNDLE" ]] || continue
   cp -R "$RESOURCE_BUNDLE" "$APP_RESOURCES/"
 done
