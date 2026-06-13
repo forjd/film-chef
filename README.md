@@ -1,8 +1,26 @@
+![Film Chef app preview](preview.jpeg)
+
 # Film Chef
 
 Film Chef is a native macOS photo editor for building, previewing, and exporting film-emulation looks. It is written in SwiftUI and Core Image, with editable JSON recipes that describe film stocks, process behavior, grain, halation, sharpness, color response, and output intent.
 
 The project is early, useful, and intentionally open-ended: the renderer is profile-driven today, with room for calibrated spectral data, measured H-D curves, grain datasets, and LUT-backed profiles later.
+
+## Sample Results
+
+These Unsplash source photos show original images alongside Film Chef exports rendered with bundled recipes.
+
+### Kodak Gold 200
+
+| Original | Film Chef: Kodak Gold 200 |
+| --- | --- |
+| <img src="ian-dooley-DuBNA1QMpPA-unsplash.jpg" alt="Original Unsplash photo by Ian Dooley" width="100%"> | <img src="ian-dooley-dubna1qmppa-unsplash-kodak-gold-200.jpg" alt="Ian Dooley Unsplash photo rendered with the Kodak Gold 200 recipe in Film Chef" width="100%"> |
+
+### Ilford HP5 Plus 400
+
+| Original | Film Chef: Ilford HP5 Plus 400 |
+| --- | --- |
+| <img src="khachik-simonian-nXOB-wh4Oyc-unsplash.jpg" alt="Original Unsplash photo by Khachik Simonian" width="100%"> | <img src="khachik-simonian-nxob-wh4oyc-unsplash-ilford-hp5-plus-400.jpg" alt="Khachik Simonian Unsplash photo rendered with the Ilford HP5 Plus 400 recipe in Film Chef" width="100%"> |
 
 ## Highlights
 
