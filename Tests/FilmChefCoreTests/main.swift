@@ -1907,6 +1907,7 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     try expect(unnamedProject.exportSettings == .defaults)
 
     let partialProjectID = UUID()
+    let duplicatePresetID = UUID()
     let partialProjectURL = directory.appendingPathComponent("Partial Legacy.filmchef")
     try """
     {
@@ -1963,6 +1964,7 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
       },
       "exportPresets": [
         {
+          "id": "\(duplicatePresetID.uuidString)",
           "name": "  Legacy TIFF  ",
           "settings": {
             "fileFormat": "tiff",
@@ -1971,6 +1973,7 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
           }
         },
         {
+          "id": "\(duplicatePresetID.uuidString)",
           "name": "   "
         }
       ],
@@ -2031,10 +2034,13 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     try expect(partialProject.exportSettings.namingTemplate == ExportSettings.defaults.namingTemplate)
     let partialPreset = try require(partialProject.exportPresets.first)
     try expect(partialPreset.name == "Legacy TIFF")
+    try expect(partialPreset.id == duplicatePresetID)
     try expect(partialPreset.settings.fileFormat == .tiff)
     try expect(partialPreset.settings.jpegQuality == 0.1)
     try expect(partialPreset.settings.scale == 2.0)
     try expect(partialProject.exportPresets.last?.name == "Custom Preset")
+    try expect(Set(partialProject.exportPresets.map(\.id)).count == partialProject.exportPresets.count)
+    try expect(partialProject.exportPresets.last?.id != duplicatePresetID)
     try expect(partialProject.colorManagementSettings.inputIntent == ColorManagementSettings.defaults.inputIntent)
     try expect(partialProject.colorManagementSettings.outputColorSpace == "display_p3")
     try expect(partialProject.colorManagementSettings.rawDevelopment.exposureEV == 2.0)
