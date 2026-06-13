@@ -325,6 +325,52 @@ func testRecipeValidatorReportsActionableIssues() throws {
     try expect(issues.contains("Color recipes must provide a 3-row layer_model.rgb_to_layer_matrix."))
     try expect(issues.contains("renderer.white_point must be greater than renderer.black_point."))
     try expect(issues.contains("grain.strength must be between 0 and 2."))
+
+    let invalidNestedRecipe = try mutatedRecipe(from: recipe) { object in
+        setJSONValue(1, path: ["stock", "native_colour_temperature_k"], object: &object)
+        setJSONValue(
+            ["enabled": true, "recommended_exposed_at_iso": 0],
+            path: ["capture_conditions", "daylight_mode"],
+            object: &object
+        )
+        setJSONValue(
+            ["enabled": true, "density": ["red": 9.0, "green": 0.5, "blue": 0.5]],
+            path: ["colour_model", "orange_mask"],
+            object: &object
+        )
+        setJSONValue(
+            ["enabled": true, "warmth": -9.0, "selenium": 9.0],
+            path: ["colour_model", "toning"],
+            object: &object
+        )
+        setJSONValue(["r": 9.0, "g": 0.0, "b": 0.0], path: ["process", "colour_shift"], object: &object)
+        setJSONValue(
+            ["shadow": -1.0, "midtone": 1.0, "highlight": 1.0],
+            path: ["grain", "tonal_distribution"],
+            object: &object
+        )
+        setJSONValue(
+            ["red": 1.0, "green": 9.0, "blue": 1.0],
+            path: ["grain", "channel_variance"],
+            object: &object
+        )
+        setJSONValue(["r": 1.0, "g": 1.0, "b": -1.0], path: ["halation", "colour"], object: &object)
+        setJSONValue(2.0, path: ["renderer", "auto_exposure"], object: &object)
+        setJSONValue(-1.0, path: ["renderer", "auto_white_balance"], object: &object)
+    }
+
+    let nestedIssues = FilmRecipeValidator.issues(for: invalidNestedRecipe).map(\.message)
+    try expect(nestedIssues.contains("stock.native_colour_temperature_k must be between 1000 and 40000."))
+    try expect(nestedIssues.contains("capture_conditions.daylight_mode.recommended_exposed_at_iso must be greater than 0."))
+    try expect(nestedIssues.contains("colour_model.orange_mask.density.red must be between 0 and 4."))
+    try expect(nestedIssues.contains("colour_model.toning.warmth must be between -1 and 1."))
+    try expect(nestedIssues.contains("colour_model.toning.selenium must be between 0 and 1."))
+    try expect(nestedIssues.contains("process.colour_shift.r must be between -1 and 1."))
+    try expect(nestedIssues.contains("grain.tonal_distribution.shadow must be between 0 and 2."))
+    try expect(nestedIssues.contains("grain.channel_variance.green must be between 0 and 2."))
+    try expect(nestedIssues.contains("halation.colour.b must be between 0 and 2."))
+    try expect(nestedIssues.contains("renderer.auto_exposure must be between 0 and 1."))
+    try expect(nestedIssues.contains("renderer.auto_white_balance must be between 0 and 1."))
 }
 
 func testRecipeStoreRejectsInvalidAndDuplicateRecipes() throws {

@@ -77,6 +77,14 @@ package enum FilmRecipeValidator {
         requireNonEmpty(recipe.summary, field: "summary", issues: &issues)
 
         requirePositive(recipe.stock.boxSpeedIso, field: "stock.box_speed_iso", issues: &issues)
+        if let nativeColourTemperatureK = recipe.stock.nativeColourTemperatureK {
+            requireRange(
+                Double(nativeColourTemperatureK),
+                field: "stock.native_colour_temperature_k",
+                range: 1000...40000,
+                issues: &issues
+            )
+        }
         requirePositive(recipe.exposure.boxSpeedIso, field: "exposure.box_speed_iso", issues: &issues)
         requirePositive(recipe.exposure.exposedAtIso, field: "exposure.exposed_at_iso", issues: &issues)
         requirePositive(recipe.format.frameSizeMm.width, field: "format.frame_size_mm.width", issues: &issues)
@@ -90,6 +98,9 @@ package enum FilmRecipeValidator {
         requireRange(recipe.captureConditions.filter.strength, field: "capture_conditions.filter.strength", range: 0...1, issues: &issues)
         requireOptionalRange(recipe.captureConditions.lensContrast, field: "capture_conditions.lens_contrast", range: 0.1...3, issues: &issues)
         requireOptionalRange(recipe.captureConditions.lensFlare, field: "capture_conditions.lens_flare", range: 0...1, issues: &issues)
+        if let recommendedExposedAtIso = recipe.captureConditions.daylightMode?.recommendedExposedAtIso {
+            requirePositive(recommendedExposedAtIso, field: "capture_conditions.daylight_mode.recommended_exposed_at_iso", issues: &issues)
+        }
 
         if recipe.layerModel.rgbToLayerMatrix.isEmpty {
             issues.append(RecipeValidationIssue("layer_model.rgb_to_layer_matrix must include at least one row."))
@@ -132,18 +143,47 @@ package enum FilmRecipeValidator {
             requireRange(hueBias.blues, field: "colour_model.hue_bias.blues", range: -1...1, issues: &issues)
             requireRange(hueBias.magentas, field: "colour_model.hue_bias.magentas", range: -1...1, issues: &issues)
         }
+        if let orangeMask = recipe.colourModel.orangeMask {
+            requireChannelValues(
+                orangeMask.density,
+                field: "colour_model.orange_mask.density",
+                range: 0...4,
+                issues: &issues
+            )
+        }
+        if let toning = recipe.colourModel.toning {
+            requireRange(toning.warmth, field: "colour_model.toning.warmth", range: -1...1, issues: &issues)
+            requireRange(toning.selenium, field: "colour_model.toning.selenium", range: 0...1, issues: &issues)
+        }
         requireRange(recipe.process.pushPullStops, field: "process.push_pull_stops", range: -5...5, issues: &issues)
         requireRange(recipe.process.contrastMultiplier, field: "process.contrast_multiplier", range: 0.1...4, issues: &issues)
         requireRange(recipe.process.speedGainEv, field: "process.speed_gain_ev", range: -5...5, issues: &issues)
         requireRange(recipe.process.grainMultiplier, field: "process.grain_multiplier", range: 0...5, issues: &issues)
+        if let colourShift = recipe.process.colourShift {
+            requireRGB(colourShift, field: "process.colour_shift", range: -1...1, issues: &issues)
+        }
         requireRange(recipe.grain.strength, field: "grain.strength", range: 0...2, issues: &issues)
         requireRange(recipe.grain.size, field: "grain.size", range: 0...5, issues: &issues)
         requireRange(recipe.grain.clumpiness, field: "grain.clumpiness", range: 0...1, issues: &issues)
         requireRange(recipe.grain.softness, field: "grain.softness", range: 0...1, issues: &issues)
         requireRange(recipe.grain.chromaticity, field: "grain.chromaticity", range: 0...1, issues: &issues)
+        if let tonalDistribution = recipe.grain.tonalDistribution {
+            requireRange(tonalDistribution.shadow, field: "grain.tonal_distribution.shadow", range: 0...2, issues: &issues)
+            requireRange(tonalDistribution.midtone, field: "grain.tonal_distribution.midtone", range: 0...2, issues: &issues)
+            requireRange(tonalDistribution.highlight, field: "grain.tonal_distribution.highlight", range: 0...2, issues: &issues)
+        }
+        if let channelVariance = recipe.grain.channelVariance {
+            requireChannelValues(
+                channelVariance,
+                field: "grain.channel_variance",
+                range: 0...2,
+                issues: &issues
+            )
+        }
         requireRange(recipe.halation.threshold, field: "halation.threshold", range: 0...1, issues: &issues)
         requireRange(recipe.halation.strength, field: "halation.strength", range: 0...2, issues: &issues)
         requireRange(recipe.halation.radius, field: "halation.radius", range: 0...100, issues: &issues)
+        requireRGB(recipe.halation.colour, field: "halation.colour", range: 0...2, issues: &issues)
         requireOptionalRange(recipe.halation.edgePreservation, field: "halation.edge_preservation", range: 0...1, issues: &issues)
         requireRange(recipe.sharpness.filmMtfBlur, field: "sharpness.film_mtf_blur", range: 0...20, issues: &issues)
         requireRange(recipe.sharpness.scannerMtfBlur, field: "sharpness.scanner_mtf_blur", range: 0...20, issues: &issues)
@@ -153,6 +193,8 @@ package enum FilmRecipeValidator {
         requireRange(recipe.renderer.whitePoint, field: "renderer.white_point", range: 0...1.5, issues: &issues)
         requireRange(recipe.renderer.contrast, field: "renderer.contrast", range: 0.1...4, issues: &issues)
         requireRange(recipe.renderer.saturation, field: "renderer.saturation", range: 0...4, issues: &issues)
+        requireRange(recipe.renderer.autoExposure, field: "renderer.auto_exposure", range: 0...1, issues: &issues)
+        requireRange(recipe.renderer.autoWhiteBalance, field: "renderer.auto_white_balance", range: 0...1, issues: &issues)
         requireOptionalRange(recipe.renderer.sharpening, field: "renderer.sharpening", range: 0...3, issues: &issues)
         if let scannerMtf = recipe.renderer.scannerMtf {
             requireRange(scannerMtf.blurRadius, field: "renderer.scanner_mtf.blur_radius", range: 0...20, issues: &issues)
@@ -248,6 +290,28 @@ package enum FilmRecipeValidator {
                 issues.append(RecipeValidationIssue("characteristic_curves.channels.\(channel).d_max must be greater than d_min."))
             }
         }
+    }
+
+    private static func requireRGB(
+        _ value: FilmRGB,
+        field: String,
+        range: ClosedRange<Double>,
+        issues: inout [RecipeValidationIssue]
+    ) {
+        requireRange(value.r, field: "\(field).r", range: range, issues: &issues)
+        requireRange(value.g, field: "\(field).g", range: range, issues: &issues)
+        requireRange(value.b, field: "\(field).b", range: range, issues: &issues)
+    }
+
+    private static func requireChannelValues(
+        _ value: FilmChannelValues,
+        field: String,
+        range: ClosedRange<Double>,
+        issues: inout [RecipeValidationIssue]
+    ) {
+        requireRange(value.red, field: "\(field).red", range: range, issues: &issues)
+        requireRange(value.green, field: "\(field).green", range: range, issues: &issues)
+        requireRange(value.blue, field: "\(field).blue", range: range, issues: &issues)
     }
 
     private static func format(_ value: Double) -> String {
