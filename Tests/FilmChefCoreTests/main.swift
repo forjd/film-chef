@@ -2864,7 +2864,41 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         try expect(relinkEditor.projectItemNeedingRelinkID == nil)
         try expect(relinkEditor.hasImportedImage)
         try expect(relinkEditor.project.items.first?.originalURLPath == sourceURL.path)
+
+        let corruptBookmarkItemID = UUID()
+        let corruptBookmarkProject = FilmProject(
+            items: [
+                FilmProjectItem(
+                    id: corruptBookmarkItemID,
+                    displayName: "Corrupt Bookmark Photo.png",
+                    originalURLPath: sourceURL.path,
+                    originalBookmarkData: Data([0xde, 0xad, 0xbe, 0xef]),
+                    selectedRecipeID: editor.selectedRecipeID,
+                    adjustments: .defaults
+                )
+            ],
+            selectedItemID: corruptBookmarkItemID
+        )
+        let corruptBookmarkProjectURL = directory.appendingPathComponent("Corrupt Bookmark Project.filmchef")
+        try ProjectStore().writeProject(corruptBookmarkProject, to: corruptBookmarkProjectURL)
+
+        let corruptBookmarkEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        corruptBookmarkEditor.loadRecipesIfNeeded()
+        corruptBookmarkEditor.openProjectForTesting(from: corruptBookmarkProjectURL)
+        try expect(corruptBookmarkEditor.hasImportedImage)
+        try expect(corruptBookmarkEditor.projectItemNeedingRelinkID == nil)
+        try expect(corruptBookmarkEditor.importedImageName == "Corrupt Bookmark Photo.png")
     }
+
+    let fallbackReference = FilmProjectItem(
+        displayName: "Fallback",
+        originalURLPath: sourceURL.path,
+        originalBookmarkData: Data([0xde, 0xad, 0xbe, 0xef]),
+        selectedRecipeID: nil,
+        adjustments: RenderAdjustments.defaults
+    )
+    let fallbackURL = try ProjectStore().resolvePhotoURL(for: fallbackReference)
+    try expect(fallbackURL.path == sourceURL.path)
 
     let missingReference = FilmProjectItem(
         displayName: "Missing",

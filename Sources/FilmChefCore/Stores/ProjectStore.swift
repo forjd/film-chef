@@ -65,33 +65,42 @@ package final class ProjectStore {
     }
 
     package func resolvePhotoReference(for item: FilmProjectItem) throws -> (url: URL, refreshedBookmarkData: Data?) {
-        if let bookmarkData = item.originalBookmarkData {
+        var bookmarkResolutionError: Error?
+        if let storedBookmarkData = item.originalBookmarkData {
             var isStale = false
-            let url = try URL(
-                resolvingBookmarkData: bookmarkData,
-                options: [.withSecurityScope],
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            )
+            do {
+                let url = try URL(
+                    resolvingBookmarkData: storedBookmarkData,
+                    options: [.withSecurityScope],
+                    relativeTo: nil,
+                    bookmarkDataIsStale: &isStale
+                )
 
-            if !isStale {
-                return (url, nil)
-            }
-
-            // Creating a security-scoped bookmark requires active access to
-            // the resource in a sandboxed process.
-            let didStartAccessing = url.startAccessingSecurityScopedResource()
-            defer {
-                if didStartAccessing {
-                    url.stopAccessingSecurityScopedResource()
+                if !isStale {
+                    return (url, nil)
                 }
+
+                // Creating a security-scoped bookmark requires active access
+                // to the resource in a sandboxed process.
+                let didStartAccessing = url.startAccessingSecurityScopedResource()
+                defer {
+                    if didStartAccessing {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                }
+                return (url, self.bookmarkData(for: url))
+            } catch {
+                bookmarkResolutionError = error
             }
-            return (url, self.bookmarkData(for: url))
         }
 
         if let path = item.originalURLPath, !path.isEmpty {
             let url = URL(fileURLWithPath: path)
             return (url, bookmarkData(for: url))
+        }
+
+        if let bookmarkResolutionError {
+            throw bookmarkResolutionError
         }
 
         throw ProjectStoreError.missingPhotoReference
