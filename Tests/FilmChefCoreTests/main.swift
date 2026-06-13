@@ -2281,6 +2281,46 @@ func testProjectPersistsCustomRecipes() throws {
         try expect(invalidRecipeEditor.selectedRecipe?.id == customRecipe.id)
         try expect(invalidRecipeEditor.editedPreviewImage != nil)
         try expect(invalidRecipeEditor.errorMessage?.contains("output.bit_depth must be greater than 0.") == true)
+
+        let bundledRecipe = try require(editor.recipes.first { $0.id != customRecipe.id })
+        let conflictingCustomRecipe = try mutatedRecipe(from: customRecipe) { object in
+            setJSONValue(bundledRecipe.id, path: ["profile_id"], object: &object)
+            setJSONValue("Shadowed Bundled Recipe", path: ["display_name"], object: &object)
+        }
+        let conflictingProject = FilmProject(
+            items: [
+                FilmProjectItem(
+                    displayName: "photo.png",
+                    originalURLPath: photoURL.path,
+                    selectedRecipeID: bundledRecipe.id,
+                    adjustments: .defaults
+                )
+            ],
+            selectedItemID: nil,
+            customRecipes: [conflictingCustomRecipe]
+        )
+        let conflictingProjectURL = directory.appendingPathComponent("conflicting-custom-recipe.filmchef")
+        try ProjectStore().writeProject(conflictingProject, to: conflictingProjectURL)
+
+        let loadedConflictEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        loadedConflictEditor.loadRecipesIfNeeded()
+        loadedConflictEditor.openProjectForTesting(from: conflictingProjectURL)
+        try expect(loadedConflictEditor.selectedRecipe?.id == bundledRecipe.id)
+        try expect(loadedConflictEditor.selectedRecipe?.name == bundledRecipe.name)
+        try expect(!loadedConflictEditor.selectedRecipeIsEditable)
+        try expect(!loadedConflictEditor.recipes.contains { $0.name == "Shadowed Bundled Recipe" })
+        try expect(loadedConflictEditor.errorMessage?.contains("conflicts with a bundled recipe") == true)
+
+        let coldConflictEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        coldConflictEditor.openProjectForTesting(from: conflictingProjectURL)
+        try expect(coldConflictEditor.selectedRecipe?.name == "Shadowed Bundled Recipe")
+        try expect(coldConflictEditor.selectedRecipeIsEditable)
+        coldConflictEditor.loadRecipesIfNeeded()
+        try expect(coldConflictEditor.selectedRecipe?.id == bundledRecipe.id)
+        try expect(coldConflictEditor.selectedRecipe?.name == bundledRecipe.name)
+        try expect(!coldConflictEditor.selectedRecipeIsEditable)
+        try expect(!coldConflictEditor.recipes.contains { $0.name == "Shadowed Bundled Recipe" })
+        try expect(coldConflictEditor.errorMessage?.contains("conflicts with a bundled recipe") == true)
     }
 }
 
