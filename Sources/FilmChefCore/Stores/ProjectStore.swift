@@ -49,7 +49,11 @@ package final class ProjectStore {
         if let fileSize = values.fileSize, fileSize > Self.maxProjectByteCount {
             throw ProjectStoreError.oversizedProject(url.lastPathComponent)
         }
-        return try Data(contentsOf: url)
+        let data = try Data(contentsOf: url)
+        if data.count > Self.maxProjectByteCount {
+            throw ProjectStoreError.oversizedProject(url.lastPathComponent)
+        }
+        return data
     }
 
     package func bookmarkData(for url: URL) -> Data? {

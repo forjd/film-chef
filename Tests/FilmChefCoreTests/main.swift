@@ -61,6 +61,77 @@ func waitUntil(
     }
 }
 
+final class SlowBitmapRepresentation {
+    private let lock = NSLock()
+    private var didStart = false
+    private var didFinish = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var finishWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func makeData(
+        _ representation: NSBitmapImageRep,
+        _ fileType: NSBitmapImageRep.FileType,
+        _ properties: [NSBitmapImageRep.PropertyKey: Any]
+    ) -> Data? {
+        markStarted()
+        Thread.sleep(forTimeInterval: 0.3)
+        markFinished()
+        return Data([0])
+    }
+
+    func waitUntilStarted() async {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if didStart {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                startWaiters.append(continuation)
+                lock.unlock()
+            }
+        }
+    }
+
+    func waitUntilFinished() async {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if didFinish {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                finishWaiters.append(continuation)
+                lock.unlock()
+            }
+        }
+    }
+
+    private func markStarted() {
+        lock.lock()
+        guard !didStart else {
+            lock.unlock()
+            return
+        }
+        didStart = true
+        let waiters = startWaiters
+        startWaiters.removeAll()
+        lock.unlock()
+        waiters.forEach { $0.resume() }
+    }
+
+    private func markFinished() {
+        lock.lock()
+        guard !didFinish else {
+            lock.unlock()
+            return
+        }
+        didFinish = true
+        let waiters = finishWaiters
+        finishWaiters.removeAll()
+        lock.unlock()
+        waiters.forEach { $0.resume() }
+    }
+}
+
 func loadTestRecipes() throws -> [FilmRecipe] {
     let recipes = try RecipeStore().loadRecipes()
     try expect(!recipes.isEmpty, "Expected bundled recipes to load.")
@@ -2379,10 +2450,8 @@ func testOpeningProjectSupersedesInFlightBatchExport() async throws {
         try? FileManager.default.removeItem(at: directory)
     }
 
-    let slowExportProcessor = ImageProcessor(bitmapRepresentation: { _, _, _ in
-        Thread.sleep(forTimeInterval: 0.3)
-        return Data([0])
-    })
+    let slowBitmapRepresentation = SlowBitmapRepresentation()
+    let slowExportProcessor = ImageProcessor(bitmapRepresentation: slowBitmapRepresentation.makeData)
     let editor = EditorStore(
         recipeStore: RecipeStore(),
         projectStore: ProjectStore(),
@@ -2398,6 +2467,7 @@ func testOpeningProjectSupersedesInFlightBatchExport() async throws {
 
     editor.startProjectExportTaskForTesting(to: directory.appendingPathComponent("old-export", isDirectory: true))
     try expect(editor.batchExportState.isExporting)
+    await slowBitmapRepresentation.waitUntilStarted()
 
     let openedProjectURL = directory.appendingPathComponent("Opened.filmchef")
     try ProjectStore().writeProject(FilmProject(name: "Opened Project"), to: openedProjectURL)
@@ -2407,7 +2477,7 @@ func testOpeningProjectSupersedesInFlightBatchExport() async throws {
     try expect(editor.batchExportState == BatchExportState())
     try expect(editor.errorMessage == nil)
 
-    try? await Task.sleep(nanoseconds: 700_000_000)
+    await slowBitmapRepresentation.waitUntilFinished()
     try expect(editor.batchExportState == BatchExportState())
     try expect(editor.errorMessage == nil)
 }
@@ -2906,6 +2976,11 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         try expect(missingRecipeEditor.histogramSummary == nil)
         try expect(missingRecipeEditor.previewRenderStatus == "Missing recipe")
         try expect(missingRecipeEditor.errorMessage == "No matching recipe is available to render Missing Recipe Photo.png.")
+        missingRecipeEditor.errorMessage = "Project warning still needs attention."
+        missingRecipeEditor.selectedRecipeID = try require(missingRecipeEditor.recipes.first?.id)
+        try expect(missingRecipeEditor.editedPreviewImage != nil)
+        try expect(missingRecipeEditor.previewRenderStatus == "Preview ready")
+        try expect(missingRecipeEditor.errorMessage == "Project warning still needs attention.")
 
         let missingItemID = UUID()
         let missingAdjustments = RenderAdjustments(

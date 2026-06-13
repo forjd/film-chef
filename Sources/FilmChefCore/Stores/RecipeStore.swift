@@ -71,7 +71,11 @@ public final class RecipeStore {
         if let fileSize = values.fileSize, fileSize > Self.maxRecipeByteCount {
             throw RecipeStoreError.oversizedRecipe(url.lastPathComponent)
         }
-        return try Data(contentsOf: url)
+        let data = try Data(contentsOf: url)
+        if data.count > Self.maxRecipeByteCount {
+            throw RecipeStoreError.oversizedRecipe(url.lastPathComponent)
+        }
+        return data
     }
 
     private static func bundledRecipeURLs() -> [URL] {
