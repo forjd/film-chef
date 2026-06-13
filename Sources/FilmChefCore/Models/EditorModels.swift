@@ -389,7 +389,26 @@ package struct ExportSettings: Codable, Equatable, Hashable {
         self.namingTemplate = namingTemplate
     }
 
+    package init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        fileFormat = try container.decodeIfPresent(ExportFileFormat.self, forKey: .fileFormat) ?? .jpeg
+        jpegQuality = try container.decodeIfPresent(Double.self, forKey: .jpegQuality) ?? 0.92
+        scale = try container.decodeIfPresent(Double.self, forKey: .scale) ?? 1.0
+        preserveMetadata = try container.decodeIfPresent(Bool.self, forKey: .preserveMetadata) ?? true
+        embedColorProfile = try container.decodeIfPresent(Bool.self, forKey: .embedColorProfile) ?? true
+        namingTemplate = try container.decodeIfPresent(String.self, forKey: .namingTemplate) ?? "{photo}-{recipe}"
+    }
+
     package static let defaults = ExportSettings()
+
+    private enum CodingKeys: String, CodingKey {
+        case fileFormat
+        case jpegQuality
+        case scale
+        case preserveMetadata
+        case embedColorProfile
+        case namingTemplate
+    }
 }
 
 package struct ExportPreset: Codable, Equatable, Hashable, Identifiable {
@@ -407,11 +426,24 @@ package struct ExportPreset: Codable, Equatable, Hashable, Identifiable {
         self.settings = settings
     }
 
+    package init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Custom Preset"
+        settings = try container.decodeIfPresent(ExportSettings.self, forKey: .settings) ?? .defaults
+    }
+
     package static let defaults = [
         ExportPreset(name: "Web JPEG", settings: ExportSettings(fileFormat: .jpeg, jpegQuality: 0.86, scale: 1.0, preserveMetadata: false, embedColorProfile: true, namingTemplate: "{photo}-{recipe}")),
         ExportPreset(name: "Archive TIFF", settings: ExportSettings(fileFormat: .tiff, jpegQuality: 1.0, scale: 1.0, preserveMetadata: true, embedColorProfile: true, namingTemplate: "{photo}-{recipe}-archive")),
         ExportPreset(name: "Review PNG", settings: ExportSettings(fileFormat: .png, jpegQuality: 1.0, scale: 0.5, preserveMetadata: false, embedColorProfile: true, namingTemplate: "{photo}-{recipe}-review"))
     ]
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case settings
+    }
 }
 
 package struct HistogramSummary: Codable, Equatable {
@@ -607,7 +639,24 @@ package struct RawDevelopmentSettings: Codable, Equatable, Hashable {
         self.highlightRecovery = highlightRecovery
     }
 
+    package init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        exposureEV = try container.decodeIfPresent(Double.self, forKey: .exposureEV) ?? 0
+        temperatureK = try container.decodeIfPresent(Double.self, forKey: .temperatureK) ?? 5500
+        tint = try container.decodeIfPresent(Double.self, forKey: .tint) ?? 0
+        highlightRecovery = try container.decodeIfPresent(Double.self, forKey: .highlightRecovery) ?? 0.25
+    }
+
     package static let defaults = RawDevelopmentSettings()
+
+    private enum CodingKeys: String, CodingKey {
+        case enabled
+        case exposureEV
+        case temperatureK
+        case tint
+        case highlightRecovery
+    }
 }
 
 package struct ColorManagementSettings: Codable, Equatable, Hashable {
@@ -631,7 +680,24 @@ package struct ColorManagementSettings: Codable, Equatable, Hashable {
         self.rawDevelopment = rawDevelopment
     }
 
+    package init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        inputIntent = try container.decodeIfPresent(String.self, forKey: .inputIntent) ?? "embedded_or_camera_profile"
+        workingColorSpace = try container.decodeIfPresent(String.self, forKey: .workingColorSpace) ?? "extended_linear_srgb"
+        outputColorSpace = try container.decodeIfPresent(String.self, forKey: .outputColorSpace) ?? "srgb"
+        rawDevelopmentEnabled = try container.decodeIfPresent(Bool.self, forKey: .rawDevelopmentEnabled) ?? true
+        rawDevelopment = try container.decodeIfPresent(RawDevelopmentSettings.self, forKey: .rawDevelopment) ?? .defaults
+    }
+
     package static let defaults = ColorManagementSettings()
+
+    private enum CodingKeys: String, CodingKey {
+        case inputIntent
+        case workingColorSpace
+        case outputColorSpace
+        case rawDevelopmentEnabled
+        case rawDevelopment
+    }
 }
 
 package enum ColorOutputProfile: String, CaseIterable, Codable, Equatable, Hashable, Identifiable {
@@ -717,18 +783,18 @@ package struct CalibrationDataStatus: Codable, Equatable, Hashable {
 
     package init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        supportsSpectralCurves = try container.decode(Bool.self, forKey: .supportsSpectralCurves)
-        supportsMeasuredDensityCurves = try container.decode(Bool.self, forKey: .supportsMeasuredDensityCurves)
+        supportsSpectralCurves = try container.decodeIfPresent(Bool.self, forKey: .supportsSpectralCurves) ?? false
+        supportsMeasuredDensityCurves = try container.decodeIfPresent(Bool.self, forKey: .supportsMeasuredDensityCurves) ?? false
         supportsGrainSpectra = try container.decodeIfPresent(Bool.self, forKey: .supportsGrainSpectra) ?? false
-        supportsThreeDimensionalLUTs = try container.decode(Bool.self, forKey: .supportsThreeDimensionalLUTs)
-        importedAssetNames = try container.decode([String].self, forKey: .importedAssetNames)
+        supportsThreeDimensionalLUTs = try container.decodeIfPresent(Bool.self, forKey: .supportsThreeDimensionalLUTs) ?? false
+        importedAssetNames = try container.decodeIfPresent([String].self, forKey: .importedAssetNames) ?? []
         importedAssetSummaries = try container.decodeIfPresent([String].self, forKey: .importedAssetSummaries) ?? []
-        redScale = try container.decode(Double.self, forKey: .redScale)
-        greenScale = try container.decode(Double.self, forKey: .greenScale)
-        blueScale = try container.decode(Double.self, forKey: .blueScale)
+        redScale = try container.decodeIfPresent(Double.self, forKey: .redScale) ?? 1.0
+        greenScale = try container.decodeIfPresent(Double.self, forKey: .greenScale) ?? 1.0
+        blueScale = try container.decodeIfPresent(Double.self, forKey: .blueScale) ?? 1.0
         densityGamma = try container.decodeIfPresent(Double.self, forKey: .densityGamma) ?? 1.0
         grainAmount = try container.decodeIfPresent(Double.self, forKey: .grainAmount) ?? 0.0
-        note = try container.decode(String.self, forKey: .note)
+        note = try container.decodeIfPresent(String.self, forKey: .note) ?? CalibrationDataStatus.descriptiveOnly.note
     }
 
     package func encode(to encoder: Encoder) throws {
