@@ -1,9 +1,12 @@
 import Foundation
 
 package final class ProjectStore {
+    private static let maxProjectByteCount = 64 * 1024 * 1024
+
     package enum ProjectStoreError: LocalizedError {
         case unsupportedSchema(Int)
         case missingPhotoReference
+        case oversizedProject(String)
 
         package var errorDescription: String? {
             switch self {
@@ -11,6 +14,8 @@ package final class ProjectStore {
                 return "Film Chef project schema \(version) is not supported."
             case .missingPhotoReference:
                 return "The project does not contain a restorable photo reference."
+            case .oversizedProject(let name):
+                return "\(name) is too large to open as a Film Chef project."
             }
         }
     }
@@ -20,7 +25,7 @@ package final class ProjectStore {
     package func loadProject(from url: URL) throws -> FilmProject {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        let data = try Data(contentsOf: url)
+        let data = try projectData(from: url)
         let project = try decoder.decode(FilmProject.self, from: data)
 
         guard project.schemaVersion == 1 else {
@@ -37,6 +42,14 @@ package final class ProjectStore {
         let data = try encoder.encode(project)
         // Atomic so a crash mid-save cannot truncate the user's only copy.
         try data.write(to: url, options: [.atomic])
+    }
+
+    private func projectData(from url: URL) throws -> Data {
+        let values = try url.resourceValues(forKeys: [.fileSizeKey])
+        if let fileSize = values.fileSize, fileSize > Self.maxProjectByteCount {
+            throw ProjectStoreError.oversizedProject(url.lastPathComponent)
+        }
+        return try Data(contentsOf: url)
     }
 
     package func bookmarkData(for url: URL) -> Data? {

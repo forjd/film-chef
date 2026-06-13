@@ -1868,6 +1868,19 @@ func testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults() throws {
     try expect(partialProject.calibrationDataStatus.importedAssetNames == ["curves.json"])
     try expect(partialProject.calibrationDataStatus.redScale == 1.0)
     try expect(partialProject.calibrationDataStatus.note == CalibrationDataStatus.descriptiveOnly.note)
+
+    let oversizedProjectURL = directory.appendingPathComponent("Oversized.filmchef")
+    FileManager.default.createFile(atPath: oversizedProjectURL.path, contents: Data())
+    let oversizedHandle = try FileHandle(forWritingTo: oversizedProjectURL)
+    try oversizedHandle.truncate(atOffset: UInt64((64 * 1024 * 1024) + 1))
+    try oversizedHandle.close()
+
+    do {
+        _ = try ProjectStore().loadProject(from: oversizedProjectURL)
+        try expect(false, "Expected oversized project files to fail before decode.")
+    } catch let error as ProjectStore.ProjectStoreError {
+        try expect(error.errorDescription == "Oversized.filmchef is too large to open as a Film Chef project.")
+    }
 }
 
 @MainActor
