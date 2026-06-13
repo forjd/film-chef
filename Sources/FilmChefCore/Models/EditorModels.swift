@@ -107,6 +107,23 @@ package struct FilmProjectItem: Codable, Equatable, Identifiable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
+
+    package init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        originalURLPath = try container.decodeIfPresent(String.self, forKey: .originalURLPath)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        displayName = try container.decodeIfPresent(String.self, forKey: .displayName) ??
+            originalURLPath.map { URL(fileURLWithPath: $0).lastPathComponent } ??
+            "Missing Photo"
+        originalBookmarkData = try container.decodeIfPresent(Data.self, forKey: .originalBookmarkData)
+        selectedRecipeID = try container.decodeIfPresent(String.self, forKey: .selectedRecipeID)
+        adjustments = try container.decodeIfPresent(RenderAdjustments.self, forKey: .adjustments) ?? .defaults
+        localAdjustments = try container.decodeIfPresent([LocalAdjustmentLayer].self, forKey: .localAdjustments) ?? []
+        variants = try container.decodeIfPresent([EditSnapshot].self, forKey: .variants) ?? []
+        variantIndex = try container.decodeIfPresent(Int.self, forKey: .variantIndex)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
+    }
 }
 
 package struct EditSnapshot: Codable, Equatable, Identifiable {
@@ -140,13 +157,13 @@ package struct EditSnapshot: Codable, Equatable, Identifiable {
 
     package init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         recipeID = try container.decodeIfPresent(String.self, forKey: .recipeID)
-        adjustments = try container.decode(RenderAdjustments.self, forKey: .adjustments)
+        adjustments = try container.decodeIfPresent(RenderAdjustments.self, forKey: .adjustments) ?? .defaults
         localAdjustments = try container.decodeIfPresent([LocalAdjustmentLayer].self, forKey: .localAdjustments) ?? []
-        note = try container.decode(String.self, forKey: .note)
+        note = try container.decodeIfPresent(String.self, forKey: .note) ?? "Restored edit"
         isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
-        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
     }
 }
 
