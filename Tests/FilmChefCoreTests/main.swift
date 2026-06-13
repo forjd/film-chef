@@ -2370,6 +2370,48 @@ func testAsyncPreviewRenderAndBatchExportPipeline() async throws {
     try expect(!editor.batchExportState.wasCancelled)
 }
 
+@MainActor
+func testOpeningProjectSupersedesInFlightBatchExport() async throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let slowExportProcessor = ImageProcessor(bitmapRepresentation: { _, _, _ in
+        Thread.sleep(forTimeInterval: 0.3)
+        return Data([0])
+    })
+    let editor = EditorStore(
+        recipeStore: RecipeStore(),
+        projectStore: ProjectStore(),
+        imageProcessor: slowExportProcessor,
+        rendersSynchronouslyForTesting: true,
+        presentsPhotoImportPanel: false
+    )
+    editor.loadRecipesIfNeeded()
+
+    let photoURL = directory.appendingPathComponent("old-project-photo.png")
+    try writeTestPNG(to: photoURL, width: 16, height: 12)
+    editor.importPhotoForTesting(from: photoURL)
+
+    editor.startProjectExportTaskForTesting(to: directory.appendingPathComponent("old-export", isDirectory: true))
+    try expect(editor.batchExportState.isExporting)
+
+    let openedProjectURL = directory.appendingPathComponent("Opened.filmchef")
+    try ProjectStore().writeProject(FilmProject(name: "Opened Project"), to: openedProjectURL)
+    editor.openProjectForTesting(from: openedProjectURL)
+
+    try expect(editor.project.name == "Opened Project")
+    try expect(editor.batchExportState == BatchExportState())
+    try expect(editor.errorMessage == nil)
+
+    try? await Task.sleep(nanoseconds: 700_000_000)
+    try expect(editor.batchExportState == BatchExportState())
+    try expect(editor.errorMessage == nil)
+}
+
 func testRendererAdjustmentInvariants() throws {
     let recipes = try loadTestRecipes()
     let recipe = try require(recipes.first { $0.stock.family != .blackAndWhiteNegative })
@@ -3179,6 +3221,7 @@ let tests: [TestCase] = [
     TestCase(name: "project store loads sparse schema one projects with defaults", run: testProjectStoreLoadsSparseSchemaOneProjectsWithDefaults),
     TestCase(name: "renderer adjustment invariants", run: testRendererAdjustmentInvariants),
     TestCase(name: "async preview render and batch export pipeline", run: testAsyncPreviewRenderAndBatchExportPipeline),
+    TestCase(name: "opening project supersedes in-flight batch export", run: testOpeningProjectSupersedesInFlightBatchExport),
     TestCase(name: "editor undo history integrity", run: testEditorUndoHistoryIntegrity),
     TestCase(name: "project persists custom recipes", run: testProjectPersistsCustomRecipes),
     TestCase(name: "project store and editor persist restorable project", run: testProjectStoreAndEditorPersistRestorableProject),
