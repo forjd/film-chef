@@ -1524,6 +1524,9 @@ public final class EditorStore: ObservableObject {
             if let selectedItem = loadedProject.items.first(where: { $0.id == loadedProject.selectedItemID }) ?? loadedProject.items.first {
                 project.selectedItemID = selectedItem.id
                 applyProjectItem(selectedItem)
+            } else {
+                project.selectedItemID = nil
+                clearActiveProjectItemState()
             }
         } catch {
             suppressSettingsUpdates = false
@@ -2483,17 +2486,7 @@ public final class EditorStore: ObservableObject {
             sourceImage = nil
             sourceURL = nil
             importedImageName = nil
-            originalPreviewImage = nil
-            editedPreviewImage = nil
-            histogramSummary = nil
-            previewRenderTask?.cancel()
-            previewRenderGeneration += 1
-            isRenderingPreview = false
-            previewRenderProgress = 0
-            previewRenderStatus = "Photo needs relinking"
-            localMaskEditingEnabled = false
-            clearPixelSample(cancelPendingTask: true)
-            clearPreviewCache()
+            clearLoadedPhotoState(previewStatus: "Photo needs relinking")
             projectItemNeedingRelinkID = item.id
             errorMessage = error.localizedDescription
         }
@@ -2511,6 +2504,42 @@ public final class EditorStore: ObservableObject {
         selectedLocalAdjustmentID = localAdjustments.first?.id
         suppressPreviewUpdates = false
         restoreEditHistory(for: item)
+    }
+
+    private func clearActiveProjectItemState() {
+        suppressPreviewUpdates = true
+        selectedRecipeID = nil
+        intensity = RenderAdjustments.defaults.intensity
+        exposureTrim = RenderAdjustments.defaults.exposureTrim
+        contrastTrim = RenderAdjustments.defaults.contrastTrim
+        saturationTrim = RenderAdjustments.defaults.saturationTrim
+        grainEnabled = RenderAdjustments.defaults.grainEnabled
+        localAdjustments = []
+        selectedLocalAdjustmentID = nil
+        suppressPreviewUpdates = false
+        editHistory = []
+        editHistoryIndex = nil
+        sourceImage = nil
+        sourceURL = nil
+        importedImageName = nil
+        projectItemNeedingRelinkID = nil
+        clearLoadedPhotoState(previewStatus: "Idle")
+    }
+
+    private func clearLoadedPhotoState(previewStatus: String) {
+        originalPreviewImage = nil
+        editedPreviewImage = nil
+        histogramSummary = nil
+        previewRenderTask?.cancel()
+        previewRenderGeneration += 1
+        isRenderingPreview = false
+        previewRenderProgress = 0
+        previewRenderStatus = previewStatus
+        localMaskEditingEnabled = false
+        activeLocalMaskPointIndex = nil
+        clearPixelSample(cancelPendingTask: true)
+        clearPreviewCache()
+        resetPreviewView()
     }
 
     private func resolveAndRefreshPhotoURL(for item: FilmProjectItem) throws -> URL {
