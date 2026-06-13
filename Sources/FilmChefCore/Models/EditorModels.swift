@@ -966,11 +966,11 @@ package struct CalibrationDataStatus: Codable, Equatable, Hashable {
         self.supportsThreeDimensionalLUTs = supportsThreeDimensionalLUTs
         self.importedAssetNames = importedAssetNames
         self.importedAssetSummaries = importedAssetSummaries
-        self.redScale = redScale
-        self.greenScale = greenScale
-        self.blueScale = blueScale
-        self.densityGamma = densityGamma
-        self.grainAmount = grainAmount
+        self.redScale = Self.clamped(redScale, lower: 0.5, upper: 1.5)
+        self.greenScale = Self.clamped(greenScale, lower: 0.5, upper: 1.5)
+        self.blueScale = Self.clamped(blueScale, lower: 0.5, upper: 1.5)
+        self.densityGamma = Self.clamped(densityGamma, lower: 0.75, upper: 1.35)
+        self.grainAmount = Self.clamped(grainAmount, lower: 0, upper: 0.25)
         self.note = note
     }
 
