@@ -1580,6 +1580,23 @@ func testEditorRecipeImportExportRoundTripAndFailureInjection() throws {
         try expect(editor.selectedRecipeIsEditable)
         try expect(editor.recipeImportStatus?.title == "Recipe imported")
 
+        let conflictingRecipeURL = directory.appendingPathComponent("conflicting-bundled-recipe.json")
+        try writeRecipeJSON(from: recipe, to: conflictingRecipeURL) { object in
+            setJSONValue("Shadowed Bundled Import", path: ["display_name"], object: &object)
+        }
+        let selectedCustomRecipeID = editor.selectedRecipeID
+        editor.errorMessage = nil
+        editor.importRecipeForTesting(from: conflictingRecipeURL)
+        try expect(editor.selectedRecipeID == selectedCustomRecipeID)
+        try expect(editor.recipes.first { $0.id == recipe.id }?.name == recipe.name)
+        try expect(editor.errorMessage == "Recipe profile_id '\(recipe.id)' conflicts with a bundled recipe.")
+        if case .failed(let name, let issues) = editor.recipeImportStatus {
+            try expect(name == "conflicting-bundled-recipe.json")
+            try expect(issues.map(\.message).contains("Recipe profile_id '\(recipe.id)' conflicts with a bundled recipe."))
+        } else {
+            try expect(false, "Expected conflicting bundled recipe import to fail.")
+        }
+
         let invalidRecipeURL = directory.appendingPathComponent("invalid-recipe.json")
         try writeRecipeJSON(from: recipe, to: invalidRecipeURL) { object in
             setJSONValue(0, path: ["output", "bit_depth"], object: &object)
