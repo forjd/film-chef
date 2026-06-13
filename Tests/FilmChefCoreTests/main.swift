@@ -116,13 +116,26 @@ func writeRecipeJSON(
     try data.write(to: url)
 }
 
-func makeTestImage(width: Int = 16, height: Int = 12) -> CIImage {
-    CIImage(color: CIColor(red: 0.28, green: 0.48, blue: 0.72, alpha: 1.0))
+func makeTestImage(
+    width: Int = 16,
+    height: Int = 12,
+    red: Double = 0.28,
+    green: Double = 0.48,
+    blue: Double = 0.72
+) -> CIImage {
+    CIImage(color: CIColor(red: red, green: green, blue: blue, alpha: 1.0))
         .cropped(to: CGRect(x: 0, y: 0, width: width, height: height))
 }
 
-func writeTestPNG(to url: URL, width: Int = 16, height: Int = 12) throws {
-    let image = makeTestImage(width: width, height: height)
+func writeTestPNG(
+    to url: URL,
+    width: Int = 16,
+    height: Int = 12,
+    red: Double = 0.28,
+    green: Double = 0.48,
+    blue: Double = 0.72
+) throws {
+    let image = makeTestImage(width: width, height: height, red: red, green: green, blue: blue)
     let context = CIContext()
     let cgImage = try require(context.createCGImage(image, from: image.extent))
     let representation = NSBitmapImageRep(cgImage: cgImage)
@@ -1152,6 +1165,15 @@ func testEditorPhotoImportPreviewControlsAndCache() throws {
             editor.intensity = Double(step) / 10.0
         }
         try expect(editor.previewRenderCacheSize <= 8)
+
+        let cacheHitsBeforeReimport = editor.previewCacheHitCount
+        try writeTestPNG(to: sourceURL, width: 10, height: 8, red: 0.82, green: 0.22, blue: 0.18)
+        editor.handleImportResults(.success([sourceURL]))
+        try expect(editor.importedImageName == " Sample Photo .png")
+        try expect(
+            editor.previewCacheHitCount == cacheHitsBeforeReimport,
+            "Reimporting a changed file at the same path should not reuse the old preview cache entry."
+        )
     }
 }
 
