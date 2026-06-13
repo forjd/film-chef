@@ -122,7 +122,7 @@ Recipes live in:
 Sources/FilmChefCore/Resources/Recipes/*.json
 ```
 
-Each file contains one resolved film profile. Use a stable `profile_id` and name the file after that slug.
+Each file contains one resolved film profile. Use a stable `profile_id`, name the file after that slug, and keep the slug lowercase ASCII with only letters, numbers, hyphens, or underscores.
 
 ```json
 {

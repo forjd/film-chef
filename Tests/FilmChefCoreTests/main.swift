@@ -306,6 +306,7 @@ func testRecipeValidatorReportsActionableIssues() throws {
     let recipe = try require(recipes.first { $0.stock.family != .blackAndWhiteNegative })
     let invalidRecipe = try mutatedRecipe(from: recipe) { object in
         object["schema_version"] = "99.0"
+        object["profile_id"] = " \(recipe.profileId.uppercased()) "
         object["display_name"] = "   "
         setJSONValue(0, path: ["stock", "box_speed_iso"], object: &object)
         setJSONValue([], path: ["layer_model", "rgb_to_layer_matrix"], object: &object)
@@ -316,6 +317,8 @@ func testRecipeValidatorReportsActionableIssues() throws {
 
     let issues = FilmRecipeValidator.issues(for: invalidRecipe).map(\.message)
     try expect(issues.contains("Unsupported schema_version '99.0'."))
+    try expect(issues.contains("profile_id must not contain leading or trailing whitespace."))
+    try expect(issues.contains("profile_id must use lowercase ASCII letters, numbers, hyphens, or underscores only."))
     try expect(issues.contains("display_name must not be empty."))
     try expect(issues.contains("stock.box_speed_iso must be greater than 0."))
     try expect(issues.contains("layer_model.rgb_to_layer_matrix must include at least one row."))
@@ -1609,6 +1612,23 @@ func testEditorRecipeImportExportRoundTripAndFailureInjection() throws {
             try expect(issues.map(\.message).contains("Recipe profile_id '\(recipe.id)' conflicts with a bundled recipe."))
         } else {
             try expect(false, "Expected conflicting bundled recipe import to fail.")
+        }
+
+        let whitespaceProfileIDURL = directory.appendingPathComponent("whitespace-profile-id.json")
+        try writeRecipeJSON(from: recipe, to: whitespaceProfileIDURL) { object in
+            setJSONValue(" \(recipe.id) ", path: ["profile_id"], object: &object)
+            setJSONValue("Whitespace Profile ID", path: ["display_name"], object: &object)
+        }
+        editor.errorMessage = nil
+        editor.importRecipeForTesting(from: whitespaceProfileIDURL)
+        try expect(editor.selectedRecipeID == selectedCustomRecipeID)
+        try expect(!editor.recipes.contains { $0.id == " \(recipe.id) " })
+        try expect(editor.errorMessage?.contains("profile_id must not contain leading or trailing whitespace.") == true)
+        if case .failed(let name, let issues) = editor.recipeImportStatus {
+            try expect(name == "whitespace-profile-id.json")
+            try expect(issues.map(\.message).contains("profile_id must not contain leading or trailing whitespace."))
+        } else {
+            try expect(false, "Expected whitespace profile ID import to fail.")
         }
 
         let invalidRecipeURL = directory.appendingPathComponent("invalid-recipe.json")
