@@ -2750,6 +2750,9 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         try expect(reopened.exportSettings.fileFormat == .tiff)
         try expect(reopened.exportSettings.namingTemplate == "{photo}_custom")
         try expect(reopened.exportPresets.contains { $0.name == "Project TIFF" })
+        let reopenedProjectTIFFPreset = try require(reopened.exportPresets.first { $0.name == "Project TIFF" })
+        try expect(reopened.selectedExportPresetID == reopenedProjectTIFFPreset.id)
+        try expect(reopened.exportPresetDraftName == "Project TIFF")
         try expect(reopened.calibrationDataStatus.importedAssetNames == ["project-lut.cube"])
         try expect(reopened.calibrationDataStatus.importedAssetSummaries == ["project-lut.cube: 3D LUT"])
         try expect(reopened.calibrationDataStatus.redScale > reopened.calibrationDataStatus.blueScale)
@@ -2795,6 +2798,28 @@ func testProjectStoreAndEditorPersistRestorableProject() throws {
         try expect(emptyEditor.editedPreviewImage == nil)
         try expect(emptyEditor.histogramSummary == nil)
         try expect(emptyEditor.previewRenderStatus == "Idle")
+
+        let currentSettingsProjectURL = directory.appendingPathComponent("Current Export Settings.filmchef")
+        let currentExportSettings = ExportSettings(
+            fileFormat: .png,
+            jpegQuality: 0.8,
+            scale: 0.75,
+            namingTemplate: "{photo}-current"
+        )
+        try ProjectStore().writeProject(
+            FilmProject(
+                name: "Current Export Settings",
+                exportSettings: currentExportSettings,
+                exportPresets: ExportPreset.defaults
+            ),
+            to: currentSettingsProjectURL
+        )
+        let currentSettingsEditor = EditorStore(recipeStore: RecipeStore(), imageProcessor: ImageProcessor())
+        currentSettingsEditor.loadRecipesIfNeeded()
+        currentSettingsEditor.openProjectForTesting(from: currentSettingsProjectURL)
+        try expect(currentSettingsEditor.exportSettings == currentExportSettings)
+        try expect(currentSettingsEditor.selectedExportPresetID == nil)
+        try expect(currentSettingsEditor.exportPresetDraftName == "Custom Preset")
 
         let missingRecipeItemID = UUID()
         let missingRecipeProject = FilmProject(

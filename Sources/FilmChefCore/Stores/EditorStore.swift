@@ -1576,8 +1576,10 @@ public final class EditorStore: ObservableObject {
             editHistoryIndex = loadedProject.editHistoryIndex
             exportSettings = loadedProject.exportSettings
             exportPresets = loadedProject.exportPresets.isEmpty ? ExportPreset.defaults : loadedProject.exportPresets
-            selectedExportPresetID = exportPresets.first?.id
-            exportPresetDraftName = exportPresets.first?.name ?? "Custom Preset"
+            selectedExportPresetID = exportPresets.first { $0.settings == exportSettings }?.id
+            exportPresetDraftName = selectedExportPresetID.flatMap { selectedID in
+                exportPresets.first { $0.id == selectedID }?.name
+            } ?? uniqueExportPresetName(base: "Custom Preset")
             colorManagementSettings = loadedProject.colorManagementSettings
             calibrationDataStatus = loadedProject.calibrationDataStatus
             suppressSettingsUpdates = false
