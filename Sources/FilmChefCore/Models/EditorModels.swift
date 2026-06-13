@@ -902,6 +902,7 @@ package enum ColorOutputProfile: String, CaseIterable, Codable, Equatable, Hasha
     case sRGB = "srgb"
     case displayP3 = "display_p3"
     case extendedSRGB = "extended_srgb"
+    case extendedLinearSRGB = "extended_linear_srgb"
     case linearSRGB = "linear_srgb"
 
     package var id: String { rawValue }
@@ -914,6 +915,8 @@ package enum ColorOutputProfile: String, CaseIterable, Codable, Equatable, Hasha
             return "Display P3"
         case .extendedSRGB:
             return "Extended sRGB"
+        case .extendedLinearSRGB:
+            return "Extended Linear sRGB"
         case .linearSRGB:
             return "Linear sRGB"
         }
@@ -927,6 +930,8 @@ package enum ColorOutputProfile: String, CaseIterable, Codable, Equatable, Hasha
 
         if normalized.contains("display_p3") || normalized == "p3" {
             self = .displayP3
+        } else if normalized.contains("extended"), normalized.contains("linear") {
+            self = .extendedLinearSRGB
         } else if normalized.contains("extended") {
             self = .extendedSRGB
         } else if normalized.contains("linear") {

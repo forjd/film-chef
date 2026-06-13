@@ -464,7 +464,8 @@ func testRecipeDisplayMetadataAccessors() throws {
     }
 
     try expect(ColorOutputProfile(rawProfileName: "Display P3") == .displayP3)
-    try expect(ColorOutputProfile(rawProfileName: "extended-linear-srgb") == .extendedSRGB)
+    try expect(ColorOutputProfile(rawProfileName: "extended-linear-srgb") == .extendedLinearSRGB)
+    try expect(ColorOutputProfile(rawProfileName: "extended_srgb") == .extendedSRGB)
     try expect(ColorOutputProfile(rawProfileName: "linear_srgb") == .linearSRGB)
     try expect(ColorOutputProfile(rawProfileName: "unknown") == .sRGB)
 }
