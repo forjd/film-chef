@@ -1360,6 +1360,14 @@ public final class EditorStore: ObservableObject {
         batchExportTask?.cancel()
     }
 
+    private func supersedeBatchExportForProjectContextChange() {
+        cancelBatchExportRequested = true
+        batchExportTask?.cancel()
+        batchExportTask = nil
+        batchExportGeneration += 1
+        batchExportState = BatchExportState()
+    }
+
     public func saveProject() {
         let panel = NSSavePanel()
         panel.title = "Save Film Chef Project"
@@ -1572,6 +1580,7 @@ public final class EditorStore: ObservableObject {
             }
 
             let loadedProject = try projectStore.loadProject(from: url)
+            supersedeBatchExportForProjectContextChange()
             suppressSettingsUpdates = true
             project = loadedProject
             errorMessage = nil
